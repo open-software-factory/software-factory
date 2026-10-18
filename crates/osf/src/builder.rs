@@ -193,36 +193,17 @@ pub fn detect(
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-    use std::process::Command;
 
-    /// Runs `git init --quiet` in `dir`, then sets a fixed local identity
-    /// so `commit` needs nothing from the ambient environment.
+    /// Initialises a repository in `dir` with a fixed local identity, so
+    /// `commit` needs nothing from the ambient environment.
     fn init_repo(dir: &Path) {
-        let mut command = Command::new("git");
-        command.arg("init").arg("--quiet").arg(dir).current_dir(dir);
-        git::scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(status.success(), "git init failed for {}", dir.display());
-
-        for (key, value) in [("user.name", "Test"), ("user.email", "test@example.com")] {
-            let mut config = Command::new("git");
-            config.args(["config", key, value]).current_dir(dir);
-            git::scrub_git_env(&mut config);
-            let status = config.status().expect("git config runs");
-            assert!(status.success(), "git config {key} failed");
-        }
+        crate::scratch_git::init(dir);
     }
 
     /// An empty commit on `dir`'s current branch, with `message` as its
     /// whole message (trailers included, as plain trailing lines).
     fn commit(dir: &Path, message: &str) {
-        let mut command = Command::new("git");
-        command
-            .args(["commit", "--allow-empty", "--quiet", "-m", message])
-            .current_dir(dir);
-        git::scrub_git_env(&mut command);
-        let status = command.status().expect("git commit runs");
-        assert!(status.success(), "git commit failed for {message:?}");
+        crate::scratch_git::ok(dir, &["commit", "--allow-empty", "--quiet", "-m", message]);
     }
 
     fn commit_hash(dir: &Path) -> String {
@@ -468,10 +449,7 @@ mod tests {
 
     /// Runs `git <args>` in `dir`, which must succeed.
     fn git_ok(dir: &Path, args: &[&str]) {
-        let mut c = Command::new("git");
-        c.args(args).current_dir(dir);
-        git::scrub_git_env(&mut c);
-        assert!(c.status().expect("git runs").success(), "{args:?}");
+        crate::scratch_git::ok(dir, args);
     }
 
     fn write_file(dir: &Path, name: &str, text: &str) {
@@ -527,15 +505,8 @@ mod tests {
             Some("one\nSIDE\nthree\n"),
             Some("one\nMAIN\nthree\n"),
         );
-        let mut merge = Command::new("git");
-        merge
-            .args(["merge", "--no-ff", "--no-commit", "side"])
-            .current_dir(&root);
-        git::scrub_git_env(&mut merge);
-        assert!(
-            !merge.status().expect("git runs").success(),
-            "must conflict"
-        );
+        let merge = crate::scratch_git::run(&root, &["merge", "--no-ff", "--no-commit", "side"]);
+        assert!(!merge.status.success(), "must conflict");
         write_file(&root, "shared.txt", "one\nRESOLVED\nthree\n");
         git_ok(&root, &["add", "-A"]);
         git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);
@@ -548,15 +519,8 @@ mod tests {
     /// checking out `pick` (`--ours` or `--theirs`) and commits the merge.
     fn conflict_resolved_by(name: &str, pick: &str) -> (TempDir, String) {
         let (root, base) = forked(name, Some("one\nSIDE\nthree\n"), Some("one\nMAIN\nthree\n"));
-        let mut merge = Command::new("git");
-        merge
-            .args(["merge", "--no-ff", "--no-commit", "side"])
-            .current_dir(&root);
-        git::scrub_git_env(&mut merge);
-        assert!(
-            !merge.status().expect("git runs").success(),
-            "must conflict"
-        );
+        let merge = crate::scratch_git::run(&root, &["merge", "--no-ff", "--no-commit", "side"]);
+        assert!(!merge.status.success(), "must conflict");
         git_ok(&root, &["checkout", pick, "shared.txt"]);
         git_ok(&root, &["add", "-A"]);
         git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);

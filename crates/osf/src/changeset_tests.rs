@@ -616,19 +616,12 @@ mod tests {
             let dir = crate::test_support::unique_temp_path(&format!(
                 "osf-changeset-tests-readat-{name}"
             ));
-            std::fs::create_dir_all(&dir).expect("temp repo dir creates");
-            let repo = RawRepo { dir };
-            repo.git(&["init", "-q", "-b", "main"]);
-            repo.git(&["config", "user.email", "test@example.com"]);
-            repo.git(&["config", "user.name", "Test"]);
-            repo
+            crate::scratch_git::init(&dir);
+            RawRepo { dir }
         }
 
         fn git(&self, args: &[&str]) -> std::process::Output {
-            let mut command = std::process::Command::new("git");
-            command.current_dir(&self.dir).args(args);
-            crate::git::scrub_git_env(&mut command);
-            let output = command.output().expect("git runs");
+            let output = crate::scratch_git::run(&self.dir, args);
             assert!(
                 output.status.success(),
                 "git {args:?} failed: {}",

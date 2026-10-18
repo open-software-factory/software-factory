@@ -447,12 +447,9 @@ const SAVED_PULL_REQUEST: u64 = 7;
 
 /// The commit `rev` names in the repository at `dir`.
 fn commit_of(dir: &Path, rev: &str) -> String {
-    let mut command = std::process::Command::new("git");
-    command.current_dir(dir).args(["rev-parse", rev]);
-    osf::scrub_git_env(&mut command);
-    let out = command.output().expect("git runs");
-    assert!(out.status.success(), "git rev-parse {rev} failed");
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
+    common::scratch_git::ok(dir, &["rev-parse", rev])
+        .trim()
+        .to_string()
 }
 
 /// The flags that bind a saved run, and the reduce step, to one pull

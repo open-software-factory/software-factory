@@ -54,8 +54,6 @@ setting no longer matters. The git wrapper, below, forces
 workspace. A command-line setting always wins over one written to a
 config file, local or system.
 
-The test suite is hermetic against the git variables a hook exports. Every test helper that runs git removes the inherited `GIT_*` variables first. The ignored tests in `crates/osf/tests/git_env_hermetic.rs` prove it. They run the whole unit and integration suites under a sentinel `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE`. Then they check that the sentinel repository is unchanged.
-
 ## What the hooks cannot do
 
 A local hook is not unbypassable. `git commit --no-verify` and

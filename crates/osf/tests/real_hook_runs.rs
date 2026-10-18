@@ -1,199 +1,22 @@
-//! Hermetic guard for the fix in `crate::git::scrub_git_env`: a test (or a
-//! real git hook) that starts `git` in a throwaway directory must never be
-//! redirected by an inherited `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`.
+//! Real git hook runs against throwaway repositories. Git itself exports
+//! `GIT_DIR`, `GIT_INDEX_FILE` and related variables to a hook it starts;
+//! these tests check osf's checkpoint behaves when it is started that way,
+//! and never touches the repository that started the test run. They do not
+//! set any git variable themselves: every git call goes through
+//! `common::scratch_git`.
 
 mod common;
 use common::{
     git_with_hook_env, isolated_home, run_osf_with_env, session_link, unique_dir, TempRepo,
 };
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
-/// The workspace root, two directories above this crate's manifest.
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crates directory")
-        .parent()
-        .expect("workspace root")
-        .to_path_buf()
-}
-
-/// A throwaway repository standing in for a real repository a caller's own hook exported `GIT_DIR` for.
-struct Sentinel {
-    dir: PathBuf,
-}
-
-impl Sentinel {
-    fn new(name: &str) -> Self {
-        let dir = unique_dir(&format!("osf-git-env-sentinel-{name}"));
-        std::fs::create_dir_all(&dir).expect("sentinel dir creates");
-        let mut command = Command::new("git");
-        command.current_dir(&dir).args(["init", "-q", "-b", "main"]);
-        osf::scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(status.success(), "sentinel git init failed");
-        Sentinel { dir }
-    }
-
-    fn git_dir(&self) -> PathBuf {
-        self.dir.join(".git")
-    }
-
-    fn config_bytes(&self) -> Vec<u8> {
-        std::fs::read(self.git_dir().join("config")).expect("sentinel config reads")
-    }
-
-    /// Every file under the sentinel's git directory, by relative path, with its bytes.
-    fn snapshot(&self) -> BTreeMap<PathBuf, Vec<u8>> {
-        let mut files = BTreeMap::new();
-        collect_files(&self.git_dir(), &self.git_dir(), &mut files);
-        files
-    }
-
-    /// Asserts `before` (taken earlier) equals the sentinel now, and that nothing wrote `core.bare` or a `[user]` section into its config.
-    fn assert_untouched_since(&self, before: &BTreeMap<PathBuf, Vec<u8>>) {
-        let config = String::from_utf8_lossy(&self.config_bytes()).into_owned();
-        assert!(
-            !config.contains("[user]"),
-            "a test wrote a [user] section into the sentinel:\n{config}"
-        );
-        assert!(
-            config.contains("bare = false"),
-            "a test changed core.bare in the sentinel:\n{config}"
-        );
-        assert_eq!(
-            before,
-            &self.snapshot(),
-            "the sentinel's git directory changed"
-        );
-    }
-}
-
-fn collect_files(root: &Path, dir: &Path, out: &mut BTreeMap<PathBuf, Vec<u8>>) {
-    for entry in std::fs::read_dir(dir).expect("sentinel dir reads") {
-        let path = entry.expect("sentinel entry reads").path();
-        if path.is_dir() {
-            collect_files(root, &path, out);
-        } else {
-            let relative = path.strip_prefix(root).expect("under root").to_path_buf();
-            out.insert(relative, std::fs::read(&path).expect("sentinel file reads"));
-        }
-    }
-}
-
-impl Drop for Sentinel {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.dir);
-    }
-}
-
-/// Runs `cargo test <args>` with `GIT_DIR`/`GIT_WORK_TREE` set on that one
-/// child process, the way a pre-push hook exports them, and asserts it
-/// passed. Also clears every inherited `OSF_*`/`MOON_*` variable first:
-/// this repository's own checkpoint sets `OSF_CONFIG`, `OSF_DENYLIST` and
-/// various `MOON_*` variables on `cargo test` itself, and the nested run
-/// here must see this workspace's plain `osf.toml`, not whatever config or
-/// task state the outer checkpoint run left behind.
-fn run_cargo_test_under_sentinel_git_env(sentinel: &Sentinel, args: &[&str]) {
-    let mut command = Command::new(env!("CARGO"));
-    command.current_dir(workspace_root()).arg("test").args(args);
-    for (key, _) in std::env::vars() {
-        if key.starts_with("OSF_") || key.starts_with("MOON_") {
-            command.env_remove(key);
-        }
-    }
-    let status = command
-        .env("GIT_DIR", sentinel.git_dir())
-        .env("GIT_WORK_TREE", &sentinel.dir)
-        .env("GIT_INDEX_FILE", sentinel.git_dir().join("index"))
-        .status()
-        .expect("cargo test runs");
-    assert!(
-        status.success(),
-        "cargo test {args:?} failed under a sentinel GIT_DIR"
-    );
-}
-
-/// `cargo test -p osf --lib config`, run with `GIT_DIR`/`GIT_WORK_TREE` set the way a pre-push hook sets them, must leave the sentinel byte-identical and pass every test.
-#[test]
-#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
-fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
-    let sentinel = Sentinel::new("config");
-    let before = sentinel.config_bytes();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--lib", "config"]);
-    let after = sentinel.config_bytes();
-    assert_eq!(before, after, "the sentinel's config changed");
-}
-
-/// Every unit test in the crate, run with the variables a pre-push hook exports, must pass and leave the sentinel's git directory byte-identical, with no `[user]` section and no `core.bare` change: the `config` filter above covers one module only, and a helper in any other module that runs git unscrubbed acts on the repository `GIT_DIR` names.
-#[test]
-#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
-fn the_whole_lib_suite_never_touches_a_sentinel_pointed_to_by_git_dir() {
-    let sentinel = Sentinel::new("whole-lib");
-    let before = sentinel.snapshot();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--lib"]);
-    sentinel.assert_untouched_since(&before);
-}
-
-/// The same for every integration test file, the ones that run git or the built binary included. No test legitimately needs the caller's `GIT_DIR`: each one builds its own repository and must scrub the variable.
-#[test]
-#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
-fn the_whole_integration_suite_never_touches_a_sentinel_pointed_to_by_git_dir() {
-    let sentinel = Sentinel::new("whole-integration");
-    let before = sentinel.snapshot();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--tests"]);
-    sentinel.assert_untouched_since(&before);
-}
-
-/// The same check as the `config` one above, against `checkpoint.rs`'s own
-/// integration tests instead: those run the real pre-push checkpoint
-/// (moon included) through `run_osf`, spawning the built `osf` binary the
-/// same way a real hook would.
-#[test]
-#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
-fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
-    let sentinel = Sentinel::new("checkpoint");
-    let before = sentinel.config_bytes();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "checkpoint"]);
-    let after = sentinel.config_bytes();
-    assert_eq!(before, after, "the sentinel's config changed");
-}
-
-/// `changeset_risk::assess` takes an explicit folder, but every git call it made ran
-/// unscrubbed, so an inherited `GIT_DIR` (the same shape a real pre-push
-/// hook running `cargo test` leaves on the process) redirected it to the
-/// wrong repository and the wrong tier.
-#[test]
-#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
-fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
-    let sentinel = Sentinel::new("risk");
-    let before = sentinel.config_bytes();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "changeset_risk"]);
-    let after = sentinel.config_bytes();
-    assert_eq!(before, after, "the sentinel's config changed");
-}
-
-/// A git command in `dir`, with every inherited `GIT_*` variable scrubbed
-/// first, along with `OSF_*` and `MOON_*`: this repository's own checkpoint
-/// sets `OSF_CONFIG`, `OSF_DENYLIST` and various `MOON_*` variables on
-/// `cargo test` itself, and a `git commit`/`git push` here can run a real
-/// hook that execs the built `osf` binary, which would otherwise inherit
-/// them and resolve a config path relative to the wrong directory.
+/// A git command in `dir` through the shared scratch helper.
 fn git_in(dir: &Path, args: &[&str]) -> std::process::Output {
-    let mut command = Command::new("git");
-    command.current_dir(dir).args(args);
-    osf::scrub_git_env(&mut command);
-    for (key, _) in std::env::vars() {
-        if key.starts_with("OSF_") || key.starts_with("MOON_") {
-            command.env_remove(key);
-        }
-    }
-    command.output().expect("git runs")
+    common::scratch_git::run(dir, args)
 }
 
-/// `core.bare`, read fresh from `dir`'s own config, with every inherited `GIT_*` variable scrubbed first.
+/// `core.bare`, read fresh from `dir`'s own config.
 fn core_bare(dir: &Path) -> String {
     let out = git_in(dir, &["config", "--get", "core.bare"]);
     String::from_utf8_lossy(&out.stdout).trim().to_string()
@@ -209,7 +32,7 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
 
     let clone_dir = unique_dir("osf-git-env-hook-clone");
     let clone = git_in(
-        Path::new("."),
+        &sentinel.dir,
         &[
             "clone",
             "-q",
@@ -229,16 +52,7 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     );
 
     let bare_dir = unique_dir("osf-git-env-hook-bare.git");
-    let bare_init = git_in(
-        Path::new("."),
-        &[
-            "init",
-            "-q",
-            "--bare",
-            bare_dir.to_str().expect("utf8 path"),
-        ],
-    );
-    assert!(bare_init.status.success(), "bare remote init failed");
+    common::scratch_git::init_bare(&bare_dir);
     let remote = git_in(
         &clone_dir,
         &[
@@ -409,16 +223,7 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
     );
 
     let bare_dir = unique_dir("osf-git-env-whole-checkpoint-bare.git");
-    let bare_init = git_in(
-        Path::new("."),
-        &[
-            "init",
-            "-q",
-            "--bare",
-            bare_dir.to_str().expect("utf8 path"),
-        ],
-    );
-    assert!(bare_init.status.success(), "bare remote init failed");
+    common::scratch_git::init_bare(&bare_dir);
     let remote = git_in(
         &repo.dir,
         &[
@@ -502,16 +307,7 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
     );
 
     let bare_dir = unique_dir("osf-git-env-linked-worktree-bare.git");
-    let bare_init = git_in(
-        Path::new("."),
-        &[
-            "init",
-            "-q",
-            "--bare",
-            bare_dir.to_str().expect("utf8 path"),
-        ],
-    );
-    assert!(bare_init.status.success(), "bare remote init failed");
+    common::scratch_git::init_bare(&bare_dir);
     let remote = git_in(
         &worktree_dir,
         &[
