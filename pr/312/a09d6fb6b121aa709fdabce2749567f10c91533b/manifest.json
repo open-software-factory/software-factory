@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a09d6fb6b121aa709fdabce2749567f10c91533b",
+    "contentHash": "81e470d96a39570e4d11bfaa3f63183b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-root-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-root",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f40f4417555342ba2d0045bb8ec9b05f",
+      "bytes": 20388,
+      "width": 1728,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-root-light-f40f4417555342ba2d0045bb8ec9b05f.svg"
+    },
+    {
+      "id": "architecture-root-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-root",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3c31f731c13b4441e6ee023d45f2f270",
+      "bytes": 20642,
+      "width": 1728,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-root-dark-3c31f731c13b4441e6ee023d45f2f270.svg"
+    },
+    {
+      "id": "git-wrapper-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-wrapper-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ebfea71a73d0691d9c4fab1264845174",
+      "bytes": 12293,
+      "width": 997,
+      "height": 646,
+      "animated": false,
+      "path": "git-wrapper-components-light-ebfea71a73d0691d9c4fab1264845174.svg"
+    },
+    {
+      "id": "git-wrapper-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-wrapper-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1a556bcbe930d98f3323267d9eba6d7",
+      "bytes": 12430,
+      "width": 997,
+      "height": 646,
+      "animated": false,
+      "path": "git-wrapper-components-dark-d1a556bcbe930d98f3323267d9eba6d7.svg"
+    }
+  ]
+}

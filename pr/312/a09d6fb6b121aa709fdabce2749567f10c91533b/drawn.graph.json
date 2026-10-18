@@ -1,0 +1,677 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T08:07:15.345Z",
+  "title": "Hermetic git env: scrub GIT_* in every git-spawning helper",
+  "summary": "Makes the osf test suite hermetic against the git environment a pre-push hook exports. A new `scrub_locating_git_env` helper removes only the repository-locating `GIT_*` variables (leaving `GIT_INDEX_FILE` and the rest alone); `scrub_with_index` now delegates to it, `merge_base` scrubs before running git, and moon's `strip_inherited_moon_vars` scrubs locating vars so nested moon finds its own repository. Every test helper that shells out to git — in assets, changeset, clean_copy, config, checkpoint, builder, git and the assets_publish integration test — now scrubs first and runs `git init` from inside the target directory. Two new ignored tests run the whole lib and integration suites under a sentinel `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` and assert the sentinel's git directory is byte-identical afterwards.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad",
+      "ref": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad"
+    },
+    "head": {
+      "sha": "a09d6fb6b121aa709fdabce2749567f10c91533b",
+      "ref": "a09d6fb6b121aa709fdabce2749567f10c91533b"
+    },
+    "pullRequest": {
+      "number": 312,
+      "url": "https://github.com/open-software-factory/software-factory/pull/312"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "test-harness",
+      "label": "Test harness",
+      "subtitle": "cargo test, nested suites",
+      "order": 0,
+      "summary": "The test binaries and the ignored hermeticity tests that spawn nested cargo test runs under a sentinel git environment."
+    },
+    {
+      "id": "osf-lib",
+      "label": "osf crate",
+      "subtitle": "git wrapper, moon, assets",
+      "order": 1,
+      "summary": "The library code that spawns git and moon child processes and decides what environment they inherit."
+    },
+    {
+      "id": "child-processes",
+      "label": "Child processes",
+      "subtitle": "git, moon",
+      "order": 2,
+      "summary": "The external binaries osf shells out to; each resolves its repository from its own environment and working directory."
+    },
+    {
+      "id": "sentinel-repo",
+      "label": "Sentinel repository",
+      "subtitle": "on-disk git dir",
+      "order": 3,
+      "summary": "A throwaway repository whose git directory must stay byte-identical across a whole nested test run."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "git-env-hermetic-tests",
+      "label": "git_env_hermetic.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "test-harness",
+      "subtitle": "sentinel GIT_DIR harness",
+      "summary": "Builds a sentinel repository, snapshots every file under its git directory, runs a nested cargo test with GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE pointed at it, then asserts the snapshot is unchanged and no `[user]` section or `core.bare` change appeared. Two new ignored tests widen this from the config module to the whole lib and integration suites.",
+      "files": [
+        {
+          "path": "crates/osf/tests/git_env_hermetic.rs",
+          "startLine": 44,
+          "endLine": 130
+        }
+      ],
+      "badges": [
+        "2 new ignored tests"
+      ]
+    },
+    {
+      "id": "nested-cargo-test",
+      "label": "nested cargo test",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "test-harness",
+      "subtitle": "-p osf --lib / --tests",
+      "summary": "The child cargo invocation the hermeticity tests start, now also given GIT_INDEX_FILE so the sentinel's index is in play as well as its GIT_DIR and work tree.",
+      "files": [
+        {
+          "path": "crates/osf/tests/git_env_hermetic.rs",
+          "startLine": 100,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unit-test-helpers",
+      "label": "unit test git helpers",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "test-harness",
+      "group": "crate-unit-tests",
+      "summary": "The per-module helpers in builder, changeset_tests, checkpoint, clean_copy, config and git.rs that shell out to git. Each now scrubs the inherited GIT_* variables before running, and `git init` runs with its working directory set to the target dir so a process-wide cwd change by another test cannot redirect it.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 199,
+          "endLine": 206
+        },
+        {
+          "path": "crates/osf/src/changeset_tests.rs",
+          "startLine": 625,
+          "endLine": 636
+        },
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 1398,
+          "endLine": 1404
+        },
+        {
+          "path": "crates/osf/src/clean_copy.rs",
+          "startLine": 180,
+          "endLine": 190
+        },
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 893,
+          "endLine": 899
+        },
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 1039,
+          "endLine": 1090
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "assets-publish-test",
+      "label": "assets_publish.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "test-harness",
+      "group": "integration-tests",
+      "summary": "The bare-remote fixture and its `commits_on` / `file_at` helpers now scrub the git environment through the public `osf::scrub_git_env` before running git init, log and show.",
+      "files": [
+        {
+          "path": "crates/osf/tests/assets_publish.rs",
+          "startLine": 30,
+          "endLine": 80
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scrub-locating-git-env",
+      "label": "scrub_locating_git_env",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-lib",
+      "group": "git-wrapper",
+      "subtitle": "fn(&mut Command)",
+      "summary": "New crate-visible helper that removes only the repository-locating GIT_* variables from a child command, deliberately leaving GIT_INDEX_FILE and everything else inherited. It is the narrow counterpart to the full scrub, for children that run git themselves.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 45,
+          "endLine": 51
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scrub-with-index",
+      "label": "scrub_with_index",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-lib",
+      "group": "git-wrapper",
+      "subtitle": "fn(&mut Command, &Path, Option<OsString>)",
+      "summary": "The full scrub used by `scrub_git_env_for_dir`. Its locating-variable loop is now a call to `scrub_locating_git_env`; the GIT_INDEX_FILE containment check is unchanged.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 129,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "merge-base",
+      "label": "merge_base",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-lib",
+      "group": "git-wrapper",
+      "subtitle": "fn(&Path, &str, &str)",
+      "summary": "Now scrubs the git environment for the target directory before running `git merge-base`, so the answer comes from that repository rather than a caller's GIT_DIR.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 199,
+          "endLine": 210
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "strip-inherited-moon-vars",
+      "label": "strip_inherited_moon_vars",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-lib",
+      "group": "moon",
+      "subtitle": "fn(&mut Command)",
+      "summary": "Already removed every inherited MOON_* variable; now also calls `scrub_locating_git_env`, so a nested moon that runs git finds the repository from its working directory instead of the outer task's GIT_DIR.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 81,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "assets-run-git",
+      "label": "assets run_git",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-lib",
+      "group": "assets",
+      "subtitle": "fn(&Path, &[&str])",
+      "summary": "The production git runner behind asset publishing now scrubs the git environment for its directory before spawning git.",
+      "files": [
+        {
+          "path": "crates/osf/src/assets.rs",
+          "startLine": 141,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-binary",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "child-processes",
+      "summary": "The git CLI. Resolves which repository to act on from GIT_DIR/GIT_WORK_TREE and the working directory, which is exactly what the scrub is about.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "moon-binary",
+      "label": "moon",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "child-processes",
+      "summary": "The moon task runner, which runs git itself and must find the workspace's repository from its working directory.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "sentinel-git-dir",
+      "label": "sentinel .git",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "sentinel-repo",
+      "summary": "The sentinel repository's git directory: config, index and refs. Snapshotted before a nested run and compared byte-for-byte after; any write by an unscrubbed helper shows up here.",
+      "files": [
+        {
+          "path": "crates/osf/tests/git_env_hermetic.rs",
+          "startLine": 44,
+          "endLine": 80
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "hermetic-tests-spawn-nested",
+      "from": "git-env-hermetic-tests",
+      "to": "nested-cargo-test",
+      "kind": "call",
+      "delta": "modified",
+      "label": "GIT_DIR + GIT_INDEX_FILE",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The hermeticity tests start a nested cargo test with the sentinel's git variables exported, which is how a pre-push hook's environment reaches every test helper.",
+      "files": [
+        {
+          "path": "crates/osf/tests/git_env_hermetic.rs",
+          "startLine": 100,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "nested-cargo-test-runs-helpers",
+      "from": "nested-cargo-test",
+      "to": "unit-test-helpers",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The nested run executes the crate's unit tests, whose git helpers now scrub before spawning git.",
+      "files": []
+    },
+    {
+      "id": "nested-cargo-test-runs-assets-test",
+      "from": "nested-cargo-test",
+      "to": "assets-publish-test",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The `--tests` run executes the integration test files, including assets_publish.",
+      "files": []
+    },
+    {
+      "id": "unit-helpers-call-git",
+      "from": "unit-test-helpers",
+      "to": "git-binary",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scrubbed env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each helper removes the inherited locating GIT_* variables before running git, so git acts on the helper's own repository.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 1393,
+          "endLine": 1405
+        }
+      ]
+    },
+    {
+      "id": "assets-test-call-git",
+      "from": "assets-publish-test",
+      "to": "git-binary",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf::scrub_git_env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration fixture scrubs through the public wrapper before git init, log and show.",
+      "files": [
+        {
+          "path": "crates/osf/tests/assets_publish.rs",
+          "startLine": 30,
+          "endLine": 80
+        }
+      ]
+    },
+    {
+      "id": "unit-helpers-write-sentinel",
+      "from": "unit-test-helpers",
+      "to": "sentinel-git-dir",
+      "kind": "data",
+      "delta": "removed",
+      "label": "unscrubbed writes",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Before the change an unscrubbed helper acted on the repository GIT_DIR named; that path is what the new whole-suite tests close.",
+      "files": []
+    },
+    {
+      "id": "scrub-with-index-uses-locating",
+      "from": "scrub-with-index",
+      "to": "scrub-locating-git-env",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The full scrub now delegates its locating-variable removal to the narrow helper.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 129,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "merge-base-uses-scrub",
+      "from": "merge-base",
+      "to": "scrub-with-index",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "scrub_git_env_for_dir",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "merge_base now scrubs for its directory before running git.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 199,
+          "endLine": 210
+        }
+      ]
+    },
+    {
+      "id": "assets-run-git-uses-scrub",
+      "from": "assets-run-git",
+      "to": "scrub-with-index",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "scrub_git_env_for_dir",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The production asset git runner scrubs for its directory before spawning git.",
+      "files": [
+        {
+          "path": "crates/osf/src/assets.rs",
+          "startLine": 141,
+          "endLine": 150
+        }
+      ]
+    },
+    {
+      "id": "moon-strip-uses-locating",
+      "from": "strip-inherited-moon-vars",
+      "to": "scrub-locating-git-env",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Moon's env stripping now also removes the locating GIT_* variables, so nested moon resolves its own repository.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 81,
+          "endLine": 95
+        }
+      ]
+    },
+    {
+      "id": "moon-strip-spawns-moon",
+      "from": "strip-inherited-moon-vars",
+      "to": "moon-binary",
+      "kind": "call",
+      "delta": "modified",
+      "label": "MOON_* + GIT_* removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The command moon is spawned from inherits neither the outer task's MOON_* variables nor a caller's GIT_DIR.",
+      "files": []
+    },
+    {
+      "id": "moon-binary-calls-git",
+      "from": "moon-binary",
+      "to": "git-binary",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "moon runs git itself, which is why the locating variables had to be scrubbed at the moon boundary too.",
+      "files": []
+    },
+    {
+      "id": "merge-base-calls-git",
+      "from": "merge-base",
+      "to": "git-binary",
+      "kind": "call",
+      "delta": "modified",
+      "label": "merge-base a b",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runs git merge-base in the target directory with the environment scrubbed.",
+      "files": []
+    },
+    {
+      "id": "assets-run-git-calls-git",
+      "from": "assets-run-git",
+      "to": "git-binary",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runs the asset-publishing git commands with the environment scrubbed.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "sentinel-hermeticity-run",
+      "title": "Whole-suite run under a sentinel GIT_DIR",
+      "summary": "How the new ignored tests prove the suite is hermetic: export a sentinel repository's git variables, run the whole lib or integration suite, then compare the sentinel's git directory byte-for-byte.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "git-env-hermetic-tests"
+        },
+        {
+          "node": "nested-cargo-test"
+        },
+        {
+          "node": "unit-test-helpers"
+        },
+        {
+          "node": "git-binary"
+        },
+        {
+          "node": "sentinel-git-dir"
+        }
+      ],
+      "messages": [
+        {
+          "id": "snapshot-sentinel",
+          "from": "git-env-hermetic-tests",
+          "to": "sentinel-git-dir",
+          "label": "snapshot every file",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/git_env_hermetic.rs",
+              "startLine": 44,
+              "endLine": 80
+            }
+          ]
+        },
+        {
+          "id": "spawn-nested-suite",
+          "from": "git-env-hermetic-tests",
+          "to": "nested-cargo-test",
+          "label": "cargo test -p osf --lib/--tests",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE all point at the sentinel.",
+          "files": [
+            {
+              "path": "crates/osf/tests/git_env_hermetic.rs",
+              "startLine": 100,
+              "endLine": 120
+            }
+          ]
+        },
+        {
+          "id": "nested-runs-helper",
+          "from": "nested-cargo-test",
+          "to": "unit-test-helpers",
+          "label": "run test helper",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "helper-scrubs",
+          "from": "unit-test-helpers",
+          "to": "unit-test-helpers",
+          "label": "scrub locating GIT_*",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The helper removes GIT_DIR/GIT_WORK_TREE and friends before spawning git, so the sentinel is never the target.",
+          "files": [
+            {
+              "path": "crates/osf/src/git.rs",
+              "startLine": 1393,
+              "endLine": 1405
+            }
+          ]
+        },
+        {
+          "id": "helper-runs-git",
+          "from": "unit-test-helpers",
+          "to": "git-binary",
+          "label": "git init / log / show",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "git-writes-own-repo",
+          "from": "git-binary",
+          "to": "sentinel-git-dir",
+          "label": "no writes",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "With the variables scrubbed, git acts on the helper's own temp repository, not the sentinel.",
+          "files": []
+        },
+        {
+          "id": "assert-untouched",
+          "from": "git-env-hermetic-tests",
+          "to": "sentinel-git-dir",
+          "label": "assert snapshot equal",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Also asserts no [user] section and no core.bare change.",
+          "files": [
+            {
+              "path": "crates/osf/tests/git_env_hermetic.rs",
+              "startLine": 60,
+              "endLine": 80
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 116,
+    "deletions": 45,
+    "chips": [
+      {
+        "label": "git-spawning helpers scrubbed",
+        "value": "9",
+        "tone": "added"
+      },
+      {
+        "label": "new whole-suite hermeticity tests",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "locating GIT_* vars removed",
+        "value": "GIT_DIR…",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-root",
+      "title": "Hermetic git environment across osf",
+      "lens": "architecture",
+      "summary": "The test harness exports a sentinel GIT_DIR into a nested cargo test; every git-spawning helper in the osf crate scrubs the locating variables before running git or moon, so the sentinel is never written.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "git-wrapper-components",
+      "title": "git wrapper and moon env stripping",
+      "lens": "architecture",
+      "summary": "Inside the osf crate: the narrow locating-variable scrub, the full scrub that delegates to it, and the three callers that now scrub — merge_base, the assets git runner and moon's env stripping.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "scrub-locating-git-env",
+          "scrub-with-index",
+          "merge-base",
+          "assets-run-git",
+          "strip-inherited-moon-vars",
+          "git-binary",
+          "moon-binary"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
