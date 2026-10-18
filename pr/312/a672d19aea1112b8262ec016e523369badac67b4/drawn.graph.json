@@ -1,0 +1,694 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T08:31:23.017Z",
+  "title": "One scratch-git helper for every test, enforced by a lint",
+  "summary": "Every test that used to start `git` itself now goes through a single shared helper, `common::scratch_git`, which runs git from an empty environment against a directory confined to the temp root. The helper is compiled twice — into each integration test as `common::scratch_git`, and by path into the library's unit tests — so unit and integration tests share one implementation. A new tree-sitter-based test, `test_git_discipline`, parses every `.rs` file under `crates/*/src` and `crates/*/tests` and fails the build if test code calls `Command::new(\"git\")` or names `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`/`GIT_COMMON_DIR`. Production code gains two small pieces: `scrub_locating_git_env` (used by `moon` so a nested moon finds its own repository) and a scrubbed `merge_base`. The old nested-cargo sentinel tests are replaced by real hook-run tests that no longer set git variables themselves.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad",
+      "ref": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad"
+    },
+    "head": {
+      "sha": "a672d19aea1112b8262ec016e523369badac67b4",
+      "ref": "a672d19aea1112b8262ec016e523369badac67b4"
+    },
+    "pullRequest": {
+      "number": 312,
+      "url": "https://github.com/open-software-factory/software-factory/pull/312"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "test-code",
+      "label": "Test code",
+      "subtitle": "crates/*/tests and #[cfg(test)] modules",
+      "order": 0,
+      "delta": "modified",
+      "summary": "Every test that builds a scratch repository now calls the shared helper instead of starting git itself."
+    },
+    {
+      "id": "helper",
+      "label": "Scratch git helper",
+      "subtitle": "tests/common/scratch_git.rs",
+      "order": 1,
+      "delta": "added",
+      "summary": "The one place a test runs git: empty environment, temp-root confinement, fixed identity."
+    },
+    {
+      "id": "production",
+      "label": "Production git layer",
+      "subtitle": "crates/osf/src",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The library's own git plumbing, which the helper deliberately does not replace."
+    },
+    {
+      "id": "guard",
+      "label": "Discipline guard",
+      "subtitle": "tests/test_git_discipline.rs",
+      "order": 3,
+      "delta": "added",
+      "summary": "A tree-sitter lint that fails the build when test code starts git or names a locating variable."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "integration-tests",
+      "label": "Integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "test-code",
+      "subtitle": "assets_publish, hooks_install, moon_adapter, review_run, real_hook_runs",
+      "summary": "Each test file that used to build its own `Command::new(\"git\")` now calls `common::scratch_git::init`, `init_bare`, `run` or `ok`. `git_env_hermetic.rs` is renamed to `real_hook_runs.rs` and loses its nested-cargo sentinel tests.",
+      "files": [
+        {
+          "path": "crates/osf/tests/assets_publish.rs"
+        },
+        {
+          "path": "crates/osf/tests/hooks_install.rs"
+        },
+        {
+          "path": "crates/osf/tests/moon_adapter.rs"
+        },
+        {
+          "path": "crates/osf/tests/review_run.rs"
+        },
+        {
+          "path": "crates/osf/tests/real_hook_runs.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unit-tests",
+      "label": "Unit test modules",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "test-code",
+      "subtitle": "builder, checkpoint, clean_copy, config, git, changeset_tests",
+      "summary": "In-crate `#[cfg(test)]` modules drop their hand-rolled git invocations and call `crate::scratch_git`, which `lib.rs` pulls in by path.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs"
+        },
+        {
+          "path": "crates/osf/src/checkpoint.rs"
+        },
+        {
+          "path": "crates/osf/src/clean_copy.rs"
+        },
+        {
+          "path": "crates/osf/src/config.rs"
+        },
+        {
+          "path": "crates/osf/src/git.rs"
+        },
+        {
+          "path": "crates/osf/src/changeset_tests.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "common-mod",
+      "label": "tests/common/mod.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "test-code",
+      "subtitle": "TempRepo, BareRepo, git_with_hook_env",
+      "summary": "The shared test fixtures now delegate to `scratch_git`; `TempRepo::git` and `git_with_hook_env` pass their extra environment through `run_with_env` instead of building commands by hand.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scratch-git",
+      "label": "scratch_git",
+      "kind": "module",
+      "delta": "added",
+      "lane": "helper",
+      "subtitle": "run_with_env / run / ok / init / init_bare",
+      "summary": "Runs `git -C dir` from a cleared environment with an empty HOME, `XDG_CONFIG_HOME` and `GIT_CONFIG_NOSYSTEM=1`, so no global or system config is read. `confine_to_temp_root` refuses relative paths, `..` and anything resolving outside the temp root. `init` sets a fixed identity and disables commit signing.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/scratch_git.rs",
+          "startLine": 1,
+          "endLine": 123
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "confine",
+      "label": "confine_to_temp_root",
+      "kind": "function",
+      "delta": "added",
+      "lane": "helper",
+      "subtitle": "resolves symlinks and `..`, asserts under temp",
+      "summary": "Canonicalises the nearest existing parent and appends the missing components, then asserts the result starts with the canonical temp root.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/scratch_git.rs",
+          "startLine": 31,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "empty-home",
+      "label": "empty_home",
+      "kind": "function",
+      "delta": "added",
+      "lane": "helper",
+      "subtitle": "temp_root/osf-scratch-git-empty-home",
+      "summary": "A shared empty folder standing in for HOME, so no `~/.gitconfig` is read by a scratch git call.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/scratch_git.rs",
+          "startLine": 58,
+          "endLine": 62
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-mod",
+      "label": "git.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "production",
+      "subtitle": "scrub_git_env_for_dir, merge_base, INDEX_FILE_VAR",
+      "summary": "Adds `INDEX_FILE_VAR` and `scrub_locating_git_env`, routes `scrub_with_index` through it, and makes `merge_base` scrub its environment like every other git call.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scrub-locating",
+      "label": "scrub_locating_git_env",
+      "kind": "function",
+      "delta": "added",
+      "lane": "production",
+      "subtitle": "removes LOCATING_VARS only",
+      "summary": "Removes only the `GIT_*` variables that name which repository to use, leaving `GIT_INDEX_FILE` and everything else alone. Used by `scrub_with_index` and by moon.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 48,
+          "endLine": 53
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "merge-base",
+      "label": "merge_base",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "production",
+      "subtitle": "now scrubs before running git",
+      "summary": "Previously ran `git merge-base` with the inherited environment; now calls `scrub_git_env_for_dir` first, so an inherited `GIT_DIR` cannot redirect it.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 205,
+          "endLine": 212
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-mod",
+      "label": "moon.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "production",
+      "subtitle": "strip_inherited_moon_vars",
+      "summary": "The nested-moon launcher now also strips the repository-locating `GIT_*` variables, so moon finds the repository from its working directory rather than a caller's `GIT_DIR`.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 81,
+          "endLine": 92
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "assets-mod",
+      "label": "assets.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "production",
+      "subtitle": "run_git",
+      "summary": "The asset publisher's git runner now scrubs its environment for the target directory before running.",
+      "files": [
+        {
+          "path": "crates/osf/src/assets.rs",
+          "startLine": 143,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "discipline",
+      "label": "test_git_discipline",
+      "kind": "test",
+      "delta": "added",
+      "lane": "guard",
+      "subtitle": "tree-sitter parse of every crate source",
+      "summary": "Walks `crates/*/src` and `crates/*/tests`, parses each file with the Rust grammar, and in test code (a `tests/` file, `#![cfg(test)]`, or an item marked `#[cfg(test)]`/`#[test]`) refuses `Command::new(\"git\")` and string literals naming the four locating variables. The helper and the rule's own source are exempt.",
+      "files": [
+        {
+          "path": "crates/osf/tests/test_git_discipline.rs",
+          "startLine": 1,
+          "endLine": 225
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter",
+      "label": "tree-sitter-rust",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "guard",
+      "subtitle": "grammar used to parse test code",
+      "summary": "The Rust grammar the discipline test parses every source file with; a file that fails to parse fails the check.",
+      "files": [
+        {
+          "path": "crates/osf/tests/test_git_discipline.rs",
+          "startLine": 150,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "integration-to-scratch",
+      "from": "integration-tests",
+      "to": "scratch-git",
+      "kind": "call",
+      "delta": "added",
+      "label": "init / init_bare / run / ok",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The bulk of the diff: every integration test's hand-built git command becomes a call into the shared helper.",
+      "files": [
+        {
+          "path": "crates/osf/tests/assets_publish.rs"
+        },
+        {
+          "path": "crates/osf/tests/hooks_install.rs"
+        },
+        {
+          "path": "crates/osf/tests/moon_adapter.rs"
+        }
+      ]
+    },
+    {
+      "id": "unit-to-scratch",
+      "from": "unit-tests",
+      "to": "scratch-git",
+      "kind": "call",
+      "delta": "added",
+      "label": "crate::scratch_git",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`lib.rs` compiles the helper by path into the library, so unit tests share the same implementation as integration tests.",
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 39,
+          "endLine": 41
+        }
+      ]
+    },
+    {
+      "id": "common-to-scratch",
+      "from": "common-mod",
+      "to": "scratch-git",
+      "kind": "call",
+      "delta": "added",
+      "label": "run_with_env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`TempRepo::git` and `git_with_hook_env` pass PATH/HOME through `run_with_env` rather than assembling a command.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 87,
+          "endLine": 95
+        }
+      ]
+    },
+    {
+      "id": "scratch-to-confine",
+      "from": "scratch-git",
+      "to": "confine",
+      "kind": "call",
+      "delta": "added",
+      "label": "every call",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`run_with_env` and `init` both confine the directory before starting git.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/scratch_git.rs",
+          "startLine": 66,
+          "endLine": 67
+        }
+      ]
+    },
+    {
+      "id": "scratch-to-home",
+      "from": "scratch-git",
+      "to": "empty-home",
+      "kind": "call",
+      "delta": "added",
+      "label": "HOME, XDG_CONFIG_HOME",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each run points HOME and XDG_CONFIG_HOME at the shared empty folder.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/scratch_git.rs",
+          "startLine": 68,
+          "endLine": 68
+        }
+      ]
+    },
+    {
+      "id": "discipline-to-tree-sitter",
+      "from": "discipline",
+      "to": "tree-sitter",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "parses each file",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The guard parses every candidate source file with the Rust grammar before inspecting it.",
+      "files": [
+        {
+          "path": "crates/osf/tests/test_git_discipline.rs",
+          "startLine": 150,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "discipline-guards-integration",
+      "from": "discipline",
+      "to": "integration-tests",
+      "kind": "other",
+      "delta": "added",
+      "label": "fails the build on a direct git call",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The guard is what keeps integration tests from drifting back to their own `Command::new(\"git\")`.",
+      "files": [
+        {
+          "path": "crates/osf/tests/test_git_discipline.rs",
+          "startLine": 186,
+          "endLine": 225
+        }
+      ]
+    },
+    {
+      "id": "discipline-guards-unit",
+      "from": "discipline",
+      "to": "unit-tests",
+      "kind": "other",
+      "delta": "added",
+      "label": "fails the build on a direct git call",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The same guard covers `#[cfg(test)]` modules inside `crates/*/src`.",
+      "files": [
+        {
+          "path": "crates/osf/tests/test_git_discipline.rs",
+          "startLine": 186,
+          "endLine": 225
+        }
+      ]
+    },
+    {
+      "id": "moon-to-scrub",
+      "from": "moon-mod",
+      "to": "scrub-locating",
+      "kind": "call",
+      "delta": "added",
+      "label": "strip_inherited_moon_vars",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The nested-moon launcher strips the locating `GIT_*` variables before spawning moon.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 88,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "git-to-scrub",
+      "from": "git-mod",
+      "to": "scrub-locating",
+      "kind": "call",
+      "delta": "added",
+      "label": "scrub_with_index",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`scrub_with_index` now delegates the locating-variable removal to the extracted function.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 135,
+          "endLine": 137
+        }
+      ]
+    },
+    {
+      "id": "merge-base-to-scrub",
+      "from": "merge-base",
+      "to": "scrub-locating",
+      "kind": "call",
+      "delta": "added",
+      "label": "scrub_git_env_for_dir",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`merge_base` now scrubs its environment before running git, closing the one unscrubbed call in the module.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 205,
+          "endLine": 208
+        }
+      ]
+    },
+    {
+      "id": "assets-to-scrub",
+      "from": "assets-mod",
+      "to": "scrub-locating",
+      "kind": "call",
+      "delta": "added",
+      "label": "scrub_git_env_for_dir",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The asset publisher's git runner scrubs for its target directory.",
+      "files": [
+        {
+          "path": "crates/osf/src/assets.rs",
+          "startLine": 146,
+          "endLine": 146
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "scratch-git-call",
+      "title": "One scratch git call",
+      "summary": "How a test's git invocation is confined, stripped of ambient configuration, and run.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "integration-tests",
+          "label": "test"
+        },
+        {
+          "node": "scratch-git"
+        },
+        {
+          "node": "confine"
+        },
+        {
+          "node": "empty-home"
+        }
+      ],
+      "messages": [
+        {
+          "id": "call-run",
+          "from": "integration-tests",
+          "to": "scratch-git",
+          "label": "run(dir, args)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/common/scratch_git.rs",
+              "startLine": 66,
+              "endLine": 66
+            }
+          ]
+        },
+        {
+          "id": "confine-dir",
+          "from": "scratch-git",
+          "to": "confine",
+          "label": "confine_to_temp_root(dir)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/common/scratch_git.rs",
+              "startLine": 31,
+              "endLine": 56
+            }
+          ]
+        },
+        {
+          "id": "confine-ok",
+          "from": "confine",
+          "to": "scratch-git",
+          "label": "resolved path under temp root",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "home",
+          "from": "scratch-git",
+          "to": "empty-home",
+          "label": "empty HOME, XDG_CONFIG_HOME",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/common/scratch_git.rs",
+              "startLine": 58,
+              "endLine": 62
+            }
+          ]
+        },
+        {
+          "id": "spawn",
+          "from": "scratch-git",
+          "to": "scratch-git",
+          "label": "git -C dir, env_clear, GIT_CONFIG_NOSYSTEM=1",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/common/scratch_git.rs",
+              "startLine": 70,
+              "endLine": 92
+            }
+          ]
+        },
+        {
+          "id": "output",
+          "from": "scratch-git",
+          "to": "integration-tests",
+          "label": "Output",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 546,
+    "deletions": 381,
+    "chips": [
+      {
+        "label": "Direct git calls in tests",
+        "value": "0",
+        "tone": "hero"
+      },
+      {
+        "label": "Shared helper",
+        "value": "1 file, 2 compiles",
+        "tone": "added"
+      },
+      {
+        "label": "Guard",
+        "value": "tree-sitter lint",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "scratch-git-architecture",
+      "title": "Scratch git helper and its guard",
+      "lens": "architecture",
+      "summary": "Test code on the left, the shared helper in the middle, production git plumbing on the right, and the discipline lint that keeps the left column honest.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "scratch-git-flow",
+      "title": "One scratch git call",
+      "lens": "data-flow",
+      "summary": "A single test git invocation: confine the directory, point HOME at an empty folder, run git from a cleared environment.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "scratch-git-call"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

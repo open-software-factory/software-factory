@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a672d19aea1112b8262ec016e523369badac67b4",
+    "contentHash": "797d8920f68934a9373b3e812b16777e"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "scratch-git-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scratch-git-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f6f652ce55a293687d029c6213c15c3b",
+      "bytes": 23395,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "scratch-git-architecture-light-f6f652ce55a293687d029c6213c15c3b.svg"
+    },
+    {
+      "id": "scratch-git-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scratch-git-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b9beecbff87c672398ba303cf49779dc",
+      "bytes": 23678,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "scratch-git-architecture-dark-b9beecbff87c672398ba303cf49779dc.svg"
+    },
+    {
+      "id": "scratch-git-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "scratch-git-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8d4a171f011e159feacdb4b719da2882",
+      "bytes": 12754,
+      "width": 2172,
+      "height": 391,
+      "animated": true,
+      "path": "scratch-git-flow-light-8d4a171f011e159feacdb4b719da2882.svg"
+    },
+    {
+      "id": "scratch-git-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "scratch-git-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b1b0229b8d7c4773fb6f0fb31d367bed",
+      "bytes": 12877,
+      "width": 2172,
+      "height": 391,
+      "animated": true,
+      "path": "scratch-git-flow-dark-b1b0229b8d7c4773fb6f0fb31d367bed.svg"
+    }
+  ]
+}
