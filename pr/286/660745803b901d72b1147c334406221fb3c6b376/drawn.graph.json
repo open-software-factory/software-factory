@@ -1,0 +1,419 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:51:39.221Z",
+  "title": "Bump download-artifact to v8.0.2 across review-check jobs",
+  "summary": "A dependency bump: every `actions/download-artifact` step in the review-check workflow moves from the pinned v8.0.1 commit to the v8.0.2 commit. Nothing about the workflow's structure changes — the same five jobs still pull the `osf-binary` and `work-item` artifacts produced by the build job, and the aggregate job still pulls every `review-run-*` artifact. The change is purely which revision of the artifact-download action executes at each of those steps.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "e3e5757d01282a34ff5048a91777b06889990929",
+      "ref": "e3e5757d01282a34ff5048a91777b06889990929"
+    },
+    "head": {
+      "sha": "660745803b901d72b1147c334406221fb3c6b376",
+      "ref": "660745803b901d72b1147c334406221fb3c6b376"
+    },
+    "pullRequest": {
+      "number": 286,
+      "url": "https://github.com/open-software-factory/software-factory/pull/286"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github-events",
+      "label": "GitHub events",
+      "subtitle": "pull_request trigger",
+      "order": 0
+    },
+    {
+      "id": "build-job",
+      "label": "Build job",
+      "subtitle": "produces artifacts",
+      "order": 1
+    },
+    {
+      "id": "review-jobs",
+      "label": "Review jobs",
+      "subtitle": "matrix of reviewers",
+      "order": 2
+    },
+    {
+      "id": "aggregate-job",
+      "label": "Aggregate job",
+      "subtitle": "collects reviewer runs",
+      "order": 3
+    },
+    {
+      "id": "artifact-store",
+      "label": "Artifact store",
+      "subtitle": "actions/upload-artifact & download-artifact",
+      "order": 4
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "pull_request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "github-events",
+      "summary": "The GitHub event that starts the review-check workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "build job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "build-job",
+      "summary": "Compiles the osf binary and writes the work item, then uploads both as artifacts.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-job",
+      "label": "review job (matrix)",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-jobs",
+      "summary": "Each reviewer job fetches the osf binary and work item, runs the review, and saves its answers as a review-run-* artifact.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "aggregate-job",
+      "label": "aggregate job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "aggregate-job",
+      "summary": "Collects every reviewer's saved answers and combines them into the final review output.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "download-artifact-osf",
+      "label": "download osf-binary",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "review-jobs",
+      "subtitle": "actions/download-artifact v8.0.2",
+      "summary": "The step that pulls the compiled osf binary from the artifact store. Its action pin moves from v8.0.1 to v8.0.2 in every job that uses it.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 290,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "download-artifact-work-item",
+      "label": "download work-item",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "review-jobs",
+      "subtitle": "actions/download-artifact v8.0.2",
+      "summary": "The step that pulls the saved work item. Same action, same version bump as the binary download.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 304,
+          "endLine": 309
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "download-artifact-runs",
+      "label": "download review-run-*",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "aggregate-job",
+      "subtitle": "actions/download-artifact v8.0.2, pattern match",
+      "summary": "The aggregate job's step that downloads every artifact matching review-run-*. This is the only download step using a pattern rather than a single name.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 633,
+          "endLine": 638
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "artifact-store",
+      "label": "artifact store",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifact-store",
+      "summary": "GitHub's per-workflow-run artifact storage, written by upload-artifact and read by download-artifact.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-triggers-build",
+      "from": "pull-request-event",
+      "to": "build-job",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-uploads-artifacts",
+      "from": "build-job",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "osf-binary, work-item",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "event-triggers-review",
+      "from": "pull-request-event",
+      "to": "review-job",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-downloads-osf",
+      "from": "download-artifact-osf",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "modified",
+      "label": "osf-binary",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 290,
+          "endLine": 295
+        }
+      ]
+    },
+    {
+      "id": "review-downloads-work-item",
+      "from": "download-artifact-work-item",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "modified",
+      "label": "work-item",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 304,
+          "endLine": 309
+        }
+      ]
+    },
+    {
+      "id": "review-job-uses-osf",
+      "from": "review-job",
+      "to": "download-artifact-osf",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-job-uses-work-item",
+      "from": "review-job",
+      "to": "download-artifact-work-item",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-saves-runs",
+      "from": "review-job",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "review-run-*",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "aggregate-downloads-runs",
+      "from": "download-artifact-runs",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "modified",
+      "label": "review-run-*",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 633,
+          "endLine": 638
+        }
+      ]
+    },
+    {
+      "id": "aggregate-job-uses-runs",
+      "from": "aggregate-job",
+      "to": "download-artifact-runs",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "artifact-handoff",
+      "title": "Artifact handoff through the review-check workflow",
+      "summary": "How the build job's outputs reach the reviewer jobs and then the aggregate job, with the download steps now running v8.0.2.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "build-job"
+        },
+        {
+          "node": "artifact-store"
+        },
+        {
+          "node": "review-job"
+        },
+        {
+          "node": "aggregate-job"
+        }
+      ],
+      "messages": [
+        {
+          "id": "upload-osf",
+          "from": "build-job",
+          "to": "artifact-store",
+          "label": "upload osf-binary + work-item",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "download-osf",
+          "from": "artifact-store",
+          "to": "review-job",
+          "label": "download osf-binary (v8.0.2)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 290,
+              "endLine": 295
+            }
+          ]
+        },
+        {
+          "id": "download-work-item",
+          "from": "artifact-store",
+          "to": "review-job",
+          "label": "download work-item (v8.0.2)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 304,
+              "endLine": 309
+            }
+          ]
+        },
+        {
+          "id": "upload-runs",
+          "from": "review-job",
+          "to": "artifact-store",
+          "label": "upload review-run-*",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "download-runs",
+          "from": "artifact-store",
+          "to": "aggregate-job",
+          "label": "download review-run-* (v8.0.2)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 633,
+              "endLine": 638
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 8,
+    "deletions": 8,
+    "chips": [
+      {
+        "label": "Action pin bumps",
+        "value": "8 steps",
+        "tone": "modified"
+      },
+      {
+        "label": "download-artifact",
+        "value": "v8.0.1 → v8.0.2",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-check-workflow",
+      "title": "review-check workflow",
+      "lens": "architecture",
+      "summary": "The jobs in review-check.yml and the artifact store they share; the download steps are the only changed elements.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}

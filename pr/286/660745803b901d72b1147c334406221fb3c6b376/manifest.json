@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "660745803b901d72b1147c334406221fb3c6b376",
+    "contentHash": "d87332664f921e4d2c0465e1eb92da4a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-workflow-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-workflow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19cc4c7aea7a3f9d5be115b3f90d26e8",
+      "bytes": 15780,
+      "width": 2132,
+      "height": 512,
+      "animated": false,
+      "path": "review-check-workflow-light-19cc4c7aea7a3f9d5be115b3f90d26e8.svg"
+    },
+    {
+      "id": "review-check-workflow-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-workflow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67f09b375fc7b38ecb4d84e044d9556b",
+      "bytes": 15905,
+      "width": 2132,
+      "height": 512,
+      "animated": false,
+      "path": "review-check-workflow-dark-67f09b375fc7b38ecb4d84e044d9556b.svg"
+    }
+  ]
+}
