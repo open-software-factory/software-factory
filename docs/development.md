@@ -162,7 +162,6 @@ checkpoint runs.
 | Rule in `CONTRIBUTING.md` | Hook | Commit scan |
 |---|---|---|
 | The subject has no full stop at the end (`commit-subject-full-stop`) | Checked | Checked |
-| The message has a subject (`commit-subject-missing`) | Checked | Checked |
 | A reference names its repository, not a bare number (`bare-reference`) | Checked | Checked |
 | A reference says what it is, in brackets (`reference-without-label`) | Checked | Checked |
 | Short sentences (`long-sentence`) | Checked | Not checked |

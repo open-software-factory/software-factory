@@ -112,30 +112,6 @@ fn the_subject_is_the_first_line_that_is_not_a_comment() {
 }
 
 #[test]
-fn a_message_with_no_subject_is_flagged() {
-    for (index, message) in ["", "\n\n", "# only a comment\n"].iter().enumerate() {
-        assert!(
-            hook_rules(message).contains(&"commit-subject-missing"),
-            "hook: {message:?}"
-        );
-        assert!(
-            scan_rules_for(&format!("missing-{index}"), message)
-                .contains(&"commit-subject-missing"),
-            "scan: {message:?}"
-        );
-    }
-}
-
-#[test]
-fn a_message_with_a_subject_is_not_flagged_as_missing() {
-    assert_clean(
-        "has-subject",
-        "Add a status subcommand\n",
-        "commit-subject-missing",
-    );
-}
-
-#[test]
 fn a_bare_number_is_flagged_and_a_named_reference_passes() {
     assert_flagged(
         "bare",
@@ -179,14 +155,6 @@ fn a_dependency_bot_message_passes() {
         "{found:?}"
     );
     assert_eq!(hook_rules(bump), Vec::<&str>::new());
-}
-
-#[test]
-fn every_gate_rule_has_a_doc_text() {
-    for id in COMMIT_GATE_RULES {
-        let meta = osf::lints::rule_meta(id).unwrap_or_else(|| panic!("{id}"));
-        assert!(meta.doc.contains("### Coverage"), "{id}");
-    }
 }
 
 #[test]

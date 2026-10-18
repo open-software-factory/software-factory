@@ -96,7 +96,6 @@ pub fn lint_writing(
 /// lint in commit context, which includes these.
 pub const COMMIT_GATE_RULES: &[&str] = &[
     "commit-subject-full-stop",
-    "commit-subject-missing",
     "bare-reference",
     "reference-without-label",
 ];

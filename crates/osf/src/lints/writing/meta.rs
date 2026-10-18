@@ -71,14 +71,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: Fixed in #125 today.\n\
          Good: Fixed in [open-software-factory/software-factory#125 (the login \
-         crash)](https://example.com/125) today.\n\
-         ### Coverage\n\
-         Runs in every context this lint knows. In a commit message it is \
-         enforced twice. The `commit-msg` hook enforces it. So does the commit \
-         scan that runs before a push and on a pull request. The forge's own \
-         `Merge pull request #N from owner/branch` subject is exempt, and no \
-         other generated message is. It reads a number written after a `#`. \
-         It cannot tell whether the number exists."
+         crash)](https://example.com/125) today."
     ),
     rule_meta!(
         "reference-without-label",
@@ -98,13 +91,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
          Good: The fix landed in [open-software-factory/software-factory#125 \
-         (the login crash)](https://example.com/125) today.\n\
-         ### Coverage\n\
-         Runs in every context this lint knows. In a commit message it is \
-         enforced twice. The `commit-msg` hook enforces it. So does the commit \
-         scan that runs before a push and on a pull request. It tests that a bracketed \
-         label follows the reference. It cannot tell whether the label says \
-         anything useful."
+         (the login crash)](https://example.com/125) today."
     ),
     rule_meta!(
         "reference-without-link",
@@ -743,37 +730,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: Add a status subcommand.\n\
-         Good: Add a status subcommand\n\
-         ### Coverage\n\
-         Checked in the `commit-msg` hook and in the commit scan that runs \
-         before a push and on a pull request. It reads the last character of \
-         the subject and nothing else. It does not check the tense of the \
-         subject, which needs language analysis, and it does not read a \
-         pull request title. A `#` first line is read as a comment, so a \
-         subject saved verbatim with a leading `#` is not checked."
-    ),
-    rule_meta!(
-        "commit-subject-missing",
-        House,
-        Comprehension,
-        "house",
-        "### What it does\n\
-         Flags a commit message that has no subject: it is empty, blank, or \
-         only `#` comment lines. It runs only on a commit message.\n\
-         ### Why it is bad\n\
-         The contributing guide asks for a subject in the present tense. A \
-         message with no subject gives the reader of the log nothing to scan.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: a message that holds only a comment line.\n\
-         Good: Add a status subcommand\n\
-         ### Coverage\n\
-         Checked in the `commit-msg` hook and in the commit scan that runs \
-         before a push and on a pull request. It tests that a subject exists. \
-         It does not judge what the subject says."
+         Good: Add a status subcommand"
     ),
 ];
 

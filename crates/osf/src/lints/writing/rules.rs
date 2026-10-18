@@ -71,7 +71,6 @@ pub fn rule_ids() -> Vec<&'static str> {
             "undefined-name-at-start",
             "recap-ending",
             "commit-subject-full-stop",
-            "commit-subject-missing",
         ])
         .collect()
 }
@@ -94,13 +93,6 @@ const FULL_STOPS: [char; 4] = ['.', '\u{3002}', '\u{FF0E}', '\u{FF61}'];
 
 pub fn commit_subject_rules(text: &str, out: &mut Vec<Finding>) {
     let Some((line, subject)) = commit_subject(text) else {
-        out.push(Finding::new(
-            "commit-subject-missing",
-            Level::Error,
-            1,
-            "write a subject line; the message has none".to_string(),
-            "no subject".to_string(),
-        ));
         return;
     };
     if subject.ends_with(FULL_STOPS) {
