@@ -322,8 +322,8 @@ impl Default for ReviewConfig {
     }
 }
 
-/// One model-name prefix, matched case-insensitively against the first word
-/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+/// One model-name prefix, matched case-insensitively against each word of a
+/// `Code-Generator:` trailer's model name, and the family it maps to.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuilderFamilyAlias {

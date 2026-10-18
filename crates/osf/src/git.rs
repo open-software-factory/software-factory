@@ -223,6 +223,93 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
     Ok(text.lines().map(str::to_string).collect())
 }
 
+/// Whether `hash` is a merge commit that introduces nothing of its own: it
+/// has exactly two parents, `git merge-tree --write-tree` merges them with no
+/// conflict, and the tree that gives is the merge commit's own tree. A
+/// conflict resolved either way, a dropped change and an extra edit all make
+/// the trees differ or the merge conflict.
+///
+/// Anything else is `false`, so a caller fails closed: more than two
+/// parents, a merge that conflicts, and a git too old for `merge-tree
+/// --write-tree` (before 2.38) or one that errors. A commit with fewer than
+/// two parents is never a merge.
+///
+/// # Errors
+/// Returns an error if git cannot read `hash`'s parents or tree in `dir`.
+pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
+    let line = run_text(dir, &["rev-list", "--parents", "-n", "1", hash])?;
+    let ids: Vec<&str> = line.split_whitespace().collect();
+    let [_, first, second] = ids.as_slice() else {
+        return Ok(false);
+    };
+    let tree = run_text(dir, &["rev-parse", &format!("{hash}^{{tree}}")])?;
+    let Some(merged) = merge_tree_in_scratch_store(dir, first, second)? else {
+        return Ok(false);
+    };
+    Ok(merged.lines().next().map(str::trim) == Some(tree.trim()))
+}
+
+/// `path` as one entry of `GIT_ALTERNATE_OBJECT_DIRECTORIES`, a list split on
+/// `:` (`;` on Windows). git reads an entry in double quotes C-style, so a
+/// path holding the separator, a quote or a backslash is quoted and escaped.
+fn alternate_entry(path: &str) -> String {
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    if !path.contains([separator, '"', '\\']) {
+        return path.to_string();
+    }
+    let escaped = path.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\"")
+}
+
+/// The output of `git merge-tree --write-tree <first> <second>`, or `None`
+/// when it conflicts or fails. The merge writes its objects, and a checkout
+/// may be read-only, so they go to a scratch object store that is removed
+/// afterwards, while the repository's own objects are only read through an
+/// alternate.
+fn merge_tree_in_scratch_store(
+    dir: &Path,
+    first: &str,
+    second: &str,
+) -> Result<Option<String>, GitError> {
+    let objects = run_text(
+        dir,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+        ],
+    )?;
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per call (pid and time) and removed after
+    let scratch = base.join(format!(
+        "osf-merge-tree-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos())
+    ));
+    std::fs::create_dir_all(&scratch)
+        .map_err(|e| GitError(format!("cannot create {}: {e}", scratch.display())))?;
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["merge-tree", "--write-tree", first, second]);
+    scrub_git_env_for_dir(&mut command, dir);
+    command.env("GIT_OBJECT_DIRECTORY", &scratch).env(
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        alternate_entry(objects.trim()),
+    );
+    let output = command.output();
+    let removed = std::fs::remove_dir_all(&scratch);
+    let output = output.map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    removed.map_err(|e| GitError(format!("cannot remove {}: {e}", scratch.display())))?;
+    if output.status.success() {
+        Ok(Some(String::from_utf8_lossy(&output.stdout).into_owned()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// One commit's full message.
 ///
 /// # Errors
