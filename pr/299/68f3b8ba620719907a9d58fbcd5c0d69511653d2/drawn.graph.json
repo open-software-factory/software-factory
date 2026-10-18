@@ -1,0 +1,522 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T07:03:27.146Z",
+  "title": "Bump Vite 8.3.1 → 8.3.4 in console-lab",
+  "summary": "A dependency-only change: apps/console-lab pins Vite to 8.3.4 instead of 8.3.1, and pnpm-lock.yaml is regenerated to match. The bump drags the Vite toolchain forward with it — rolldown 1.2.11 → 1.2.14 (and all fifteen of its platform bindings), @oxc-project/types 0.151.0 → 0.154.0, postcss 8.5.28 → 8.5.30, nanoid 3.3.19 → 3.3.20, and a new source-map-js 1.2.2 snapshot. No application source, config or build script changed; the console-lab dev server and single-file bundle are produced by the same plugins, just on newer internals.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4fe4d1bc07e575ab5c61ca05e51679b6aa3c18c4",
+      "ref": "4fe4d1bc07e575ab5c61ca05e51679b6aa3c18c4"
+    },
+    "head": {
+      "sha": "68f3b8ba620719907a9d58fbcd5c0d69511653d2",
+      "ref": "68f3b8ba620719907a9d58fbcd5c0d69511653d2"
+    },
+    "pullRequest": {
+      "number": 299,
+      "url": "https://github.com/open-software-factory/software-factory/pull/299"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "pnpm workspace",
+      "subtitle": "lockfile resolution",
+      "order": 0,
+      "summary": "The root lockfile that resolves every importer's dependency graph into concrete versions and platform-specific optional packages."
+    },
+    {
+      "id": "console-lab",
+      "label": "console-lab app",
+      "subtitle": "apps/console-lab",
+      "order": 1,
+      "summary": "The lab console application; its package.json is the only manifest touched by this change."
+    },
+    {
+      "id": "build-toolchain",
+      "label": "Build toolchain",
+      "subtitle": "Vite + rolldown + postcss",
+      "order": 2,
+      "summary": "The dev-server and bundler stack that console-lab's scripts invoke, and the transitive packages it pulls in."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-lock",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "lockfileVersion importer + snapshots",
+      "summary": "Regenerated lockfile. The console-lab importer now resolves vite 8.3.4, and the snapshot graph re-points every vite peer reference, rolldown binding, postcss and nanoid entry at the new versions.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-lab-manifest",
+      "label": "console-lab package.json",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "console-lab",
+      "subtitle": "devDependencies.vite: 8.3.4",
+      "summary": "The single authored line of this change: the pinned Vite devDependency moves from 8.3.1 to 8.3.4. Scripts, engines and every other dependency are untouched.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 17,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite",
+      "label": "vite",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "vite-stack",
+      "subtitle": "8.3.1 → 8.3.4",
+      "summary": "The dev server and bundler console-lab runs on. The patch bump changes its internal dependency set: it now depends on rolldown 1.2.14 and postcss 8.5.30 rather than 1.2.11 and 8.5.28.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plugin-react",
+      "label": "@vitejs/plugin-react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "vite-stack",
+      "subtitle": "6.1.2, peer re-resolved",
+      "summary": "React transform plugin. Its own version is unchanged; only its peer resolution moved, so it now declares vite 8.3.4 as its peer instance.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plugin-singlefile",
+      "label": "vite-plugin-singlefile",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "vite-stack",
+      "subtitle": "2.3.3, peer re-resolved",
+      "summary": "Inlines the built bundle into one HTML file. Version unchanged; its vite peer reference is re-pointed at 8.3.4.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rolldown",
+      "label": "rolldown",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "bundler-internals",
+      "subtitle": "1.2.11 → 1.2.14",
+      "summary": "The bundler core Vite delegates to. The bump also moves its optional platform bindings — fifteen of them, from android-arm to win32-x64 — in lockstep, and pulls @oxc-project/types forward.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "oxc-types",
+      "label": "@oxc-project/types",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "bundler-internals",
+      "subtitle": "0.151.0 → 0.154.0",
+      "summary": "AST type definitions consumed by rolldown. Version moves with the bundler bump.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "postcss",
+      "label": "postcss",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "css-internals",
+      "subtitle": "8.5.28 → 8.5.30",
+      "summary": "CSS transform pipeline used by Vite. The bump also moves its own dependencies: nanoid to 3.3.20 and source-map-js to 1.2.2.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "nanoid",
+      "label": "nanoid",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build-toolchain",
+      "group": "css-internals",
+      "subtitle": "3.3.19 → 3.3.20",
+      "summary": "Identifier generator used by postcss. Patch bump, reached only through postcss.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "source-map-js",
+      "label": "source-map-js",
+      "kind": "package",
+      "delta": "added",
+      "lane": "build-toolchain",
+      "group": "css-internals",
+      "subtitle": "1.2.2 snapshot added",
+      "summary": "A new 1.2.2 snapshot appears alongside the existing 1.2.1; postcss 8.5.30 resolves to the newer one while other consumers keep 1.2.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "manifest-declares-vite",
+      "from": "console-lab-manifest",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 8.3.4",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one authored change: the manifest's pinned Vite version. Everything else in the diff follows from re-resolving this.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "lock-resolves-manifest",
+      "from": "pnpm-lock",
+      "to": "console-lab-manifest",
+      "kind": "data",
+      "delta": "modified",
+      "label": "importer entry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile's console-lab importer block records the new specifier and the resolved 8.3.4 instance.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 28,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "plugin-react-peers-vite",
+      "from": "plugin-react",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer vite@8.3.4",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Peer resolution re-pointed; the plugin version itself did not change.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "plugin-singlefile-peers-vite",
+      "from": "plugin-singlefile",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer vite@8.3.4",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Peer resolution re-pointed; the plugin version itself did not change.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "vite-depends-rolldown",
+      "from": "vite",
+      "to": "rolldown",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.2.14",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite's bundler dependency moves a patch line, which is what drags the binding matrix along.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "vite-depends-postcss",
+      "from": "vite",
+      "to": "postcss",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "8.5.30",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite's CSS pipeline dependency moves two patch releases.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "rolldown-depends-oxc",
+      "from": "rolldown",
+      "to": "oxc-types",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.154.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "AST types follow the bundler version.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "postcss-depends-nanoid",
+      "from": "postcss",
+      "to": "nanoid",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.3.20",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "postcss's id generator dependency moves a patch.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "postcss-depends-source-map-js",
+      "from": "postcss",
+      "to": "source-map-js",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.2.2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "postcss 8.5.30 resolves source-map-js to the newly added 1.2.2 snapshot instead of 1.2.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "How the bump reaches an install",
+      "summary": "A fresh pnpm install reads the console-lab manifest, resolves Vite 8.3.4 through the lockfile, and pulls the newer bundler and CSS internals with it.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-lab-manifest"
+        },
+        {
+          "node": "pnpm-lock"
+        },
+        {
+          "node": "vite"
+        },
+        {
+          "node": "rolldown"
+        },
+        {
+          "node": "postcss"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-manifest",
+          "from": "console-lab-manifest",
+          "to": "pnpm-lock",
+          "label": "vite: 8.3.4",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 20,
+              "endLine": 20
+            }
+          ]
+        },
+        {
+          "id": "resolve-vite",
+          "from": "pnpm-lock",
+          "to": "vite",
+          "label": "resolve 8.3.4",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 28,
+              "endLine": 40
+            }
+          ]
+        },
+        {
+          "id": "fetch-rolldown",
+          "from": "vite",
+          "to": "rolldown",
+          "label": "rolldown 1.2.14",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml"
+            }
+          ]
+        },
+        {
+          "id": "fetch-postcss",
+          "from": "vite",
+          "to": "postcss",
+          "label": "postcss 8.5.30",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml"
+            }
+          ]
+        },
+        {
+          "id": "postcss-deps",
+          "from": "postcss",
+          "to": "postcss",
+          "label": "nanoid 3.3.20, source-map-js 1.2.2",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 95,
+    "deletions": 89,
+    "chips": [
+      {
+        "label": "Authored lines",
+        "value": "1",
+        "tone": "hero"
+      },
+      {
+        "label": "Vite",
+        "value": "8.3.1 → 8.3.4",
+        "tone": "modified"
+      },
+      {
+        "label": "rolldown bindings",
+        "value": "15 re-pinned",
+        "tone": "modified"
+      },
+      {
+        "label": "New snapshots",
+        "value": "1",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-root",
+      "title": "Dependency graph around the Vite bump",
+      "lens": "architecture",
+      "summary": "console-lab's manifest is the only authored change; the lockfile and the whole Vite/rolldown/postcss chain move as a consequence.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "data-flow-root",
+      "title": "Install-time resolution",
+      "lens": "data-flow",
+      "summary": "The ordered path from the pinned specifier to the concrete packages an install fetches.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
