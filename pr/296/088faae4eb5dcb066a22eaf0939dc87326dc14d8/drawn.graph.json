@@ -1,0 +1,491 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T00:06:32.864Z",
+  "title": "Bump toml 1.1.6 → 1.1.8 across the workspace",
+  "summary": "A dependency-only change: the pinned `toml` crate moves from 1.1.6 to 1.1.8 in both crates that declare it directly (`osf` and `osf-lint-core`), and Cargo.lock picks up the matching transitive bumps of `toml_parser`, `toml_writer`, `toml_datetime` and `serde_spanned`. No source code, API surface or runtime behaviour changes; the blast radius is the two crates that parse TOML plus everything that links them.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "088faae4eb5dcb066a22eaf0939dc87326dc14d8",
+      "ref": "088faae4eb5dcb066a22eaf0939dc87326dc14d8"
+    },
+    "pullRequest": {
+      "number": 296,
+      "url": "https://github.com/open-software-factory/software-factory/pull/296"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace crates",
+      "subtitle": "Rust binaries and libraries",
+      "order": 0,
+      "summary": "The crates that declare the toml dependency directly and therefore drive the lockfile change."
+    },
+    {
+      "id": "deps",
+      "label": "Third-party crates",
+      "subtitle": "crates.io registry",
+      "order": 1,
+      "summary": "The toml crate family resolved from crates.io, whose versions move in this change."
+    },
+    {
+      "id": "config-input",
+      "label": "Config input",
+      "subtitle": "TOML files on disk",
+      "order": 2,
+      "summary": "The TOML documents these crates read at runtime; unchanged, but they are what the bumped parser consumes."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "crates/osf",
+      "summary": "Main binary crate. Its Cargo.toml pins toml to =1.1.8 instead of =1.1.6; the crate's own code is untouched.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 33,
+          "endLine": 33
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-lint-core",
+      "label": "osf-lint-core",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "crates/osf-lint-core",
+      "summary": "Lint library crate. Same one-line pin bump to toml =1.1.8; no lint logic changes.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/Cargo.toml",
+          "startLine": 21,
+          "endLine": 21
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toml-crate",
+      "label": "toml",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "1.1.6 → 1.1.8+spec-1.1.0",
+      "summary": "The TOML parser/serializer both crates depend on. Version and checksum change in Cargo.lock; its public API is what the crates compile against.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1655,
+          "endLine": 1668
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toml-parser",
+      "label": "toml_parser",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "1.1.3 → 1.1.5",
+      "summary": "Transitive parser backend pulled in by toml; bumped alongside it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1702,
+          "endLine": 1708
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toml-writer",
+      "label": "toml_writer",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "1.1.2 → 1.1.3",
+      "summary": "Transitive serializer backend pulled in by toml; bumped alongside it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1717,
+          "endLine": 1720
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toml-datetime",
+      "label": "toml_datetime",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "1.1.1 → 1.1.2",
+      "summary": "Date/time value type used by toml; bumped alongside it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1679,
+          "endLine": 1685
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "serde-spanned",
+      "label": "serde_spanned",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "1.1.1 → 1.1.2",
+      "summary": "Span-tracking serde helper used by toml; bumped alongside it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1483,
+          "endLine": 1489
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "resolved dependency graph",
+      "summary": "The lockfile records the new versions and checksums for the toml family; it is the only file where the resolution is visible.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toml-config-files",
+      "label": "TOML config files",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "config-input",
+      "subtitle": "*.toml read at runtime",
+      "summary": "Configuration documents the crates parse with the toml crate. Unchanged by this PR, but they are the input whose parsing the bumped version governs.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-cli-dep-toml",
+      "from": "osf-cli",
+      "to": "toml-crate",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=1.1.8",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The osf crate's manifest pin moves to 1.1.8, which is what forces the lockfile update.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 33,
+          "endLine": 33
+        }
+      ]
+    },
+    {
+      "id": "lint-core-dep-toml",
+      "from": "osf-lint-core",
+      "to": "toml-crate",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=1.1.8",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lint core manifest pin moves to 1.1.8 in lockstep with osf.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/Cargo.toml",
+          "startLine": 21,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "id": "toml-dep-parser",
+      "from": "toml-crate",
+      "to": "toml-parser",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "toml 1.1.8 resolves toml_parser 1.1.5.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1663,
+          "endLine": 1663
+        }
+      ]
+    },
+    {
+      "id": "toml-dep-writer",
+      "from": "toml-crate",
+      "to": "toml-writer",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "toml 1.1.8 resolves toml_writer 1.1.3.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1664,
+          "endLine": 1664
+        }
+      ]
+    },
+    {
+      "id": "toml-dep-datetime",
+      "from": "toml-crate",
+      "to": "toml-datetime",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "toml 1.1.8 resolves toml_datetime 1.1.2.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1662,
+          "endLine": 1662
+        }
+      ]
+    },
+    {
+      "id": "toml-dep-spanned",
+      "from": "toml-crate",
+      "to": "serde-spanned",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "toml 1.1.8 resolves serde_spanned 1.1.2.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1661,
+          "endLine": 1661
+        }
+      ]
+    },
+    {
+      "id": "lock-records-toml",
+      "from": "cargo-lock",
+      "to": "toml-crate",
+      "kind": "data",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile pins the exact version and checksum of the toml crate.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1655,
+          "endLine": 1658
+        }
+      ]
+    },
+    {
+      "id": "osf-reads-config",
+      "from": "osf-cli",
+      "to": "toml-config-files",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "osf parses TOML configuration at runtime through the toml crate.",
+      "files": []
+    },
+    {
+      "id": "lint-core-reads-config",
+      "from": "osf-lint-core",
+      "to": "toml-config-files",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "osf-lint-core parses TOML configuration at runtime through the toml crate.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "toml-resolution",
+      "title": "How the toml bump reaches the build",
+      "summary": "The two manifest pins are edited, Cargo re-resolves the toml family, and the lockfile records the new versions that both crates then compile against.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-cli"
+        },
+        {
+          "node": "osf-lint-core"
+        },
+        {
+          "node": "cargo-lock"
+        },
+        {
+          "node": "toml-crate"
+        },
+        {
+          "node": "toml-parser"
+        }
+      ],
+      "messages": [
+        {
+          "id": "pin-osf",
+          "from": "osf-cli",
+          "to": "cargo-lock",
+          "label": "toml = \"=1.1.8\"",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 33,
+              "endLine": 33
+            }
+          ]
+        },
+        {
+          "id": "pin-lint-core",
+          "from": "osf-lint-core",
+          "to": "cargo-lock",
+          "label": "toml = \"=1.1.8\"",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf-lint-core/Cargo.toml",
+              "startLine": 21,
+              "endLine": 21
+            }
+          ]
+        },
+        {
+          "id": "resolve-toml",
+          "from": "cargo-lock",
+          "to": "toml-crate",
+          "label": "resolve 1.1.8+spec-1.1.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1655,
+              "endLine": 1658
+            }
+          ]
+        },
+        {
+          "id": "resolve-parser",
+          "from": "toml-crate",
+          "to": "toml-parser",
+          "label": "toml_parser 1.1.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1702,
+              "endLine": 1708
+            }
+          ]
+        },
+        {
+          "id": "build-osf",
+          "from": "toml-crate",
+          "to": "osf-cli",
+          "label": "compiled against 1.1.8",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "build-lint-core",
+          "from": "toml-crate",
+          "to": "osf-lint-core",
+          "label": "compiled against 1.1.8",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 17,
+    "deletions": 17,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workspace-deps",
+      "title": "Workspace dependency view",
+      "lens": "architecture",
+      "summary": "The two crates that pin toml, the toml family they resolve to, and the lockfile that records the resolution.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "toml-resolution-flow",
+      "title": "Dependency resolution flow",
+      "lens": "data-flow",
+      "summary": "Manifest pins → lockfile resolution → toml family versions → crates compiled against them.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
