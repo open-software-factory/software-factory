@@ -31,12 +31,17 @@ the worktree at `/workspace` breaks every git command inside the
 container, because that absolute path does not exist there.
 
 Mount the main clone's `.git` directory read-write at the same absolute
-path inside the container that it has on the host, because a commit
-writes objects, refs, and this worktree's own files there. Add this
-alongside the worktree mount at `/workspace`, in `devcontainer.json`'s
-`mounts` or on `docker run`'s own `-v`. Git then finds the path its
-worktree file already names, unchanged. To protect the shared config,
-mount that one file, `.git/config`, read-only on top. The launcher in
+path inside the container that it has on the machine that created the
+worktree. A commit writes objects, refs, and this worktree's own files
+there. The worktree's `.git` file holds that path, and git reads it
+verbatim inside the container, so the mount has to satisfy it. The path
+belongs to that machine, not to the image. The container is local to the
+clone. A worktree copied to another machine needs its `.git` file
+repaired there. Add the mount alongside the worktree mount at
+`/workspace`, in `devcontainer.json`'s `mounts` or on `docker run`'s own
+`-v`. Git then finds the path its worktree file already names, unchanged.
+To protect the shared config, mount that one file, `.git/config`,
+read-only on top. The launcher in
 [One container per worktree](#one-container-per-worktree) does both.
 
 ## One container per worktree
