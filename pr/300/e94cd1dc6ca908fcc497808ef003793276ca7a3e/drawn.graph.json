@@ -1,0 +1,323 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T00:09:55.573Z",
+  "title": "Bump create-github-app-token to v3.3.0 in review workflow",
+  "summary": "A single-line dependency bump in the review workflow: the step that mints the verifier GitHub App token now pins actions/create-github-app-token at v3.3.0 instead of v3.2.0. Nothing else in the pipeline changes — the same app id and private key are passed in, and the resulting token still feeds the verifier job's later steps. The diagram places that step among the unchanged neighbours it sits between so the blast radius is visible: it is one action swap inside an otherwise untouched review pipeline.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "e94cd1dc6ca908fcc497808ef003793276ca7a3e",
+      "ref": "e94cd1dc6ca908fcc497808ef003793276ca7a3e"
+    },
+    "pullRequest": {
+      "number": 300,
+      "url": "https://github.com/open-software-factory/software-factory/pull/300"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github-events",
+      "label": "GitHub triggers",
+      "subtitle": "Events that start the workflow",
+      "order": 0
+    },
+    {
+      "id": "review-workflow",
+      "label": "review.yml jobs",
+      "subtitle": "GitHub Actions workflow",
+      "order": 1
+    },
+    {
+      "id": "actions",
+      "label": "Actions & secrets",
+      "subtitle": "Reusable actions and repo config",
+      "order": 2
+    },
+    {
+      "id": "downstream",
+      "label": "Downstream consumers",
+      "subtitle": "What the minted token is used for",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "Pull request event",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "github-events",
+      "summary": "The pull request activity that triggers the review workflow. Unchanged by this diff.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "review-workflow",
+      "subtitle": "workflow definition",
+      "summary": "The review workflow. The only change in this PR is the pinned version of the token-minting action inside it.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verifier-token-step",
+      "label": "Mint the verifier's own token",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "review-workflow",
+      "subtitle": "id: verifier-token",
+      "summary": "The step that exchanges the verifier app credentials for an installation token. It now uses actions/create-github-app-token v3.3.0 rather than v3.2.0; its inputs are unchanged.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 556,
+          "endLine": 562
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "create-github-app-token",
+      "label": "actions/create-github-app-token",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "actions",
+      "subtitle": "v3.3.0 (was v3.2.0)",
+      "summary": "The third-party action that mints a GitHub App installation token. This PR moves the pin from v3.2.0 to v3.3.0.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 559
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verifier-app-config",
+      "label": "Verifier app config",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "actions",
+      "subtitle": "VERIFIER_APP_ID / private key",
+      "summary": "The repository variable and secret supplying the app id and private key to the token action. Untouched by this diff.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "verifier-job",
+      "label": "Verifier job steps",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "downstream",
+      "summary": "The later steps in the workflow that consume the minted token. They are unaffected apart from receiving a token from the newer action version.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-triggers-workflow",
+      "from": "pull-request-event",
+      "to": "review-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-token-step",
+      "from": "review-workflow",
+      "to": "verifier-token-step",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "runs step",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "token-step-uses-action",
+      "from": "verifier-token-step",
+      "to": "create-github-app-token",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v3.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The bumped pin: the step now resolves the action at v3.3.0.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 559
+        }
+      ]
+    },
+    {
+      "id": "token-step-reads-config",
+      "from": "verifier-token-step",
+      "to": "verifier-app-config",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "app-id, private-key",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "token-step-feeds-verifier",
+      "from": "verifier-token-step",
+      "to": "verifier-job",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "installation token",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "mint-verifier-token",
+      "title": "Minting the verifier token",
+      "summary": "How the review workflow turns the verifier app credentials into an installation token, and where the bumped action sits in that sequence.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-workflow",
+          "label": "review.yml"
+        },
+        {
+          "node": "verifier-token-step",
+          "label": "verifier-token"
+        },
+        {
+          "node": "create-github-app-token",
+          "label": "create-github-app-token"
+        },
+        {
+          "node": "verifier-app-config",
+          "label": "App config"
+        },
+        {
+          "node": "verifier-job",
+          "label": "Verifier steps"
+        }
+      ],
+      "messages": [
+        {
+          "id": "run-token-step",
+          "from": "review-workflow",
+          "to": "verifier-token-step",
+          "label": "run step",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "read-app-credentials",
+          "from": "verifier-token-step",
+          "to": "verifier-app-config",
+          "label": "app-id + private key",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "invoke-action",
+          "from": "verifier-token-step",
+          "to": "create-github-app-token",
+          "label": "uses @ v3.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The only changed step: the action ref moves from v3.2.0 to v3.3.0.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 559
+            }
+          ]
+        },
+        {
+          "id": "return-token",
+          "from": "create-github-app-token",
+          "to": "verifier-token-step",
+          "label": "installation token",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "pass-token-on",
+          "from": "verifier-token-step",
+          "to": "verifier-job",
+          "label": "token output",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-workflow-context",
+      "title": "Review workflow context",
+      "lens": "architecture",
+      "summary": "The review workflow, the token-minting step this PR touches, and the action and credentials it depends on.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "token-mint-flow",
+      "title": "Token minting sequence",
+      "lens": "data-flow",
+      "summary": "Ordered steps from workflow trigger to the verifier steps that consume the minted token.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

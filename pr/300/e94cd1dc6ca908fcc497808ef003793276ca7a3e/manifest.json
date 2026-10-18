@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e94cd1dc6ca908fcc497808ef003793276ca7a3e",
+    "contentHash": "04ca224179d58f67181e4c4b416e4cec"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-workflow-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "83348d132f1a36304e49f4cdac82d8f0",
+      "bytes": 11908,
+      "width": 1708,
+      "height": 522,
+      "animated": false,
+      "path": "review-workflow-context-light-83348d132f1a36304e49f4cdac82d8f0.svg"
+    },
+    {
+      "id": "review-workflow-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "566e982414daad65d38500a615fe6667",
+      "bytes": 12011,
+      "width": 1708,
+      "height": 522,
+      "animated": false,
+      "path": "review-workflow-context-dark-566e982414daad65d38500a615fe6667.svg"
+    },
+    {
+      "id": "token-mint-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "token-mint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d9d2708455eb60be7592737de5feb744",
+      "bytes": 12617,
+      "width": 1526,
+      "height": 337,
+      "animated": true,
+      "path": "token-mint-flow-light-d9d2708455eb60be7592737de5feb744.svg"
+    },
+    {
+      "id": "token-mint-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "token-mint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f0507a01fab2a80f5a31bd4b4dfb546e",
+      "bytes": 12753,
+      "width": 1526,
+      "height": 337,
+      "animated": true,
+      "path": "token-mint-flow-dark-f0507a01fab2a80f5a31bd4b4dfb546e.svg"
+    }
+  ]
+}
