@@ -116,6 +116,11 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Start or complete one journal run.
+    Run {
+        #[command(subcommand)]
+        action: RunAction,
+    },
     /// Manage this repository's local git hooks.
     Hooks {
         #[command(subcommand)]
@@ -910,6 +915,7 @@ fn main() -> ExitCode {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
         Command::Pr { action } => pr_cmd(action),
+        Command::Run { action } => run_cmd(action),
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
@@ -3049,6 +3055,187 @@ fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum RunFormat {
+    Human,
+    Json,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum RunOutcomeArg {
+    Completed,
+    Blocked,
+    Failed,
+}
+
+#[derive(Subcommand)]
+enum RunAction {
+    /// Start a run and append its run-started event.
+    Start(RunStartArgs),
+    /// Complete a run and append its run-complete event.
+    Complete(RunCompleteArgs),
+}
+
+#[derive(Args)]
+struct RunStartArgs {
+    /// The run id. Generated when omitted.
+    #[arg(long)]
+    run: Option<String>,
+    /// The provider-qualified work item, such as github:open-software-factory/software-factory#1.
+    #[arg(long)]
+    work_item: String,
+    /// The builder agent. Defaults to the configured builder.
+    #[arg(long)]
+    agent: Option<String>,
+    /// The builder model. Defaults to the configured model, else "default".
+    #[arg(long)]
+    model: Option<String>,
+    /// The builder model family. Defaults to the agent family.
+    #[arg(long)]
+    family: Option<String>,
+    /// An optional title for the run.
+    #[arg(long)]
+    title: Option<String>,
+    /// An optional repository name for the run.
+    #[arg(long)]
+    repository: Option<String>,
+    /// How to print the result: human or json.
+    #[arg(long, value_enum)]
+    format: Option<RunFormat>,
+}
+
+#[derive(Args)]
+struct RunCompleteArgs {
+    /// The run id to complete.
+    #[arg(long)]
+    run: String,
+    /// How the run ended.
+    #[arg(long, value_enum)]
+    outcome: RunOutcomeArg,
+    /// A short summary of the run.
+    #[arg(long)]
+    summary: String,
+    /// How to print the result: human or json.
+    #[arg(long, value_enum)]
+    format: Option<RunFormat>,
+}
+
+fn run_cmd(action: &RunAction) -> ExitCode {
+    match action {
+        RunAction::Start(args) => run_start_cmd(args),
+        RunAction::Complete(args) => run_complete_cmd(args),
+    }
+}
+
+fn run_start_cmd(args: &RunStartArgs) -> ExitCode {
+    let selection = match agents::selection(Path::new(".")) {
+        Ok(selection) => selection,
+        Err(error) => {
+            eprintln!("osf run start: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let agent = if let Some(name) = args.agent.as_deref() {
+        if let Some(agent) = agents::AGENTS.iter().find(|a| a.name == name) {
+            agent
+        } else {
+            eprintln!("osf run start: no agent named '{name}'");
+            return ExitCode::from(2);
+        }
+    } else {
+        selection.builder
+    };
+    let model = args
+        .model
+        .clone()
+        .or_else(|| selection.model(agent).map(str::to_string))
+        .unwrap_or_else(|| "default".to_string());
+    let family = args.family.clone().or_else(|| {
+        agent
+            .family_for(Some(model.as_str()))
+            .ok()
+            .map(str::to_string)
+    });
+    let Some(family) = family else {
+        eprintln!("osf run start: cannot name the builder family; pass --family");
+        return ExitCode::from(2);
+    };
+    let actor = journal::Actor::harness(agent.name, model, family);
+    let run = args
+        .run
+        .clone()
+        .unwrap_or_else(|| format!("run-{}-{}", now_millis(), std::process::id()));
+    let state = match journal::state_dir() {
+        Ok(state) => state,
+        Err(error) => {
+            eprintln!("osf run start: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let event = match journal::start_run(
+        &state,
+        &run,
+        &args.work_item,
+        &actor,
+        args.title.clone(),
+        args.repository.clone(),
+    ) {
+        Ok(event) => event,
+        Err(error) => {
+            eprintln!("osf run start: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    match args.format.unwrap_or(RunFormat::Human) {
+        RunFormat::Json => {
+            println!(
+                "{}",
+                serde_json::json!({"run": &run, "head_hash": &event.hash})
+            );
+        }
+        RunFormat::Human => println!("run {run} started; head hash {}", event.hash),
+    }
+    ExitCode::SUCCESS
+}
+
+fn run_complete_cmd(args: &RunCompleteArgs) -> ExitCode {
+    let outcome = match args.outcome {
+        RunOutcomeArg::Completed => journal::RunOutcome::Completed,
+        RunOutcomeArg::Blocked => journal::RunOutcome::Blocked,
+        RunOutcomeArg::Failed => journal::RunOutcome::Failed,
+    };
+    let state = match journal::state_dir() {
+        Ok(state) => state,
+        Err(error) => {
+            eprintln!("osf run complete: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let event = match journal::complete_run(&state, &args.run, outcome, &args.summary) {
+        Ok(event) => event,
+        Err(error) => {
+            eprintln!("osf run complete: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    match args.format.unwrap_or(RunFormat::Human) {
+        RunFormat::Json => {
+            println!(
+                "{}",
+                serde_json::json!({"run": &args.run, "head_hash": &event.hash})
+            );
+        }
+        RunFormat::Human => println!("run {} complete; head hash {}", args.run, event.hash),
+    }
+    ExitCode::SUCCESS
+}
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 #[cfg(test)]
