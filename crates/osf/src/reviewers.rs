@@ -60,8 +60,7 @@ pub struct Reviewer {
     /// The environment variable names that carry this reviewer's own
     /// provider credential. [`run_one`] starts this reviewer with only
     /// these, plus the variables every child needs to run at all; no other
-    /// reviewer's credential is ever in its environment. The reviewer does
-    /// not start when none of these is set, or when the list is empty.
+    /// reviewer's credential is ever in its environment.
     pub credential_env: Vec<String>,
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
@@ -180,7 +179,10 @@ impl Timeout {
 #[derive(Debug)]
 enum Failure {
     Plain(String),
-    TimedOut(Timeout),
+    /// The harness ran and exited with an error; carries what its output says.
+    Exited(String, crate::failure::Cause),
+    /// The harness ran past its time; carries what its partial output says.
+    TimedOut(Timeout, crate::failure::Cause),
 }
 
 impl From<String> for Failure {
@@ -192,17 +194,26 @@ impl From<String> for Failure {
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Failure::Plain(reason) => f.write_str(reason),
-            Failure::TimedOut(timeout) => f.write_str(&timeout.reason()),
+            Failure::Plain(reason) | Failure::Exited(reason, _) => f.write_str(reason),
+            Failure::TimedOut(timeout, _) => f.write_str(&timeout.reason()),
         }
     }
 }
 
-impl From<Failure> for Outcome {
-    fn from(failure: Failure) -> Self {
-        match failure {
+impl Failure {
+    /// The outcome this failure ends an attempt with. Its cause, when it has
+    /// one, replaces whatever an earlier run left in `cause`.
+    fn into_outcome(self, cause: &mut Option<crate::failure::Cause>) -> Outcome {
+        match self {
             Failure::Plain(reason) => Outcome::CouldNotRun(reason),
-            Failure::TimedOut(timeout) => Outcome::TimedOut(timeout),
+            Failure::Exited(reason, found) => {
+                *cause = Some(found);
+                Outcome::CouldNotRun(reason)
+            }
+            Failure::TimedOut(timeout, found) => {
+                *cause = Some(found);
+                Outcome::TimedOut(timeout)
+            }
         }
     }
 }
@@ -348,7 +359,23 @@ pub fn run_one(
     workdir: &Path,
     timeout: Duration,
 ) -> Outcome {
-    run_with_retry(reviewer, prompt, lens, workdir, timeout)
+    run_one_noted(reviewer, prompt, lens, workdir, timeout).0
+}
+
+/// [`run_one`], the run's notes (empty), and, when the last run of the
+/// harness failed, the [`crate::failure::Cause`] its output gives. The cause
+/// holds raw reviewer text, so the caller redacts it before saving.
+#[must_use]
+pub fn run_one_noted(
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    workdir: &Path,
+    timeout: Duration,
+) -> (Outcome, Vec<String>, Option<crate::failure::Cause>) {
+    let mut cause = None;
+    let outcome = run_with_retry(reviewer, prompt, lens, workdir, timeout, &mut cause);
+    (outcome, Vec::new(), cause)
 }
 
 /// Why `reviewer` cannot start for want of a credential, or `None` when one
@@ -381,6 +408,7 @@ fn run_with_retry(
     lens: &Lens,
     workdir: &Path,
     timeout: Duration,
+    cause: &mut Option<crate::failure::Cause>,
 ) -> Outcome {
     let started = std::time::Instant::now();
     if reviewer.read_only.is_none() {
@@ -414,7 +442,7 @@ fn run_with_retry(
     };
     let raw = match run_child(reviewer, prompt, &schema, workdir, remaining) {
         Ok(text) => text,
-        Err(failure) => return failure.into(),
+        Err(failure) => return failure.into_outcome(cause),
     };
     match validate_stage(&raw, reviewer, lens) {
         Ok(answer) => Outcome::Answered(answer),
@@ -429,7 +457,7 @@ fn run_with_retry(
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
                 },
-                Err(failure) => failure.into(),
+                Err(failure) => failure.into_outcome(cause),
             }
         }
     }
@@ -529,9 +557,9 @@ fn prepare_command(
 /// The child starts with an allow-listed environment: only [`RUN_ENV_VARS`]
 /// (the variables any program needs to run at all, such as `PATH`), its own
 /// empty home directory, and `reviewer.credential_env` (that reviewer's own
-/// provider credential, by name). No login file is ever copied into the home.
-/// Every other reviewer's credential, and `osf`'s own `GH_TOKEN`, stay out,
-/// whatever else is set on `osf`'s own process.
+/// provider credential, by name). Every other reviewer's credential, and
+/// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
+/// process.
 /// Why a reviewer that exited with an error failed: its name, exit code,
 /// seconds run, and the category its output points to, never that output.
 fn exit_reason(
@@ -631,13 +659,17 @@ fn run_child(
             let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
-            return Err(Failure::TimedOut(Timeout {
-                reviewer: reviewer.name.clone(),
-                waited: timeout,
-                kill_failed: killed.is_err(),
-                category: crate::failure::classify(&partial_out, &partial_err),
-                before_start: false,
-            }));
+            let cause = crate::failure::cause(&partial_out, &partial_err);
+            return Err(Failure::TimedOut(
+                Timeout {
+                    reviewer: reviewer.name.clone(),
+                    waited: timeout,
+                    kill_failed: killed.is_err(),
+                    category: crate::failure::classify(&partial_out, &partial_err),
+                    before_start: false,
+                },
+                cause,
+            ));
         }
         Err(e) => {
             cleanup();
@@ -657,19 +689,24 @@ fn run_child(
     });
     let stdout_text = joined(stdout_reader);
     // Reviewer text never reaches osf's output, the journal or a posted
-    // review: `failure::classify` reads it and returns only a category.
+    // review: `failure::classify` reads it and returns only a category. A
+    // failed attempt's `failure::cause` keeps its tail for the run artifact
+    // alone, and the caller redacts it first.
     let stderr_text = joined(stderr_reader);
     cleanup();
 
     if !status.success() {
-        return Err(exit_reason(
+        let reason = exit_reason(
             reviewer,
             status.code(),
             started.elapsed(),
             &stdout_text,
             &stderr_text,
-        )
-        .into());
+        );
+        return Err(Failure::Exited(
+            reason,
+            crate::failure::cause(&stdout_text, &stderr_text),
+        ));
     }
     Ok(stdout_text)
 }
@@ -871,7 +908,6 @@ mod tests {
         assert_eq!(codex.family, "openai");
         assert_eq!(codex.command, vec!["codex", "exec"]);
         assert_eq!(codex.model.as_deref(), Some("o4-mini"));
-        assert_eq!(codex.credential_env, vec!["CODEX_API_KEY"]);
         assert_eq!(r.get(1).expect("dsh entry").model, None);
     }
 
@@ -1187,186 +1223,14 @@ mod tests {
             extract_pointer("not json at all", "/structured_output").expect_err("not JSON at all");
         assert!(e.contains("JSON"), "{e}");
     }
-
-    /// Serialises the tests below that set `HOME` or a credential variable.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Every agent that can review, as a reviewer whose command is `command`
-    /// and whose read-only mode is present, so only its credential decides
-    /// whether it starts.
-    fn every_reviewing_agent(command: &[&str]) -> Vec<Reviewer> {
-        crate::agents::AGENTS
-            .iter()
-            .filter_map(|agent| Reviewer::from_agent(agent, None))
-            .map(|mut r| {
-                r.command = command.iter().map(ToString::to_string).collect();
-                r.read_only = Some(ReadOnly {
-                    args: &[],
-                    env: &[],
-                });
-                r
-            })
-            .collect()
-    }
-
-    fn shipped_lens() -> Lens {
-        toml::from_str(include_str!("../defaults/review-lenses/correctness.toml"))
-            .expect("shipped lens parses")
-    }
-
     #[test]
-    fn a_reviewer_without_its_key_variable_does_not_start_and_names_the_variable() {
-        let _guard = ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let marker = crate::test_support::TempDir::new("osf-reviewers-no-key");
-        let started = marker.join("started");
-        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness never starts
-        let command = ["sh", "-c", &format!("touch '{}'", started.display())];
-        let reviewers = every_reviewing_agent(&command);
-        assert!(reviewers.len() >= 2, "more than one agent can review");
-        for r in &reviewers {
-            for var in &r.credential_env {
-                std::env::remove_var(var);
-            }
-            match run_one(
-                r,
-                "prompt",
-                &shipped_lens(),
-                &workdir,
-                Duration::from_secs(30),
-            ) {
-                Outcome::CouldNotRun(reason) => {
-                    if r.credential_env.is_empty() {
-                        assert!(
-                            reason.contains("no API key variable is defined for this agent"),
-                            "{}: {reason}",
-                            r.name
-                        );
-                    } else {
-                        for var in &r.credential_env {
-                            assert!(reason.contains(var.as_str()), "{}: {reason}", r.name);
-                        }
-                    }
-                }
-                other => panic!("{}: expected could-not-run, got {other:?}", r.name),
-            }
-            assert!(
-                !started.exists(),
-                "{}: the harness must never start",
-                r.name
-            );
-        }
-    }
-
-    #[test]
-    fn an_empty_key_variable_counts_as_not_set_and_its_value_is_never_named() {
-        let _guard = ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut r = reviewer("empty-key", vec!["osf-no-such-program-for-this-test"]);
-        r.credential_env = vec!["OSF_TEST_EMPTY_KEY".to_string()];
-        std::env::set_var("OSF_TEST_EMPTY_KEY", "");
-        let reason = missing_credential(&r);
-        std::env::remove_var("OSF_TEST_EMPTY_KEY");
-        let reason = reason.expect("an empty variable is no credential");
-        assert!(reason.contains("OSF_TEST_EMPTY_KEY"), "{reason}");
-        assert!(reason.contains("is not set"), "{reason}");
-    }
-
-    /// Runs every reviewing agent's reviewer, with its key variable set to a
-    /// dummy value, against a fake real home that holds a login file in each
-    /// agent's state folders and is made unreadable when `unreadable` is set.
-    /// The fake harness lists its own home; the lists are returned by agent.
-    #[cfg(unix)]
-    fn run_every_agent_against_a_fake_home(unreadable: bool) -> Vec<(String, String)> {
-        use std::os::unix::fs::PermissionsExt;
-        let _guard = ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let real = crate::test_support::TempDir::new("osf-reviewers-fake-real-home");
-        for agent in crate::agents::AGENTS {
-            for dir in agent.state_dirs {
-                let file = real.join(dir).join("auth.json");
-                std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
-                std::fs::write(file, "a-fake-login").expect("file writes");
-            }
-        }
-        let out = crate::test_support::TempDir::new("osf-reviewers-fake-home-out");
-        let capture = out.join("listing");
-        let script = format!(
-            "cd \"$HOME\" && find . -type f -not -path './tmp/*' | sort > '{}'",
-            capture.display()
-        );
-        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness only lists its HOME
-        let saved_home = std::env::var_os("HOME");
-        std::env::set_var("HOME", &*real);
-        if unreadable {
-            std::fs::set_permissions(&*real, std::fs::Permissions::from_mode(0o000))
-                .expect("home locks");
-        }
-        let mut listings = Vec::new();
-        for r in every_reviewing_agent(&["sh", "-c", &script]) {
-            for var in &r.credential_env {
-                std::env::set_var(var, "a-dummy-key");
-            }
-            let _ = std::fs::remove_file(&capture);
-            let outcome = run_one(
-                &r,
-                "prompt",
-                &shipped_lens(),
-                &workdir,
-                Duration::from_secs(30),
-            );
-            for var in &r.credential_env {
-                std::env::remove_var(var);
-            }
-            if r.credential_env.is_empty() {
-                assert!(
-                    matches!(outcome, Outcome::CouldNotRun(_)) && !capture.exists(),
-                    "{}: a reviewer with no key variable must not start",
-                    r.name
-                );
-                continue;
-            }
-            let listing = std::fs::read_to_string(&capture)
-                .unwrap_or_else(|e| panic!("{}: the harness must start: {e}", r.name));
-            listings.push((r.name.clone(), listing));
-        }
-        if unreadable {
-            std::fs::set_permissions(&*real, std::fs::Permissions::from_mode(0o700))
-                .expect("home unlocks");
-        }
-        match saved_home {
-            Some(home) => std::env::set_var("HOME", home),
-            None => std::env::remove_var("HOME"),
-        }
-        listings
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn no_agents_reviewer_home_holds_a_login_file_from_the_real_home() {
-        let listings = run_every_agent_against_a_fake_home(false);
+    fn a_reviewer_with_no_credential_variable_is_refused() {
+        let mut r = reviewer("no-key", vec!["osf-no-such-program-for-this-test"]);
+        r.credential_env = Vec::new();
+        let reason = missing_credential(&r).expect("no key is no credential");
         assert!(
-            listings.len() >= 2,
-            "more than one agent has a key variable"
+            reason.contains("no API key variable is defined for this agent"),
+            "{reason}"
         );
-        for (name, listing) in listings {
-            assert_eq!(listing.trim(), "", "{name}");
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_reviewer_runs_the_same_when_the_real_home_cannot_be_read() {
-        let listings = run_every_agent_against_a_fake_home(true);
-        assert!(
-            listings.len() >= 2,
-            "more than one agent has a key variable"
-        );
-        for (name, listing) in listings {
-            assert_eq!(listing.trim(), "", "{name}");
-        }
     }
 }

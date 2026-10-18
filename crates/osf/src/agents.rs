@@ -182,18 +182,20 @@ pub enum Family {
 }
 
 /// Model-id prefixes and the family each names, for an agent whose family
-/// comes from its model. The first prefix that matches wins. The names are
-/// the ones `builder::family_of` gives a `Code-Generator:` trailer.
+/// comes from its model, and the table `builder::family_of` reads for a
+/// `Code-Generator:` trailer's model name. The first prefix that matches wins
+/// for a model id. A vendor name stands in for its family.
 pub const MODEL_FAMILIES: &[(&str, &str)] = &[
-    ("anthropic/", "anthropic"),
+    ("anthropic", "anthropic"),
     ("claude", "anthropic"),
-    ("openai/", "openai"),
+    ("openai", "openai"),
+    ("codex", "openai"),
     ("gpt", "openai"),
     ("o1", "openai"),
     ("o3", "openai"),
     ("o4", "openai"),
     ("deepseek", "deepseek"),
-    ("google/", "google"),
+    ("google", "google"),
     ("gemini", "google"),
     ("qwen", "qwen"),
     ("meta-llama/", "meta"),

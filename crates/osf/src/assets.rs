@@ -141,9 +141,10 @@ impl Drop for Workspace {
 }
 
 fn run_git(dir: &Path, args: &[&str]) -> Result<Output, AssetsError> {
-    Command::new("git")
-        .current_dir(dir)
-        .args(args)
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(args);
+    crate::git::scrub_git_env_for_dir(&mut command, dir);
+    command
         .output()
         .map_err(|e| AssetsError::new(format!("cannot run git {}: {e}", args.join(" "))))
 }
