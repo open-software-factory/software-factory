@@ -1,0 +1,445 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T01:43:39.870Z",
+  "title": "Bump jsonschema 0.30 → 0.58 in the osf CLI",
+  "summary": "Upgrades the `jsonschema` crate used by the `osf` crate from 0.30.0 to 0.58.6 and adapts the one call site in `answer.rs` to the new accessor API (`error.kind()` and `error.instance_path()` instead of public fields). The rest of the diff is the transitive dependency churn in `Cargo.lock`: the validator now pulls in `jsonschema-regex`/`jsonschema-value`, `referencing` 0.58, `fancy-regex` 0.19, `fraction` 0.17, and drops `futures-util`, `uuid`, and the old `base64 0.22`. No behavior is intended to change — schema validation still produces the same human-readable reason strings.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "8e7f042e7930b42e3f8ff3ffc4c71d552891bcff",
+      "ref": "8e7f042e7930b42e3f8ff3ffc4c71d552891bcff"
+    },
+    "pullRequest": {
+      "number": 285,
+      "url": "https://github.com/open-software-factory/software-factory/pull/285"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 0,
+      "summary": "The command-line binary that loads answers and validates them against JSON schemas."
+    },
+    {
+      "id": "validation",
+      "label": "Schema validation",
+      "subtitle": "jsonschema crate",
+      "order": 1,
+      "summary": "The third-party JSON Schema engine the CLI delegates validation to."
+    },
+    {
+      "id": "deps",
+      "label": "Dependency graph",
+      "subtitle": "Cargo.lock",
+      "order": 2,
+      "summary": "Resolved transitive crates that shift when the validator version moves."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "crates/osf",
+      "summary": "The binary crate. Its only change is the pinned jsonschema version in Cargo.toml.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer-module",
+      "label": "answer.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "schema_error_reason",
+      "summary": "Turns a jsonschema ValidationError into a trusted, name-free reason string. Adapted to the 0.58 accessor API: `error.kind()` and `error.instance_path()` replace direct field access.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 195,
+          "endLine": 208
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schema-error-reason",
+      "label": "schema_error_reason()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "fn(&ValidationError) -> String",
+      "summary": "Matches on the validation error kind and formats the instance path. The match arms and output format are unchanged; only how the error's kind and path are read changed.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 196,
+          "endLine": 208
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "trusted-location",
+      "label": "trusted_location()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "fn(&str) -> String",
+      "summary": "Sanitizes the JSON pointer before it is echoed into the reason string. Untouched by this change but on the same path.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 195,
+          "endLine": 195
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-crate",
+      "label": "jsonschema 0.58.6",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "validation",
+      "subtitle": "was 0.30.0",
+      "summary": "The JSON Schema validator. The upgrade changes its public error API from fields to accessor methods and reshuffles its internal crate split.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "validation-error",
+      "label": "ValidationError",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "validation",
+      "subtitle": "kind() / instance_path()",
+      "summary": "The error type the CLI inspects. In 0.58 `kind` and `instance_path` are methods rather than public fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 198,
+          "endLine": 206
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-value",
+      "label": "jsonschema-value",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "0.58.6",
+      "summary": "New crate split out of jsonschema in the 0.58 line, carrying the JSON value model.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 789,
+          "endLine": 806
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-regex",
+      "label": "jsonschema-regex",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "0.58.6",
+      "summary": "New crate split out of jsonschema for pattern handling.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 808,
+          "endLine": 814
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "referencing",
+      "label": "referencing",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "0.30.0 → 0.58.6",
+      "summary": "$ref resolution, bumped in lockstep with jsonschema and now built on hashbrown and micromap.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1205,
+          "endLine": 1222
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fancy-regex",
+      "label": "fancy-regex",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "0.14.0 → 0.19.2",
+      "summary": "Regex engine used for schema patterns, pulled forward by the validator upgrade.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 458,
+          "endLine": 466
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "futures-util",
+      "label": "futures-util",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "dropped",
+      "summary": "No longer reachable now that jsonschema 0.58 does not depend on it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 519,
+          "endLine": 519,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "uuid",
+      "label": "uuid",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "dropped",
+      "summary": "Removed from the graph; uuid-simd no longer pulls it in.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1897,
+          "endLine": 1905,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-cli-depends-jsonschema",
+      "from": "osf-cli",
+      "to": "jsonschema-crate",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.58.6",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The pinned validator version is the whole point of the change.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ]
+    },
+    {
+      "id": "answer-calls-schema-error-reason",
+      "from": "answer-module",
+      "to": "schema-error-reason",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The module defines and calls the reason formatter.",
+      "files": []
+    },
+    {
+      "id": "schema-error-reason-reads-error",
+      "from": "schema-error-reason",
+      "to": "validation-error",
+      "kind": "call",
+      "delta": "modified",
+      "label": "kind() / instance_path()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapted call site: accessor methods replace field reads.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 198,
+          "endLine": 206
+        }
+      ]
+    },
+    {
+      "id": "schema-error-reason-calls-trusted-location",
+      "from": "schema-error-reason",
+      "to": "trusted-location",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The instance path string is sanitized before formatting.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-exposes-validation-error",
+      "from": "jsonschema-crate",
+      "to": "validation-error",
+      "kind": "other",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The validator produces the error the CLI inspects.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-depends-value",
+      "from": "jsonschema-crate",
+      "to": "jsonschema-value",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "New internal split in 0.58.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-depends-regex",
+      "from": "jsonschema-crate",
+      "to": "jsonschema-regex",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "New internal split in 0.58.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-depends-referencing",
+      "from": "jsonschema-crate",
+      "to": "referencing",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "$ref resolution bumped alongside.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-depends-fancy-regex",
+      "from": "jsonschema-crate",
+      "to": "fancy-regex",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pattern engine bumped alongside.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-drops-futures-util",
+      "from": "jsonschema-crate",
+      "to": "futures-util",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "No longer a dependency in 0.58.",
+      "files": []
+    },
+    {
+      "id": "jsonschema-drops-uuid",
+      "from": "jsonschema-crate",
+      "to": "uuid",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "No longer a dependency in 0.58.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 110,
+    "deletions": 76,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "osf-validation-context",
+      "title": "osf CLI and its validator",
+      "lens": "architecture",
+      "summary": "The CLI crate, the answer module that formats validation errors, and the jsonschema engine it delegates to.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "dependency-churn",
+      "title": "Dependency graph churn",
+      "lens": "architecture",
+      "summary": "What the version bump adds and drops in Cargo.lock.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "jsonschema-crate",
+          "jsonschema-value",
+          "jsonschema-regex",
+          "referencing",
+          "fancy-regex",
+          "futures-util",
+          "uuid"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
