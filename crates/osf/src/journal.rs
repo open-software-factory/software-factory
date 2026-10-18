@@ -23,6 +23,7 @@ pub use schema::validate as validate_event;
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Reads `OSF_STATE_DIR`; otherwise `<home>/.osf/state`, where home comes
 /// from `USERPROFILE` on Windows and `HOME` elsewhere. Neither being set is
@@ -100,6 +101,7 @@ pub struct Journal {
     last_hash: String,
     index_recorded: bool,
     run_complete: bool,
+    _lock: Option<index::IndexLock>,
 }
 
 impl Journal {
@@ -125,6 +127,14 @@ impl Journal {
             )
         })?;
         let path = runs_dir.join(format!("{run}.jsonl"));
+        let locks_dir = state_dir.join("locks");
+        std::fs::create_dir_all(&locks_dir).map_err(|e| {
+            format!(
+                "cannot create the journal locks directory {}: {e}",
+                locks_dir.display()
+            )
+        })?;
+        let lock = index::take_lock(&locks_dir.join(format!("{run}.jsonl")), index::LOCK_WAIT)?;
         let has_events = match std::fs::metadata(&path) {
             Ok(meta) => meta.len() > 0,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
@@ -150,7 +160,65 @@ impl Journal {
             last_hash: genesis_hash(),
             index_recorded: false,
             run_complete: false,
+            _lock: Some(lock),
         })
+    }
+
+    /// Opens an existing run's journal for one more append. Takes the same
+    /// per-run lock as [`Journal::open`], reads and validates the chain, and
+    /// refuses a missing run, an empty run, or a run that already completed.
+    /// The events appended through this handle carry the last event's work
+    /// item and change.
+    ///
+    /// # Errors
+    /// Returns an error when `run` is not a safe single path component, when
+    /// the lock cannot be taken, when the run is missing or empty, when the
+    /// chain is invalid, or when the run is already complete.
+    pub fn open_append(state_dir: &Path, run: &str) -> Result<Journal, String> {
+        validate_run_id(run)?;
+        let path = state_dir.join("runs").join(format!("{run}.jsonl"));
+        if !path.is_file() {
+            return Err(format!(
+                "cannot open run '{run}': {} does not exist",
+                path.display()
+            ));
+        }
+        let locks_dir = state_dir.join("locks");
+        std::fs::create_dir_all(&locks_dir).map_err(|e| {
+            format!(
+                "cannot create the journal locks directory {}: {e}",
+                locks_dir.display()
+            )
+        })?;
+        let lock = index::take_lock(&locks_dir.join(format!("{run}.jsonl")), index::LOCK_WAIT)?;
+        let existing =
+            read_run(state_dir, run).map_err(|e| format!("cannot open run '{run}': {e}"))?;
+        if existing.complete {
+            return Err(format!(
+                "cannot open run '{run}': the run is already complete"
+            ));
+        }
+        let Some(last) = existing.events.last() else {
+            return Err(format!("cannot open run '{run}': the run has no events"));
+        };
+        Ok(Journal {
+            path,
+            state_dir: state_dir.to_path_buf(),
+            run: run.to_string(),
+            work_item: last.work_item.clone(),
+            change: last.change.clone(),
+            last_hash: existing.head_hash,
+            index_recorded: false,
+            run_complete: false,
+            _lock: Some(lock),
+        })
+    }
+
+    /// The hash of the last event in this run, which a run-complete event must
+    /// name.
+    #[must_use]
+    pub fn head_hash(&self) -> &str {
+        &self.last_hash
     }
 
     /// Sets the provider-qualified work item every appended event carries.
@@ -260,6 +328,65 @@ impl Journal {
         }
         Ok(event)
     }
+}
+
+/// Starts `run` under `state_dir` with a run-started event.
+///
+/// # Errors
+/// Returns an error when the journal cannot be opened or the event cannot be
+/// appended.
+pub fn start_run(
+    state_dir: &Path,
+    run: &str,
+    work_item: &str,
+    actor: &Actor,
+    title: Option<String>,
+    repository: Option<String>,
+) -> Result<Event, String> {
+    let mut journal = Journal::open(state_dir, run)?.with_work_item(work_item.to_string());
+    journal.append(
+        actor,
+        now_ms(),
+        Payload::RunStarted(RunStarted {
+            title,
+            repository,
+            retry_of: None,
+            transcript: None,
+        }),
+    )
+}
+
+/// Completes `run` under `state_dir`, naming the journal's current head.
+///
+/// # Errors
+/// Returns an error when the run is missing, empty, already complete, or the
+/// event cannot be appended.
+pub fn complete_run(
+    state_dir: &Path,
+    run: &str,
+    outcome: RunOutcome,
+    summary: &str,
+) -> Result<Event, String> {
+    let mut journal = Journal::open_append(state_dir, run)?;
+    let head = journal.head_hash().to_string();
+    journal.append(
+        &Actor::system("osf"),
+        now_ms(),
+        Payload::RunComplete(RunComplete {
+            outcome,
+            head_hash: head,
+            summary: summary.to_string(),
+            grade: EvidenceGrade::Observed,
+            transcript_hash: None,
+        }),
+    )
+}
+
+/// The current wall-clock time in whole milliseconds.
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 #[cfg(test)]
@@ -884,5 +1011,59 @@ mod tests {
         assert!(err.contains("run"), "{err}");
         assert!(err.contains("complete"), "{err}");
         assert_eq!(std::fs::read(&path).expect("read"), before);
+    }
+    #[test]
+    fn a_run_can_be_started_and_completed_from_two_handles() {
+        let dir = crate::test_support::TempDir::new("osf-journal-open-append");
+        let actor = Actor::system("osf");
+        let start = start_run(
+            &dir,
+            "run-append",
+            "github:open-software-factory/software-factory#1",
+            &actor,
+            None,
+            None,
+        )
+        .expect("start");
+        assert!(matches!(start.payload, Payload::RunStarted(_)));
+        let complete =
+            complete_run(&dir, "run-append", RunOutcome::Completed, "done").expect("complete");
+        let read = read_run(&dir, "run-append").expect("read");
+        assert_eq!(read.events.len(), 2);
+        assert!(read.complete);
+        let complete_event = read.events.get(1).expect("the complete event");
+        assert_eq!(complete_event.hash, complete.hash);
+        assert_eq!(
+            complete_event.work_item.as_deref(),
+            Some("github:open-software-factory/software-factory#1")
+        );
+        assert!(matches!(complete_event.payload, Payload::RunComplete(_)));
+    }
+
+    #[test]
+    fn a_run_that_already_completed_cannot_be_completed_again() {
+        let dir = crate::test_support::TempDir::new("osf-journal-complete-twice");
+        let actor = Actor::system("osf");
+        start_run(
+            &dir,
+            "run-twice",
+            "github:open-software-factory/software-factory#1",
+            &actor,
+            None,
+            None,
+        )
+        .expect("start");
+        complete_run(&dir, "run-twice", RunOutcome::Completed, "done").expect("complete");
+        let error = complete_run(&dir, "run-twice", RunOutcome::Completed, "again")
+            .expect_err("a completed run is closed");
+        assert!(error.contains("already complete"), "{error}");
+    }
+
+    #[test]
+    fn a_missing_run_cannot_be_completed() {
+        let dir = crate::test_support::TempDir::new("osf-journal-missing-run");
+        let error = complete_run(&dir, "missing-run", RunOutcome::Completed, "done")
+            .expect_err("a missing run has no chain");
+        assert!(error.contains("does not exist"), "{error}");
     }
 }

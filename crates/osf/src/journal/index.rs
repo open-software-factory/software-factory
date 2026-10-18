@@ -10,13 +10,14 @@ use std::time::{Duration, Instant};
 use super::{sha256_hex, validate_run_id};
 
 /// How long a writer waits for another writer to release the lock file.
-const LOCK_WAIT: Duration = Duration::from_secs(10);
+pub(super) const LOCK_WAIT: Duration = Duration::from_secs(10);
 
 /// How long a writer sleeps between attempts to take the lock file.
 const LOCK_RETRY: Duration = Duration::from_millis(5);
 
 /// The open lock file; the kernel releases the lock on drop, or when the process dies.
-struct IndexLock {
+#[derive(Debug)]
+pub(super) struct IndexLock {
     _file: File,
 }
 
@@ -107,7 +108,7 @@ fn write_index(path: &Path, index: &WorkItemIndex) -> Result<(), String> {
 }
 
 /// The lock file beside the index file `path`: its file name plus `.lock`.
-fn lock_path(path: &Path) -> PathBuf {
+pub(super) fn lock_path(path: &Path) -> PathBuf {
     let name = path
         .file_name()
         .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
@@ -115,7 +116,7 @@ fn lock_path(path: &Path) -> PathBuf {
 }
 
 /// Takes the lock file beside `path`, waiting up to `wait` for it.
-fn take_lock(path: &Path, wait: Duration) -> Result<IndexLock, String> {
+pub(super) fn take_lock(path: &Path, wait: Duration) -> Result<IndexLock, String> {
     let lock = lock_path(path);
     // Never delete the lock file: a second writer could then lock a new file while the first holds the old one.
     let file = std::fs::OpenOptions::new()
