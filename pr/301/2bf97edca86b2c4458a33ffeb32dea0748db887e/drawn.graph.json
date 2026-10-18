@@ -1,0 +1,565 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T00:11:53.511Z",
+  "title": "Bump @oh-my-pi/pi-coding-agent to 18.11.0 in the OMP integration",
+  "summary": "A dependency-only change: the OMP integration's dev dependency on @oh-my-pi/pi-coding-agent moves from 18.4.5 to 18.11.0, and pnpm-lock.yaml is regenerated to match. The whole @oh-my-pi/* family (pi-ai, pi-agent-core, pi-tui, pi-natives, pi-wire, snapcompact, mnemopi, omp-stats, omptype, pi-catalog, pi-utils) moves in lockstep to 18.11.0, and a handful of transitive packages float up with it: @opentelemetry/* 2.11.0 → 2.12.0, @huggingface/transformers 4.3.0 → 4.3.1, lucide-react 1.51.0 → 1.59.0, ws 8.21.3 → 8.22.0, plus a new @babel/runtime 7.29.10 entry. pi-mnemopi's optional peer on fastembed moves from 2.1.0 to 3.0.0. No source file in the repository changes; the runtime shape of the integration is the same, only the versions of the packages it resolves at install time.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "2bf97edca86b2c4458a33ffeb32dea0748db887e",
+      "ref": "2bf97edca86b2c4458a33ffeb32dea0748db887e"
+    },
+    "pullRequest": {
+      "number": 301,
+      "url": "https://github.com/open-software-factory/software-factory/pull/301"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo",
+      "order": 0,
+      "summary": "The repository's own packages and the integration manifests that declare what they depend on."
+    },
+    {
+      "id": "omp-integration",
+      "label": "OMP integration",
+      "subtitle": "integrations/omp",
+      "order": 1,
+      "summary": "The integration package that wraps the pi coding agent; its manifest is the only hand-edited file in this change."
+    },
+    {
+      "id": "pi-family",
+      "label": "@oh-my-pi packages",
+      "subtitle": "18.11.0",
+      "order": 2,
+      "summary": "The coding-agent package and the family of @oh-my-pi/* packages it pulls in, all versioned together."
+    },
+    {
+      "id": "transitive",
+      "label": "Transitive dependencies",
+      "subtitle": "npm registry",
+      "order": 3,
+      "summary": "Third-party packages resolved underneath the @oh-my-pi family: OpenTelemetry, Hugging Face transformers, lucide-react, ws and Babel runtime."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-workspace",
+      "label": "pnpm workspace",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "root workspace",
+      "summary": "The monorepo root that owns pnpm-lock.yaml. Every importer's resolved versions are recorded here, so a single manifest bump rewrites a large slice of the lockfile.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "omp-package-json",
+      "label": "integrations/omp/package.json",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "omp-integration",
+      "subtitle": "devDependencies",
+      "summary": "The only hand-edited file. The dev dependency @oh-my-pi/pi-coding-agent moves from 18.4.5 to 18.11.0; nothing else in the manifest changes.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 19,
+          "endLine": 25
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "omp-integration",
+      "label": "OMP integration",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "omp-integration",
+      "subtitle": "integrations/omp",
+      "summary": "The integration package itself. Its source is untouched by this change; only the version of the coding agent it develops and tests against moves.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-coding-agent",
+      "label": "@oh-my-pi/pi-coding-agent",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.4.5 → 18.11.0",
+      "summary": "The coding agent the OMP integration builds on. Bumped across seven minor versions; it is the root of the whole @oh-my-pi/* cascade in the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 63,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pi-agent-core",
+      "label": "@oh-my-pi/pi-agent-core",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0",
+      "summary": "Agent loop and tool orchestration, pulled in by the coding agent and by pi-tui. Moves in lockstep with the rest of the family.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-ai",
+      "label": "@oh-my-pi/pi-ai",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0",
+      "summary": "Model/provider layer used by the agent core, the TUI, snapcompact and mnemopi. Version follows the family bump.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-tui",
+      "label": "@oh-my-pi/pi-tui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0",
+      "summary": "Terminal UI layer of the coding agent; depends on agent core, ai, catalog, natives, utils, wire and snapcompact, all at 18.11.0.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-natives",
+      "label": "@oh-my-pi/pi-natives",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0 + platform binaries",
+      "summary": "Native bindings package. Its six optional platform binaries (darwin/linux/win32 × arm64/x64) all move to 18.11.0 together.",
+      "files": [],
+      "badges": [
+        "6 platform binaries"
+      ]
+    },
+    {
+      "id": "pi-mnemopi",
+      "label": "@oh-my-pi/pi-mnemopi",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0",
+      "summary": "Memory/embedding package. Its optional peer dependency on fastembed moves from 2.1.0 to 3.0.0, the one peer-range change in the diff.",
+      "files": [],
+      "badges": [
+        "fastembed peer 3.0.0"
+      ]
+    },
+    {
+      "id": "pi-support",
+      "label": "pi-catalog · pi-utils · pi-wire · snapcompact · omp-stats · omptype",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "pi-family",
+      "subtitle": "18.11.0",
+      "summary": "The remaining @oh-my-pi/* packages, all bumped to 18.11.0. omp-stats additionally picks up lucide-react 1.59.0.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "otel-suite",
+      "label": "@opentelemetry/*",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "transitive",
+      "subtitle": "2.11.0 → 2.12.0",
+      "summary": "Context-async-hooks, core, resources, sdk-metrics, sdk-trace, sdk-trace-base and sdk-trace-node all move from 2.11.0 to 2.12.0 under the coding agent. The 0.220.0 exporter packages stay put.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "hf-transformers",
+      "label": "@huggingface/transformers",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "transitive",
+      "subtitle": "4.3.0 → 4.3.1",
+      "summary": "Optional dependency of the coding agent, used for local model inference. Patch bump only.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "lucide-react",
+      "label": "lucide-react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "transitive",
+      "subtitle": "1.51.0 → 1.59.0",
+      "summary": "Icon set used by omp-stats' React UI. Moves from 1.51.0 to 1.59.0.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ws",
+      "label": "ws",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "transitive",
+      "subtitle": "8.21.3 → 8.22.0",
+      "summary": "WebSocket client pulled in transitively via puppeteer-core. Patch bump.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "babel-runtime",
+      "label": "@babel/runtime",
+      "kind": "package",
+      "delta": "added",
+      "lane": "transitive",
+      "subtitle": "7.29.10",
+      "summary": "A second @babel/runtime version appears in the lockfile alongside the existing 7.29.7, now referenced by @testing-library/dom.",
+      "files": [],
+      "badges": [
+        "new entry"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "omp-package-json-declares-pi-coding-agent",
+      "from": "omp-package-json",
+      "to": "pi-coding-agent",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "18.4.5 → 18.11.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The single line that drives the whole change: the dev dependency specifier in the OMP integration manifest.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 22,
+          "endLine": 22
+        }
+      ]
+    },
+    {
+      "id": "omp-integration-uses-package-json",
+      "from": "omp-integration",
+      "to": "omp-package-json",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration package is described by its manifest; its source is untouched.",
+      "files": []
+    },
+    {
+      "id": "workspace-locks-omp",
+      "from": "pnpm-workspace",
+      "to": "omp-package-json",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workspace importer entry for integrations/omp in pnpm-lock.yaml mirrors the manifest's dev dependency.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-agent-core",
+      "from": "pi-coding-agent",
+      "to": "pi-agent-core",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resolved at 18.11.0 in the regenerated lockfile.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-pi-ai",
+      "from": "pi-coding-agent",
+      "to": "pi-ai",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resolved at 18.11.0.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-pi-tui",
+      "from": "pi-coding-agent",
+      "to": "pi-tui",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resolved at 18.11.0.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-pi-natives",
+      "from": "pi-coding-agent",
+      "to": "pi-natives",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resolved at 18.11.0, which in turn selects the 18.11.0 platform binaries.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-mnemopi",
+      "from": "pi-coding-agent",
+      "to": "pi-mnemopi",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resolved at 18.11.0; its fastembed peer range widens to 3.0.0.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-support",
+      "from": "pi-coding-agent",
+      "to": "pi-support",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The remaining family packages resolve at 18.11.0.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-otel",
+      "from": "pi-coding-agent",
+      "to": "otel-suite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "2.12.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The coding agent's OpenTelemetry SDK packages move to 2.12.0 while its 0.220.0 exporters stay.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-hf",
+      "from": "pi-coding-agent",
+      "to": "hf-transformers",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "optional",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Optional dependency, resolved at 4.3.1.",
+      "files": []
+    },
+    {
+      "id": "pi-support-depends-lucide",
+      "from": "pi-support",
+      "to": "lucide-react",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "omp-stats resolves lucide-react at 1.59.0.",
+      "files": []
+    },
+    {
+      "id": "pi-coding-agent-depends-ws",
+      "from": "pi-coding-agent",
+      "to": "ws",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "via puppeteer-core",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitive through puppeteer-core, now 8.22.0.",
+      "files": []
+    },
+    {
+      "id": "pi-support-depends-babel",
+      "from": "pi-support",
+      "to": "babel-runtime",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "@testing-library/dom now resolves @babel/runtime 7.29.10, adding a second copy to the lockfile.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "lockfile-resolution",
+      "title": "How the version bump propagates into the lockfile",
+      "summary": "Editing one specifier in the OMP manifest forces pnpm to re-resolve the coding agent and everything beneath it, which is why a one-line change produces a 160-line lockfile diff.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "omp-package-json"
+        },
+        {
+          "node": "pnpm-workspace"
+        },
+        {
+          "node": "pi-coding-agent"
+        },
+        {
+          "node": "pi-support"
+        },
+        {
+          "node": "otel-suite"
+        }
+      ],
+      "messages": [
+        {
+          "id": "edit-specifier",
+          "from": "omp-package-json",
+          "to": "omp-package-json",
+          "label": "devDependency 18.4.5 → 18.11.0",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/omp/package.json",
+              "startLine": 22,
+              "endLine": 22
+            }
+          ]
+        },
+        {
+          "id": "importer-entry",
+          "from": "omp-package-json",
+          "to": "pnpm-workspace",
+          "label": "importer specifier + version",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 63,
+              "endLine": 70
+            }
+          ]
+        },
+        {
+          "id": "resolve-coding-agent",
+          "from": "pnpm-workspace",
+          "to": "pi-coding-agent",
+          "label": "resolve 18.11.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 466,
+              "endLine": 470
+            }
+          ]
+        },
+        {
+          "id": "resolve-family",
+          "from": "pi-coding-agent",
+          "to": "pi-support",
+          "label": "@oh-my-pi/* → 18.11.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "repeat": 11,
+          "note": "Eleven family packages re-resolve in lockstep, including the six pi-natives platform binaries.",
+          "files": []
+        },
+        {
+          "id": "resolve-otel",
+          "from": "pi-coding-agent",
+          "to": "otel-suite",
+          "label": "@opentelemetry/* → 2.12.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "repeat": 7,
+          "note": "Seven SDK packages move; the 0.220.0 exporter packages are unchanged.",
+          "files": []
+        },
+        {
+          "id": "lockfile-written",
+          "from": "pnpm-workspace",
+          "to": "pnpm-workspace",
+          "label": "pnpm-lock.yaml rewritten",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 165,
+    "deletions": 159,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "dependency-graph",
+      "title": "Dependency graph after the bump",
+      "lens": "architecture",
+      "summary": "The OMP integration's manifest points at @oh-my-pi/pi-coding-agent 18.11.0, which drags the whole @oh-my-pi/* family and a set of transitive packages to new versions in the lockfile.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lockfile-resolution-view",
+      "title": "Lockfile resolution sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from the one edited specifier to the rewritten lockfile.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "lockfile-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
