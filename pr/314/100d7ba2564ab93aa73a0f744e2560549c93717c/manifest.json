@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "100d7ba2564ab93aa73a0f744e2560549c93717c",
+    "contentHash": "714bced8bca447364fcf78fba1e2493c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "worktree-container-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "worktree-container-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3d894875f9b2889a77a5cb3d7e0798d2",
+      "bytes": 27009,
+      "width": 2212,
+      "height": 938,
+      "animated": false,
+      "path": "worktree-container-context-light-3d894875f9b2889a77a5cb3d7e0798d2.svg"
+    },
+    {
+      "id": "worktree-container-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "worktree-container-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f84cf20d9e69dd5271ef2e8af82dcbec",
+      "bytes": 27330,
+      "width": 2212,
+      "height": 938,
+      "animated": false,
+      "path": "worktree-container-context-dark-f84cf20d9e69dd5271ef2e8af82dcbec.svg"
+    },
+    {
+      "id": "mount-topology-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "mount-topology",
+      "mediaType": "image/svg+xml",
+      "contentHash": "81651bf5fe9d3dbad157e3b036f591e2",
+      "bytes": 11399,
+      "width": 870,
+      "height": 502,
+      "animated": false,
+      "path": "mount-topology-light-81651bf5fe9d3dbad157e3b036f591e2.svg"
+    },
+    {
+      "id": "mount-topology-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "mount-topology",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9fa5f3a55961d24f50a76abebe6adb1d",
+      "bytes": 11521,
+      "width": 870,
+      "height": 502,
+      "animated": false,
+      "path": "mount-topology-dark-9fa5f3a55961d24f50a76abebe6adb1d.svg"
+    },
+    {
+      "id": "start-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "start-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "153b65e48847a910c3b27045d527a6ff",
+      "bytes": 13490,
+      "width": 1376,
+      "height": 499,
+      "animated": true,
+      "path": "start-flow-view-light-153b65e48847a910c3b27045d527a6ff.svg"
+    },
+    {
+      "id": "start-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "start-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a285010e7975d66d6f8913c468c4df9",
+      "bytes": 13579,
+      "width": 1376,
+      "height": 499,
+      "animated": true,
+      "path": "start-flow-view-dark-7a285010e7975d66d6f8913c468c4df9.svg"
+    }
+  ]
+}
