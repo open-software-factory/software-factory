@@ -29,6 +29,7 @@
 use crate::answer::{self, Answer, AnswerFinding};
 use crate::builder;
 use crate::clean_copy::CleanCopy;
+use crate::failure;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
 use crate::lenses::{self, Catalogue, Lens};
 use crate::quotes;
@@ -195,6 +196,24 @@ pub struct Attempt {
     pub critical: bool,
     /// The validated answer, its findings not yet checked against the files.
     pub answer: Option<Answer>,
+    /// What a failed attempt's output said about its cause. The run artifact
+    /// holds it for a person to read; the journal, the summary and the
+    /// posted review never do.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause: Option<AttemptCause>,
+}
+
+/// The evidence a failed attempt leaves in the run artifact.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AttemptCause {
+    /// What made the classifier choose its category: a phrase from the
+    /// classifier's fixed list, an HTTP status such as `http status 429`, or
+    /// a JSON field such as `json status 429`. Never text the provider wrote.
+    pub basis: Option<String>,
+    /// The last [`failure::TAIL_LINES`] lines of the reviewer's standard
+    /// output then standard error, after the job's secret redaction, each
+    /// line cut to [`failure::TAIL_LINE_CHARS`] characters.
+    pub tail: String,
 }
 
 /// One reviewer's attempts at one lens.
@@ -422,6 +441,7 @@ fn could_not_run_lens(lens: &Lens, reason: String) -> LensRun {
             round: 1,
             critical: false,
             answer: None,
+            cause: None,
         }],
     }
 }
@@ -550,6 +570,12 @@ fn scrub_run(req: &Request, run: &mut ReviewerRun) {
         for attempt in &mut lens.attempts {
             if let Some(reason) = &mut attempt.reason {
                 *reason = redact_reviewer_text(req.root, req.config_root, reason);
+            }
+            // The tail is raw reviewer text. It is redacted whole, then cut,
+            // so a cut never splits a secret.
+            if let Some(cause) = &mut attempt.cause {
+                let redacted = redact_reviewer_text(req.root, req.config_root, &cause.tail);
+                cause.tail = failure::cap_line_lengths(&redacted);
             }
         }
     }
@@ -688,10 +714,11 @@ impl Attempts<'_> {
                 round,
                 critical,
                 answer: None,
+                cause: None,
             };
         }
         let given = self.per_attempt.min(remaining);
-        let (outcome, notes) =
+        let (outcome, notes, cause) =
             reviewers::run_one_noted(self.reviewer, self.prompt, self.lens, self.workdir, given);
         let (result, reason, answer) = match outcome {
             Outcome::Answered(answer) => (
@@ -714,6 +741,10 @@ impl Attempts<'_> {
             round,
             critical,
             answer,
+            cause: cause.map(|c| AttemptCause {
+                basis: c.basis,
+                tail: c.tail,
+            }),
         }
     }
 
@@ -1439,6 +1470,7 @@ mod tests {
                     round: 1,
                     critical: false,
                     answer: None,
+                    cause: None,
                 })
                 .collect(),
         }
@@ -1492,6 +1524,7 @@ mod tests {
                     round: 2,
                     critical: false,
                     answer: None,
+                    cause: None,
                 }],
             }],
             binding: Some(binding()),
@@ -1703,6 +1736,7 @@ mod tests {
                 round: 1,
                 critical: false,
                 answer: None,
+                cause: None,
             }],
         }
     }

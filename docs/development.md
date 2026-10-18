@@ -263,10 +263,37 @@ invalid answer, which keeps its own validation reason, and any failure
 whose text matches none of the patterns. The last category means that no
 pattern matched. It does not mean that nothing failed. In a failure
 reason, `osf` never keeps or prints the reviewer's own text, because it can
-hold a credential. That covers the console, the journal, SARIF and the saved
-file. Each saved reason also goes through the secret removal below. The text
-of a valid finding is different: it is the reviewer's own words, and it
-reaches the review output after that same secret removal.
+hold a credential. That covers the console, the step log, the journal, SARIF
+and the posted review. Each saved reason also goes through the secret removal
+below. The text of a valid finding is different: it is the reviewer's own
+words, and it reaches the review output after that same secret removal.
+
+The category is osf's reading of the output, and it can be wrong. So the run
+file that `osf review run --out` writes, which CI uploads as the
+`review-run-<agent>` artifact, keeps the evidence for each failed attempt in
+that attempt's `cause` field, and nowhere else:
+
+- `tail` holds the last 40 lines of the command's standard output followed by
+  its standard error. The two streams are read separately, so this is not
+  their true interleaving. A line longer than 2000 characters is cut and
+  ends with `[line cut]`. The limits are `TAIL_LINES` and `TAIL_LINE_CHARS`
+  in `crates/osf/src/failure.rs`.
+- `basis` names what made the classifier choose its category. It comes from
+  a fixed list and never holds the reviewer's text: a phrase from the
+  classifier's own pattern list such as `quota exceeded`, `http status 429`,
+  `json status 429`, `json label rate_limit_error` or `json errno eacces`. It
+  is empty when the category is the last one.
+
+The tail passes through the same secret removal as every other saved text
+before the run file is written: the exact values of the secrets the job
+holds, in plain, base64 and hex form, then the pattern redaction, which
+replaces a whole line that matches a secret pattern. If that
+removal cannot run, the tail becomes a one-line notice, never the raw text.
+This covers a command that exited with an error and a command that timed out,
+where the tail is its partial output. It does not cover a command that
+exited with code 0 and printed an invalid answer, or a command that never
+started. The journal, the summary and the posted review do not carry the
+tail, and the step log never prints it. Download the artifact to read it.
 
 A reviewer job turns red when it made attempts and none answered. It still
 writes its `--out` file and uploads it first. A reviewer that is off under

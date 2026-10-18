@@ -150,25 +150,36 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
 /// not depend on which stream held the text.
 #[must_use]
 pub fn classify(stdout: &str, stderr: &str) -> Category {
-    let mut found = Category::Unknown;
+    diagnose(stdout, stderr).0
+}
+
+/// [`classify`], and the basis for the category: a short value from a fixed
+/// vocabulary, never text the provider wrote. It is one of the lowercase
+/// phrases in `TEXT_PATTERNS`, `http status <n>`, `json status <n>`,
+/// `json label <label>` where the label is one `from_label` knows, or
+/// `json errno <code>`. `None` when the category is [`Category::Unknown`].
+#[must_use]
+pub fn diagnose(stdout: &str, stderr: &str) -> (Category, Option<String>) {
+    let mut found: Option<(Category, String)> = None;
     for text in [stdout, stderr] {
         for value in json_values(text) {
-            if has_filesystem_errno(&value, 0) {
-                return Category::Permission;
+            if let Some(code) = filesystem_errno(&value, 0) {
+                return (Category::Permission, Some(format!("json errno {code}")));
             }
-            if let Some(c) = from_json(&value, 0) {
-                found = found.min(c);
+            if let Some(hit) = from_json(&value, 0) {
+                found = Some(found.map_or(hit.clone(), |f| f.min(hit)));
             }
         }
     }
-    if found != Category::Unknown {
-        return found;
+    if let Some((category, basis)) = found {
+        return (category, Some(basis));
     }
     let lower = format!("{stdout}\n{stderr}").to_lowercase();
-    let mut found = Category::Unknown;
+    let mut found: Option<(Category, String)> = None;
     for (category, needles) in TEXT_PATTERNS {
-        if needles.iter().any(|n| matches_text(&lower, n)) {
-            found = found.min(*category);
+        if let Some(n) = needles.iter().find(|n| matches_text(&lower, n)) {
+            let hit = (*category, (*n).to_string());
+            found = Some(found.map_or(hit.clone(), |f| f.min(hit)));
         }
     }
     // An explicit filesystem error code or message outranks a word that only
@@ -181,18 +192,76 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
         "read-only file system",
     ]
     .iter()
-    .any(|n| matches_text(&lower, n));
-    if explicit_permission && found != Category::SchemaRejected {
-        found = Category::Permission;
+    .find(|n| matches_text(&lower, n));
+    if let Some(n) = explicit_permission {
+        if found
+            .as_ref()
+            .is_none_or(|(c, _)| *c != Category::SchemaRejected)
+        {
+            found = Some((Category::Permission, (*n).to_string()));
+        }
     }
     // An HTTP status, read with its context, is the provider's own answer.
-    if has_status(&lower, &[401, 403]) {
-        found = found.min(Category::Credential);
+    if let Some(code) = status_in(&lower, &[401, 403]) {
+        let hit = (Category::Credential, format!("http status {code}"));
+        found = Some(found.map_or(hit.clone(), |f| f.min(hit)));
     }
-    if has_status(&lower, &[402, 429]) {
-        found = found.min(Category::Quota);
+    if let Some(code) = status_in(&lower, &[402, 429]) {
+        let hit = (Category::Quota, format!("http status {code}"));
+        found = Some(found.map_or(hit.clone(), |f| f.min(hit)));
     }
-    found
+    match found {
+        Some((category, basis)) => (category, Some(basis)),
+        None => (Category::Unknown, None),
+    }
+}
+
+/// How many of the last lines of a failed attempt's output are kept.
+pub const TAIL_LINES: usize = 40;
+
+/// The longest a kept line may be, in characters. Longer lines are cut after
+/// redaction, so a cut can never split a secret.
+pub const TAIL_LINE_CHARS: usize = 2000;
+
+/// What a failed attempt's output says about its cause, before redaction.
+/// `tail` is raw reviewer text: it must pass through the job's secret
+/// redaction before it is saved anywhere, and it never reaches a log, the
+/// journal or a posted review.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cause {
+    /// What made [`diagnose`] choose its category, from a fixed vocabulary.
+    pub basis: Option<String>,
+    /// The last [`TAIL_LINES`] lines of standard output followed by standard error.
+    pub tail: String,
+}
+
+/// The [`Cause`] of a failure whose output was `stdout` and `stderr`. The two
+/// streams are read separately, so the tail is the lines of standard output
+/// followed by the lines of standard error, not their true interleaving.
+#[must_use]
+pub fn cause(stdout: &str, stderr: &str) -> Cause {
+    let total = stdout.lines().count() + stderr.lines().count();
+    let kept: Vec<&str> = stdout
+        .lines()
+        .chain(stderr.lines())
+        .skip(total.saturating_sub(TAIL_LINES))
+        .collect();
+    Cause {
+        basis: diagnose(stdout, stderr).1,
+        tail: kept.join("\n"),
+    }
+}
+
+/// `text` with every line cut to [`TAIL_LINE_CHARS`] characters.
+#[must_use]
+pub fn cap_line_lengths(text: &str) -> String {
+    text.lines()
+        .map(|line| match line.char_indices().nth(TAIL_LINE_CHARS) {
+            Some((end, _)) => format!("{} [line cut]", &line[..end]),
+            None => line.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The error codes a system reports. Each counts only as a whole token
@@ -236,10 +305,10 @@ fn has_token(text: &str, needle: &str) -> bool {
     })
 }
 
-/// Whether `text` holds one of `codes` as an HTTP status: after a word such
+/// The first of `codes` that `text` holds as an HTTP status: after a word such
 /// as `status`, `http` or `error`, or before a reason such as `unauthorized`.
 /// A number inside a path, a longer number or a count does not qualify.
-fn has_status(text: &str, codes: &[u16]) -> bool {
+fn status_in(text: &str, codes: &[u16]) -> Option<u16> {
     const BEFORE: &[&str] = &[
         "status",
         "http",
@@ -252,7 +321,7 @@ fn has_status(text: &str, codes: &[u16]) -> bool {
         "status_code",
     ];
     const AFTER: &[&str] = &["unauthorized", "forbidden", "too many requests"];
-    codes.iter().any(|code| {
+    codes.iter().copied().find(|code| {
         let needle = code.to_string();
         text.match_indices(&needle).any(|(i, _)| {
             let before = &text[..i];
@@ -286,13 +355,14 @@ fn json_values(text: &str) -> Vec<Value> {
         .collect()
 }
 
-fn from_status(code: u64, value: &Value) -> Option<Category> {
-    match code {
-        401 | 403 => Some(Category::Credential),
-        402 | 429 => Some(Category::Quota),
-        404 if mentions_model(value) => Some(Category::ModelUnavailable),
-        _ => None,
-    }
+fn from_status(code: u64, value: &Value) -> Option<(Category, String)> {
+    let category = match code {
+        401 | 403 => Category::Credential,
+        402 | 429 => Category::Quota,
+        404 if mentions_model(value) => Category::ModelUnavailable,
+        _ => return None,
+    };
+    Some((category, format!("json status {code}")))
 }
 
 /// Whether `text` holds `word` as a whole word, not inside a longer one.
@@ -314,61 +384,66 @@ fn mentions_model(value: &Value) -> bool {
     }
 }
 
-/// The category a provider's or system's complete error label names. Each
-/// label is matched whole, never as part of a longer word. A generic
+/// The category a provider's or system's complete error label names, and the
+/// label itself, which is one of the fixed names below, never other text.
+/// Each label is matched whole, never as part of a longer word. A generic
 /// `not_found_error` names an unavailable model only with model evidence in
 /// the same object.
-fn from_label(label: &str, object: &Value) -> Option<Category> {
+fn from_label(label: &str, object: &Value) -> Option<(Category, String)> {
     let l = label.to_lowercase();
-    match l.as_str() {
-        "invalid_json_schema" => Some(Category::SchemaRejected),
-        "authentication_error" | "invalid_api_key" | "permission_error" => {
-            Some(Category::Credential)
-        }
-        "model_not_found" => Some(Category::ModelUnavailable),
-        "not_found_error" if mentions_model(object) => Some(Category::ModelUnavailable),
+    let category = match l.as_str() {
+        "invalid_json_schema" => Category::SchemaRejected,
+        "authentication_error" | "invalid_api_key" | "permission_error" => Category::Credential,
+        "model_not_found" => Category::ModelUnavailable,
+        "not_found_error" if mentions_model(object) => Category::ModelUnavailable,
         "insufficient_quota"
         | "rate_limit_error"
         | "rate_limit_exceeded"
         | "rate_limit"
         | "billing_not_active"
-        | "billing_hard_limit_reached" => Some(Category::Quota),
-        "enotfound" | "econnrefused" | "econnreset" | "etimedout" => Some(Category::Unreachable),
-        "eacces" | "eperm" | "erofs" => Some(Category::Permission),
+        | "billing_hard_limit_reached" => Category::Quota,
+        "enotfound" | "econnrefused" | "econnreset" | "etimedout" => Category::Unreachable,
+        "eacces" | "eperm" | "erofs" => Category::Permission,
+        _ => return None,
+    };
+    Some((category, format!("json label {l}")))
+}
+
+/// The filesystem error code a `type` or `code` field anywhere in `value`
+/// holds, which outranks a provider label beside it.
+fn filesystem_errno(value: &Value, depth: usize) -> Option<&'static str> {
+    if depth > 6 {
+        return None;
+    }
+    match value {
+        Value::Object(map) => map.iter().find_map(|(key, v)| {
+            let own = if matches!(key.as_str(), "type" | "code") {
+                v.as_str().and_then(|label| {
+                    ["eacces", "eperm", "erofs"]
+                        .into_iter()
+                        .find(|code| label.eq_ignore_ascii_case(code))
+                })
+            } else {
+                None
+            };
+            own.or_else(|| filesystem_errno(v, depth + 1))
+        }),
+        Value::Array(items) => items.iter().find_map(|v| filesystem_errno(v, depth + 1)),
         _ => None,
     }
 }
 
-/// Whether a `type` or `code` field anywhere in `value` is a filesystem
-/// error code, which outranks a provider label beside it.
-fn has_filesystem_errno(value: &Value, depth: usize) -> bool {
-    if depth > 6 {
-        return false;
-    }
-    match value {
-        Value::Object(map) => map.iter().any(|(key, v)| {
-            (matches!(key.as_str(), "type" | "code")
-                && v.as_str().is_some_and(|label| {
-                    matches!(label.to_lowercase().as_str(), "eacces" | "eperm" | "erofs")
-                }))
-                || has_filesystem_errno(v, depth + 1)
-        }),
-        Value::Array(items) => items.iter().any(|v| has_filesystem_errno(v, depth + 1)),
-        _ => false,
-    }
-}
-
 /// Reads the status and label fields of a JSON value, nested objects too.
-fn from_json(value: &Value, depth: usize) -> Option<Category> {
+fn from_json(value: &Value, depth: usize) -> Option<(Category, String)> {
     if depth > 6 {
         return None;
     }
     match value {
         Value::Object(map) => {
-            let mut found: Option<Category> = None;
-            let mut take = |c: Option<Category>| {
-                if let Some(c) = c {
-                    found = Some(found.map_or(c, |f| f.min(c)));
+            let mut found: Option<(Category, String)> = None;
+            let mut take = |hit: Option<(Category, String)>| {
+                if let Some(hit) = hit {
+                    found = Some(found.take().map_or(hit.clone(), |f| f.min(hit)));
                 }
             };
             for (key, v) in map {
@@ -398,6 +473,101 @@ fn from_json(value: &Value, depth: usize) -> Option<Category> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_basis_names_the_pattern_or_status_that_chose_the_category() {
+        let cases: &[(&str, &str, Category, &str)] = &[
+            (
+                "",
+                "ERROR: 429 Too Many Requests",
+                Category::Quota,
+                "http status 429",
+            ),
+            (
+                "",
+                "Incorrect API key provided: sk-FAKE",
+                Category::Credential,
+                "incorrect api key",
+            ),
+            (
+                "",
+                "error: quota exceeded",
+                Category::Quota,
+                "quota exceeded",
+            ),
+            (
+                r#"{"error":{"statusCode":401}}"#,
+                "",
+                Category::Credential,
+                "json status 401",
+            ),
+            (
+                r#"{"error":{"type":"rate_limit_error"}}"#,
+                "",
+                Category::Quota,
+                "json label rate_limit_error",
+            ),
+            (
+                r#"{"error":{"code":"EACCES"}}"#,
+                "",
+                Category::Permission,
+                "json errno eacces",
+            ),
+            (
+                "",
+                "Error: Permission denied while opening /out",
+                Category::Permission,
+                "permission denied",
+            ),
+        ];
+        for (stdout, stderr, category, basis) in cases {
+            assert_eq!(
+                diagnose(stdout, stderr),
+                (*category, Some((*basis).to_string())),
+                "{stdout} {stderr}"
+            );
+        }
+        assert_eq!(diagnose("all fine", ""), (Category::Unknown, None));
+    }
+
+    #[test]
+    fn the_basis_never_holds_text_the_provider_wrote() {
+        let (_, basis) = diagnose("", "status 429 Too Many Requests: my secret words");
+        assert_eq!(basis.as_deref(), Some("http status 429"));
+        let (_, basis) = diagnose(
+            r#"{"error":{"type":"Rate_Limit_Error","message":"my secret words"}}"#,
+            "",
+        );
+        assert_eq!(basis.as_deref(), Some("json label rate_limit_error"));
+    }
+
+    #[test]
+    fn the_tail_is_the_last_forty_lines_of_stdout_then_stderr() {
+        let numbered = |prefix: &str| {
+            (1..=30)
+                .map(|i| format!("{prefix} {i}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let (out, err) = (numbered("out"), numbered("err"));
+        let kept = cause(&out, &err).tail;
+        let lines: Vec<&str> = kept.lines().collect();
+        assert_eq!(lines.len(), TAIL_LINES);
+        assert_eq!(lines.first(), Some(&"out 21"));
+        assert_eq!(lines.get(39), Some(&"err 30"));
+        assert_eq!(cause("one\n", "").tail, "one");
+    }
+
+    #[test]
+    fn a_long_line_is_cut_after_the_limit() {
+        let capped = cap_line_lengths(&format!("{}\nshort", "x".repeat(TAIL_LINE_CHARS + 5)));
+        let lines: Vec<&str> = capped.lines().collect();
+        assert_eq!(
+            lines.first().copied(),
+            Some(format!("{} [line cut]", "x".repeat(TAIL_LINE_CHARS)).as_str())
+        );
+        assert_eq!(lines.get(1), Some(&"short"));
+    }
 
     // Captured shapes, with fake keys only. Each pair is (harness, stdout,
     // stderr, expected).
