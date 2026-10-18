@@ -242,7 +242,8 @@ What it does not check:
 - Pull requests from `dependabot[bot]` and `renovate[bot]`. A service
   writes their descriptions from release notes, so they have no template
   headings and quote other projects. The job prints `NOT CHECKED` for
-  these. Their titles are not checked either.
+  these. Their titles are not checked either. The owner approved this
+  exemption on 2026-10-18, for that reason.
 - A fork's pull request when no secret is available. The denylist is empty
   then, so only the other rules run.
 - Comments on a pull request and the review text. `osf review` reads
