@@ -902,19 +902,12 @@ jobs:
     with:
       osf-ref: <the same 40-character SHA>
       verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
-    secrets:
-      VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
 
-Map each secret by name, as above, and leave out the key of a reviewer that
-`[agents]` does not select. `secrets: inherit` passes every secret of the
-caller, but GitHub allows it only within one organization or enterprise. A
-caller in another organization than the workflow cannot use it. It suits a
-caller in the same organization, such as an adopter's own factory repo that
-calls a shared workflow for its watched repositories. osf's own caller uses it.
+The caller passes no secret. Leave out `secrets:` and `secrets: inherit`: the
+workflow declares no `workflow_call` secret, so a secret passed by name is
+refused. The keys are secrets of the `review` environment in the repository that
+holds the caller, set up as "Required setup" above says.
 
 Two references pin the check, and both name the same commit. The `@<SHA>` after
 the file name pins the jobs. The `osf-ref` input pins the `osf` that the `build`
@@ -956,12 +949,16 @@ Left out on purpose:
 
 ### Secrets
 
-The workflow declares its keys as `workflow_call` secrets. GitHub gives a called
-workflow a secret only when the caller passes it. A key that exists only in the
-caller's environment and is not passed becomes an empty string, and the run shows
-no error. A caller therefore passes each secret by name, or writes `secrets: inherit`
-within one organization. GitHub accepts a secret passed by name even when it exists only in the
-environment.
+The workflow declares no `workflow_call` secret. A caller job cannot set
+`environment:`, and a caller can pass only repository and organisation secrets,
+so a required `workflow_call` secret would fail the run before any job starts
+when the keys live in an environment. Each job that holds a key names the
+environment itself, `review` for a same-repository pull request and
+`fork-review` for a fork, and reads `secrets.<NAME>` from it. The environment is
+that of the repository that holds the caller. A key missing from it is an empty
+string, and the run shows no error. GitHub's documentation does not state in
+words that a called job's own `environment:` supplies its secrets; this design
+relies on that behaviour.
 
 | Secret | Required | Read by |
 | --- | --- | --- |

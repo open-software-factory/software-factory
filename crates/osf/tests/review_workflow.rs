@@ -1016,67 +1016,33 @@ fn the_reusable_workflow_is_called_only_and_declares_the_stable_inputs() {
     }
 }
 
-/// The `workflow_call` secret names, in file order.
-fn declared_secrets(text: &str) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
-    let mut in_secrets = false;
-    for line in text.lines() {
-        if line == "    secrets:" {
-            in_secrets = true;
-            continue;
-        }
-        if !in_secrets {
-            continue;
-        }
-        if line.starts_with("      ") && !line.starts_with("       ") && line.ends_with(':') {
-            out.push((line.trim().trim_end_matches(':').to_string(), String::new()));
-        } else if line.starts_with("       ") {
-            if let Some((_, body)) = out.last_mut() {
-                body.push_str(line);
-                body.push('\n');
-            }
-        } else {
-            break;
-        }
-    }
-    out
-}
-
-/// GitHub gives a called workflow a secret only when the caller passes it,
-/// so every secret a job reads is declared, and only the verifier key is
-/// required: a reviewer can be disabled.
+/// A caller job cannot name an environment, so a `workflow_call` secret would
+/// have to come from the caller's repository or organisation, where the keys
+/// are not. The jobs that read a key name the environment, and the workflow
+/// declares no secret, so a required one cannot fail the run before a job starts.
 #[test]
-fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_variable() {
+fn the_reusable_workflow_declares_no_secret_and_reads_no_repository_variable() {
     let text = workflow_text();
-    let declared = declared_secrets(&text);
     let code: String = text
         .lines()
         .filter(|line| !line.trim_start().starts_with('#'))
         .collect::<Vec<_>>()
         .join("\n");
-    let mut read: Vec<String> = provider_secrets(&code);
-    read.sort();
-    let mut names: Vec<String> = declared.iter().map(|(n, _)| n.clone()).collect();
-    names.sort();
-    assert_eq!(
-        names, read,
-        "every secret a job reads is declared, and no other"
+    assert!(
+        !code.lines().any(|line| line == "    secrets:"),
+        "no workflow_call secret is declared, because a required one fails the run before any job starts"
     );
-    for (name, body) in &declared {
-        assert!(body.contains("description:"), "secret {name} is described");
-        assert_eq!(
-            body.contains("required: true"),
-            name == "VERIFIER_APP_PRIVATE_KEY",
-            "only the verifier key is required: {name}"
-        );
-    }
+    assert!(
+        !provider_secrets(&code).is_empty(),
+        "the jobs still read their keys"
+    );
     assert!(
         !text.contains("vars."),
         "a setting enters as an input, never as an ambient variable"
     );
     assert!(
-        text.contains("`secrets: inherit`") && text.contains("`review` environment"),
-        "the header says how a caller passes them and where they live"
+        text.contains("`review` environment") && text.contains("A caller passes no secret"),
+        "the header says where the keys live and that a caller passes none"
     );
 }
 
@@ -1281,8 +1247,8 @@ fn the_caller_is_thin_and_runs_from_the_base_branch() {
     );
     assert_eq!(jobs(&caller).len(), 1, "one job, which only calls");
     assert!(
-        caller.contains("    secrets: inherit\n"),
-        "the caller passes its secrets on, because an environment secret reaches a called workflow only that way"
+        !caller.contains("secrets:"),
+        "the caller passes no secret, because the called jobs read the environment's"
     );
     assert!(
         !caller.contains("environment:"),
@@ -1380,11 +1346,12 @@ fn the_guide_documents_each_input_and_the_organisation_setting() {
     }
     assert!(guide.contains("Accessible from repositories in the organization"));
     assert!(guide.contains("breaking change"));
-    for (name, _) in declared_secrets(&workflow_text()) {
-        assert!(
-            guide.contains(&format!("{name}: ${{{{ secrets.{name} }}}}")),
-            "the adopter example maps {name} by name"
-        );
-    }
-    assert!(guide.contains("only within one organization or enterprise"));
+    assert!(
+        guide.contains("The caller passes no secret."),
+        "the guide says a caller passes no secret"
+    );
+    assert!(
+        !guide.contains("secrets: ${{ secrets."),
+        "the adopter example maps no secret"
+    );
 }

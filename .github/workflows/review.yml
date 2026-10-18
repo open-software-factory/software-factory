@@ -28,9 +28,8 @@ jobs:
       issues: read
       pull-requests: read
     uses: ./.github/workflows/review-check.yml
-    # The called jobs read the keys from the `review` environment, and GitHub
-    # gives a called workflow an environment secret only when the caller passes it.
-    secrets: inherit
+    # No secret is passed. A caller job cannot name an environment, so each
+    # called job that holds a key names the `review` environment itself.
     with:
       osf-repository: ${{ github.repository }}
       osf-ref: ${{ github.workflow_sha }}
