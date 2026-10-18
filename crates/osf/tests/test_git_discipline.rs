@@ -221,5 +221,5 @@ fn the_check_finds_git_in_a_file_marked_as_wholly_test_code() {
 #[test]
 fn the_check_leaves_production_code_and_other_programs_alone() {
     let source = "fn run() { Command::new(\"git\"); let _ = \"GIT_DIR\"; }\n#[cfg(test)]\nmod tests { fn f() { Command::new(\"moon\"); let _ = \"git\"; } }\n";
-    assert!(offences_in(source, false).is_empty());
+    assert_eq!(offences_in(source, false), Vec::<String>::new());
 }
