@@ -316,8 +316,8 @@ The workflow has one job for each step. A `build` job builds the `osf`
 tool from the trusted commit of the workflow itself, with no secrets. The
 pull request's base commit is used only as what the reviewers diff against.
 Each reviewer then runs
-in its own job: `review codex`, `review claude` and `review dsh`.
-All three reviewer jobs run `osf` in the container.
+in its own job: `review codex`, `review claude`, `review opencode` and
+`review dsh`. All four reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
 only its own provider host and the hosts it needs to run. It saves what
 the reviewer did as an artifact, with `osf review run --reviewer <name>
@@ -560,8 +560,9 @@ holds the target. Until then, a person reads its result and decides.
   `secrets.VERIFIER_APP_PRIVATE_KEY` in the `review` environment. The
   job mints a short-lived token from this app, to post the review.
 - The `review` environment itself, holding at least two of these keys:
-  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` and
-  `secrets.DEEPSEEK_API_KEY`. Each key belongs to one reviewer job, and
+  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN`,
+  `secrets.OPENROUTER_API_KEY` and `secrets.DEEPSEEK_API_KEY`. Each key
+  belongs to one reviewer job, and
   that job passes into its container the one variable that its agent's
   `credential_env` entry names. The codex job gives `secrets.OPENAI_API_KEY`
   to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
@@ -636,9 +637,9 @@ hosts that job needs. The `build` job names four GitHub hosts:
 names `index.crates.io`, `static.crates.io` and `crates.io`
 for the crates.io registry. A reviewer job names GitHub and the
 container registry, and also `api.openai.com` for codex,
-`api.anthropic.com` for claude and `api.deepseek.com` for dsh. The
-last job names GitHub and the container
-registry.
+`api.anthropic.com` for claude, `openrouter.ai` and `models.opencode.ai` for
+opencode, and `api.deepseek.com` for dsh. The last job names GitHub and the
+container registry.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
@@ -659,7 +660,7 @@ repository's `osf.toml` selects from that list under `[agents]`:
 [agents]
 enabled = ["dsh", "omp", "opencode", "codex", "claude"]
 builder = "dsh"
-reviewers = ["codex", "claude", "dsh"]
+reviewers = ["codex", "claude", "opencode", "dsh"]
 
 [agents.models]
 claude = "claude-sonnet-5"
@@ -730,8 +731,11 @@ codex reviews outside the container. Inside the container the check is
 empty.
 `osf` also gives each reviewer a temporary folder inside its own home.
 
-Codex, Claude and DeepSeek Harness each run one family. A change that dsh built has the dsh reviewer as a last resort, under "The builder's own family". opencode and omp
-run models from any family. The model they run decides their family.
+Codex, Claude and DeepSeek Harness each run one family. opencode and omp
+run models from any family. The model they run decides their family. A
+change that dsh built leaves the dsh reviewer out under "The builder's own
+family". It can still use dsh as a last resort when no other family answers,
+with a note that independence was not achieved.
 `MODEL_FAMILIES` in `agents.rs` maps a model id prefix to a family. For
 example, `openrouter/qwen/` maps to qwen, and `claude-` maps to anthropic.
 A model that no prefix matches leaves the family unknown. So does no model
@@ -916,6 +920,7 @@ jobs:
       VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 ```
 
@@ -978,6 +983,7 @@ environment.
 | `VERIFIER_APP_PRIVATE_KEY` | yes | The last job, which mints the verifier token. |
 | `OPENAI_API_KEY` | no | The codex reviewer job. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | no | The claude reviewer job. |
+| `OPENROUTER_API_KEY` | no | The opencode reviewer job. |
 | `DEEPSEEK_API_KEY` | no | The dsh reviewer job. |
 
 A reviewer key is not required, because a repository can leave a reviewer out of
