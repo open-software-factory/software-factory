@@ -1,0 +1,438 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:37:55.294Z",
+  "title": "Failed-attempt cause evidence in the review run artifact",
+  "summary": "Failed reviewer attempts now carry a `cause` — a fixed-vocabulary `basis` naming what the classifier matched, plus a tail of the last 40 lines of the harness output — into the `--out` run artifact only. `failure::diagnose` returns the basis alongside the category, `failure::cause` builds the tail, and `reviewers` threads it out of `run_child` through `Failure::Exited`/`TimedOut` into `AttemptCause`. `review_run::scrub_run` redacts the tail with the job's secrets and caps line length before the file is written; the journal, summary, step log and posted review never see it.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "7abc194b7e64b580bfef6c341d45ff4c3150ffd7",
+      "ref": "7abc194b7e64b580bfef6c341d45ff4c3150ffd7"
+    },
+    "pullRequest": {
+      "number": 308,
+      "url": "https://github.com/open-software-factory/software-factory/pull/308"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "harness",
+      "label": "Reviewer harness",
+      "subtitle": "child process, stdout/stderr",
+      "order": 0,
+      "summary": "The external reviewer CLI osf spawns, and the streams its output arrives on."
+    },
+    {
+      "id": "osf-core",
+      "label": "osf core",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The library that runs attempts, classifies failures and assembles the run."
+    },
+    {
+      "id": "artifacts",
+      "label": "Artifacts & sinks",
+      "subtitle": "what leaves the process",
+      "order": 2,
+      "summary": "Where attempt data ends up: the run file, the journal, the console and the posted review."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "reviewer-cli",
+      "label": "Reviewer CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "harness",
+      "subtitle": "codex / claude / …",
+      "summary": "The agent binary osf spawns per attempt. Its stdout and stderr are the only evidence of why an attempt failed.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 761,
+          "endLine": 810
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "spawn, capture, classify",
+      "summary": "Captures stdout and stderr, and on a non-zero exit or a timeout now builds a `failure::Cause` from both streams and attaches it to the `Failure` variant instead of discarding the text.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 761,
+          "endLine": 810
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "failure-module",
+      "label": "failure",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "classify / diagnose / cause",
+      "summary": "`classify` is now a thin wrapper over `diagnose`, which returns the category plus a fixed-vocabulary basis string. `cause` builds the tail, `cap_line_lengths` cuts long lines, and `TAIL_LINES`/`TAIL_LINE_CHARS` are the limits.",
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 150,
+          "endLine": 270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-one-noted",
+      "label": "run_one_noted",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "(Outcome, notes, cause)",
+      "summary": "Signature grows a third return value: the cause of the last failed harness run, if any. `run_with_retry` threads a `&mut Option<Cause>` down to each `Failure::into_outcome`.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 454,
+          "endLine": 490
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempts",
+      "label": "Attempts::next",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "builds Attempt",
+      "summary": "Consumes the cause from `run_one_noted` and stores it on the `Attempt` as an `AttemptCause`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 714,
+          "endLine": 750
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempt-cause",
+      "label": "AttemptCause",
+      "kind": "other",
+      "delta": "added",
+      "lane": "osf-core",
+      "subtitle": "basis + tail",
+      "summary": "New serialized struct on `Attempt`: `basis` (fixed vocabulary, never provider text) and `tail` (raw reviewer text until scrubbed). Skipped when absent, so old run files still parse.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 196,
+          "endLine": 220
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scrub-run",
+      "label": "scrub_run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "redact then cap",
+      "summary": "Redacts the tail whole with the job's secrets (plain, base64, hex) and pattern rules, then applies `cap_line_lengths`, so a cut can never split a secret.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 571,
+          "endLine": 585
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-artifact",
+      "label": "Run artifact (--out)",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "artifacts",
+      "subtitle": "review-run-<agent>",
+      "summary": "The JSON file CI uploads. The only place the scrubbed tail and basis are written; a reader downloads it to see the evidence.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 196,
+          "endLine": 220
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal",
+      "label": "Journal",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifacts",
+      "summary": "Records the category and reason only. The tail never reaches it.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 571,
+          "endLine": 585
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-sarif",
+      "label": "Console / SARIF / posted review",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "artifacts",
+      "summary": "Every other sink keeps the category-only behaviour; the step log never prints the tail.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 263,
+          "endLine": 296
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run-tests",
+      "label": "review_run integration tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "artifacts",
+      "subtitle": "cause kept, secret removed, 40-line cap",
+      "summary": "New tests assert the tail survives into the saved file, that a secret in the output never reaches it, and that the tail is capped at 40 lines with the held key removed in all three encodings.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 1255,
+          "endLine": 1365
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-run-child",
+      "from": "reviewer-cli",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "stdout + stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The harness's two streams, read separately by the parent.",
+      "files": []
+    },
+    {
+      "id": "run-child-to-failure",
+      "from": "run-child",
+      "to": "failure-module",
+      "kind": "call",
+      "delta": "modified",
+      "label": "cause(stdout, stderr)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "On a non-zero exit or timeout, run_child now asks failure for a Cause instead of only a category.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 791,
+          "endLine": 810
+        }
+      ]
+    },
+    {
+      "id": "failure-to-run-one",
+      "from": "failure-module",
+      "to": "run-one-noted",
+      "kind": "data",
+      "delta": "modified",
+      "label": "Cause { basis, tail }",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The cause rides on the Failure variant and is lifted into the out-parameter by into_outcome.",
+      "files": []
+    },
+    {
+      "id": "run-one-to-attempts",
+      "from": "run-one-noted",
+      "to": "attempts",
+      "kind": "data",
+      "delta": "modified",
+      "label": "Option<Cause>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Third return value of run_one_noted, mapped into AttemptCause.",
+      "files": []
+    },
+    {
+      "id": "attempts-to-attempt-cause",
+      "from": "attempts",
+      "to": "attempt-cause",
+      "kind": "data",
+      "delta": "added",
+      "label": "AttemptCause",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Stored on the Attempt before the run is assembled.",
+      "files": []
+    },
+    {
+      "id": "attempt-cause-to-scrub",
+      "from": "attempt-cause",
+      "to": "scrub-run",
+      "kind": "data",
+      "delta": "added",
+      "label": "raw tail",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The tail is raw reviewer text at this point; scrub_run is the gate that makes it safe to persist.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 571,
+          "endLine": 585
+        }
+      ]
+    },
+    {
+      "id": "scrub-to-artifact",
+      "from": "scrub-run",
+      "to": "run-artifact",
+      "kind": "data",
+      "delta": "modified",
+      "label": "redacted, capped tail",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only the scrubbed, line-capped tail is serialized into the run file.",
+      "files": []
+    },
+    {
+      "id": "scrub-to-journal",
+      "from": "scrub-run",
+      "to": "journal",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "category + reason only",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The journal path is untouched: no tail is written.",
+      "files": []
+    },
+    {
+      "id": "scrub-to-console",
+      "from": "scrub-run",
+      "to": "console-sarif",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "category only",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Console, SARIF and the posted review keep the category-only behaviour.",
+      "files": []
+    },
+    {
+      "id": "tests-to-artifact",
+      "from": "review-run-tests",
+      "to": "run-artifact",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "asserts tail + redaction",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new tests read the saved file back and check the tail, the basis and the absence of secrets.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 5,
+    "additions": 455,
+    "deletions": 97,
+    "chips": [
+      {
+        "label": "New public API",
+        "value": "diagnose, cause",
+        "tone": "added"
+      },
+      {
+        "label": "Tail limit",
+        "value": "40 lines",
+        "tone": "neutral"
+      },
+      {
+        "label": "Line cap",
+        "value": "2000 chars",
+        "tone": "neutral"
+      },
+      {
+        "label": "Sinks carrying tail",
+        "value": "1 of 4",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Failure evidence path",
+      "lens": "architecture",
+      "summary": "How a failed harness run's output becomes a scrubbed `cause` in the run artifact, and which sinks deliberately do not receive it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "failure-classifier",
+      "title": "failure module internals",
+      "lens": "architecture",
+      "summary": "The classifier's two passes and the new cause builder.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "failure-module",
+          "run-child",
+          "scrub-run"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
