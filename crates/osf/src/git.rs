@@ -42,6 +42,13 @@ const LOCATING_VARS: &[&str] = &[
     "GIT_PREFIX",
 ];
 
+/// Removes only the `GIT_*` variables that name which repository to use, and leaves `GIT_INDEX_FILE` and everything else alone, for a child such as moon that finds its repository from its working directory and runs git itself.
+pub(crate) fn scrub_locating_git_env(command: &mut Command) {
+    for var in LOCATING_VARS {
+        command.env_remove(var);
+    }
+}
+
 /// `dir`'s own `.git` directory, absolute, resolved with every locating
 /// variable already removed so the answer is `dir`'s and not a caller's.
 /// This is also the correct answer from inside a linked worktree: git
@@ -122,9 +129,7 @@ pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
 
 /// [`scrub_git_env_for_dir`] with the inherited `GIT_INDEX_FILE` passed in, so a test never has to set a process-wide variable.
 fn scrub_with_index(command: &mut Command, dir: &Path, index_file: Option<std::ffi::OsString>) {
-    for var in LOCATING_VARS {
-        command.env_remove(var);
-    }
+    scrub_locating_git_env(command);
     if let Some(index_file) = index_file {
         if !index_file_is_within_dirs_git_dir(&index_file, dir) {
             command.env_remove("GIT_INDEX_FILE");
@@ -194,9 +199,10 @@ pub fn tracked_files(dir: &Path, under: Option<&Path>) -> Result<Vec<String>, Gi
 /// common ancestor. Git reports that case with an empty stderr, so the
 /// message here names the likely cause instead of repeating nothing.
 pub fn merge_base(dir: &Path, a: &str, b: &str) -> Result<String, GitError> {
-    let output = Command::new("git")
-        .current_dir(dir)
-        .args(["merge-base", a, b])
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(["merge-base", a, b]);
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
     if output.status.success() {
@@ -1033,10 +1039,10 @@ mod tests {
         assert!(parse_remote("nonsense").is_none());
     }
 
-    /// Runs `git init --quiet [--bare] dir`, GIT_* scrubbed first.
+    /// Runs `git init --quiet [--bare] dir` from inside `dir`, GIT_* scrubbed first. The working directory is `dir` because the config tests change the process's own, and a `git init` that inherits a directory another test already removed fails.
     fn init_repo(dir: &Path, bare: bool) {
         let mut command = Command::new("git");
-        command.arg("init").arg("--quiet");
+        command.arg("init").arg("--quiet").current_dir(dir);
         if bare {
             command.arg("--bare");
         }
@@ -1074,7 +1080,8 @@ mod tests {
             .arg("--quiet")
             .arg("-b")
             .arg("main")
-            .arg(dir);
+            .arg(dir)
+            .current_dir(dir);
         scrub_git_env(&mut command);
         assert!(command.output().expect("git init runs").status.success());
         run_ok(dir, &["config", "user.email", "test@example.com"]);
@@ -1386,11 +1393,10 @@ mod tests {
     }
 
     fn git(dir: &Path, args: &[&str]) {
-        let output = Command::new("git")
-            .current_dir(dir)
-            .args(args)
-            .output()
-            .expect("git runs");
+        let mut command = Command::new("git");
+        command.current_dir(dir).args(args);
+        scrub_git_env(&mut command);
+        let output = command.output().expect("git runs");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",

@@ -199,7 +199,7 @@ mod tests {
     /// so `commit` needs nothing from the ambient environment.
     fn init_repo(dir: &Path) {
         let mut command = Command::new("git");
-        command.arg("init").arg("--quiet").arg(dir);
+        command.arg("init").arg("--quiet").arg(dir).current_dir(dir);
         git::scrub_git_env(&mut command);
         let status = command.status().expect("git init runs");
         assert!(status.success(), "git init failed for {}", dir.display());

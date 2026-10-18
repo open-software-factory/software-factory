@@ -625,11 +625,10 @@ mod tests {
         }
 
         fn git(&self, args: &[&str]) -> std::process::Output {
-            let output = std::process::Command::new("git")
-                .current_dir(&self.dir)
-                .args(args)
-                .output()
-                .expect("git runs");
+            let mut command = std::process::Command::new("git");
+            command.current_dir(&self.dir).args(args);
+            crate::git::scrub_git_env(&mut command);
+            let output = command.output().expect("git runs");
             assert!(
                 output.status.success(),
                 "git {args:?} failed: {}",

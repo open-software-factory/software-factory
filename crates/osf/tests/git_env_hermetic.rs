@@ -6,6 +6,7 @@ mod common;
 use common::{
     git_with_hook_env, isolated_home, run_osf_with_env, session_link, unique_dir, TempRepo,
 };
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -43,6 +44,43 @@ impl Sentinel {
     fn config_bytes(&self) -> Vec<u8> {
         std::fs::read(self.git_dir().join("config")).expect("sentinel config reads")
     }
+
+    /// Every file under the sentinel's git directory, by relative path, with its bytes.
+    fn snapshot(&self) -> BTreeMap<PathBuf, Vec<u8>> {
+        let mut files = BTreeMap::new();
+        collect_files(&self.git_dir(), &self.git_dir(), &mut files);
+        files
+    }
+
+    /// Asserts `before` (taken earlier) equals the sentinel now, and that nothing wrote `core.bare` or a `[user]` section into its config.
+    fn assert_untouched_since(&self, before: &BTreeMap<PathBuf, Vec<u8>>) {
+        let config = String::from_utf8_lossy(&self.config_bytes()).into_owned();
+        assert!(
+            !config.contains("[user]"),
+            "a test wrote a [user] section into the sentinel:\n{config}"
+        );
+        assert!(
+            config.contains("bare = false"),
+            "a test changed core.bare in the sentinel:\n{config}"
+        );
+        assert_eq!(
+            before,
+            &self.snapshot(),
+            "the sentinel's git directory changed"
+        );
+    }
+}
+
+fn collect_files(root: &Path, dir: &Path, out: &mut BTreeMap<PathBuf, Vec<u8>>) {
+    for entry in std::fs::read_dir(dir).expect("sentinel dir reads") {
+        let path = entry.expect("sentinel entry reads").path();
+        if path.is_dir() {
+            collect_files(root, &path, out);
+        } else {
+            let relative = path.strip_prefix(root).expect("under root").to_path_buf();
+            out.insert(relative, std::fs::read(&path).expect("sentinel file reads"));
+        }
+    }
 }
 
 impl Drop for Sentinel {
@@ -69,6 +107,7 @@ fn run_cargo_test_under_sentinel_git_env(sentinel: &Sentinel, args: &[&str]) {
     let status = command
         .env("GIT_DIR", sentinel.git_dir())
         .env("GIT_WORK_TREE", &sentinel.dir)
+        .env("GIT_INDEX_FILE", sentinel.git_dir().join("index"))
         .status()
         .expect("cargo test runs");
     assert!(
@@ -88,7 +127,27 @@ fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     assert_eq!(before, after, "the sentinel's config changed");
 }
 
-/// The same check as the previous test, against `checkpoint.rs`'s own
+/// Every unit test in the crate, run with the variables a pre-push hook exports, must pass and leave the sentinel's git directory byte-identical, with no `[user]` section and no `core.bare` change: the `config` filter above covers one module only, and a helper in any other module that runs git unscrubbed acts on the repository `GIT_DIR` names.
+#[test]
+#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
+fn the_whole_lib_suite_never_touches_a_sentinel_pointed_to_by_git_dir() {
+    let sentinel = Sentinel::new("whole-lib");
+    let before = sentinel.snapshot();
+    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--lib"]);
+    sentinel.assert_untouched_since(&before);
+}
+
+/// The same for every integration test file, the ones that run git or the built binary included. No test legitimately needs the caller's `GIT_DIR`: each one builds its own repository and must scrub the variable.
+#[test]
+#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
+fn the_whole_integration_suite_never_touches_a_sentinel_pointed_to_by_git_dir() {
+    let sentinel = Sentinel::new("whole-integration");
+    let before = sentinel.snapshot();
+    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--tests"]);
+    sentinel.assert_untouched_since(&before);
+}
+
+/// The same check as the `config` one above, against `checkpoint.rs`'s own
 /// integration tests instead: those run the real pre-push checkpoint
 /// (moon included) through `run_osf`, spawning the built `osf` binary the
 /// same way a real hook would.

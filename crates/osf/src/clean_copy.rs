@@ -180,11 +180,10 @@ mod tests {
     fn repo_with(files: &[(&str, &str)]) -> TempDir {
         let root = TempDir::new("osf-clean-copy-repo");
         let git = |args: &[&str]| {
-            let out = Command::new("git")
-                .current_dir(&root)
-                .args(args)
-                .output()
-                .expect("git runs");
+            let mut command = Command::new("git");
+            command.current_dir(&root).args(args);
+            crate::git::scrub_git_env(&mut command);
+            let out = command.output().expect("git runs");
             assert!(out.status.success(), "git {args:?}: {out:?}");
         };
         git(&["init", "--quiet"]);
