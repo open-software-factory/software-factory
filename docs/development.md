@@ -30,16 +30,18 @@ the main clone's `.git` by its absolute path on the host. Mounting only
 the worktree at `/workspace` breaks every git command inside the
 container, because that absolute path does not exist there.
 
-Mount the main clone's `.git` directory at the same absolute path inside
-the container that it has on the host. Add this alongside the worktree
-mount at `/workspace`, in `devcontainer.json`'s `mounts` or on
-`docker run`'s own `-v`. Git then finds the path its worktree file
-already names, unchanged. Mount it read-write when you commit in the
-container, because a commit writes objects, refs, and this worktree's
-own files under it. [One container per worktree](#one-container-per-worktree)
-shows how to keep the shared config file read-only on top of that.
+Mount the main clone's `.git` directory read-only at the same absolute
+path inside the container that it has on the host. Add this alongside
+the worktree mount at `/workspace`, in `devcontainer.json`'s `mounts` or
+on `docker run`'s own `-v`. Git then finds the path its worktree file
+already names, unchanged.
 
 ## One container per worktree
+
+The paragraph above mounts the main clone's `.git` read-only. A commit in
+the container writes objects, refs, and this worktree's own files there,
+so the launcher below mounts it read-write and protects only the config
+file.
 
 Run each worktree's build, test, and git work in its own container, so
 two worktrees never share a process, a scratch folder, or a leaked
