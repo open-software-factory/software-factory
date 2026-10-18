@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1728 874" width="1728" height="874" role="img" aria-label="Commit-message checks: hook and scan" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Commit-message checks: hook and scan</title>
+<desc>Two entry points now share one gate-rule set: the hook runs the writing lint directly, and the commit scan chains the same gate findings onto its configured rules.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1728" height="874" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1728" height="874" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">GIT &amp; HOOKS · LOCAL GIT, HOOK ENTRY POINTS</text>
+<rect class="lanebox" x="440" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">OSF CLI · COMMAND DISPATCH</text>
+<rect class="lanebox" x="864" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="880" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">WRITING LINT · CRATES/OSF/SRC/LINTS/WRITING</text>
+<rect class="lanebox" x="1298" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="1314" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">COMMIT SCAN · CRATES/OSF/SRC/SCAN, CHECK.RS</text></g>
+<g><path class="edge edge-neutral context" d="M166,154 L166,206" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M130,154 L130,157 C130,158.66 131.34,160 133,160 L404,160 C422.78,160 438,175.22 438,194 L438,228 C438,232.97 442.03,237 447,237 L456,237" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M404,123 L413,123 C417.97,123 422,127.03 422,132 L422,148.17 C422,162.07 433.27,173.33 447.17,173.33 L721.67,173.33 C730.69,173.33 738,180.65 738,189.67 L738,206" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M546,268 L546,271 C546,272.66 547.34,274 549,274 L836,274 C854.78,274 870,289.22 870,308 L870,574 C870,576.76 872.24,579 875,579 L880,579" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#1f883d" d="M1018,610 L1018,662" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M1018,610 L1018,662" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<path class="edge edge-added" d="M1066,724 L1066,776" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M828,123 L833,123 C835.76,123 838,125.24 838,128 L838,154.83 C838,172.41 852.25,186.67 869.83,186.67 L1256.83,186.67 C1268.52,186.67 1278,196.14 1278,207.83 L1278,211 C1278,220.94 1286.06,229 1296,229 L1314,229" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M828,237 L841,237 C848.18,237 854,242.82 854,250 L854,262.17 C854,276.07 865.27,287.33 879.17,287.33 L1270.17,287.33 C1285.54,287.33 1298,299.79 1298,315.17 L1298,335 C1298,339.42 1301.58,343 1306,343 L1314,343" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1548,268 L1548,320" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#1f883d" d="M1314,245 L1301,245 C1293.82,245 1288,250.82 1288,258 L1288,447 C1288,456.94 1279.94,465 1270,465 L1252,465" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M1314,245 L1301,245 C1293.82,245 1288,250.82 1288,258 L1288,447 C1288,456.94 1279.94,465 1270,465 L1252,465" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<path class="edge edge-added" d="M1314,359 L1311,359 C1309.34,359 1308,360.34 1308,362 L1308,453 C1308,468.46 1295.46,481 1280,481 L1252,481" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1066,496 L1066,509 C1066,516.18 1060.18,522 1053,522 L975,522 C967.82,522 962,527.82 962,535 L962,548" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1066,496 L1066,501 C1066,503.76 1068.24,506 1071,506 L1141,506 C1152.6,506 1162,515.4 1162,527 L1162,548" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1314,115 L1286,115 C1270.54,115 1258,127.54 1258,143 L1258,446 C1258,447.66 1256.66,449 1255,449 L1252,449" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1314,131 L1291,131 C1278.3,131 1268,141.3 1268,154 L1268,504 C1268,522.78 1252.78,538 1234,538 L983,538 C980.24,538 978,540.24 978,543 L978,548" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1686,123 L1699,123 C1706.18,123 1712,128.82 1712,136 L1712,280 C1712,298.78 1696.78,314 1678,314 L1407,314 C1405.34,314 1404,315.34 1404,317 L1404,320" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="32" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="123" r="1.8"/></g>
+<text class="ntitle" x="82" y="119" font-size="11.5" font-weight="600" fill="#1f2328">commit-msg hook</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">osf lint writing</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="224" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="246" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="251" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="256" cy="123" r="1.8"/></g>
+<text class="ntitle" x="274" y="119" font-size="11.5" font-weight="600" fill="#1f2328">pre-push hook</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">osf verify --stage…</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="237" r="1.8"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">Commit message file</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">.git/COMMIT_EDITMSG</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="456" y="92" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="470" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph" fill="#59636e" d="M476,117 L490,123 L476,129 Z"/></g>
+<text class="ntitle" x="506" y="119" font-size="13" font-weight="600" fill="#1f2328">osf scan --commits</text>
+<text class="nsub" x="506" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">range scan</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="456" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="470" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph" fill="#59636e" d="M476,231 L490,237 L476,243 Z"/></g>
+<text class="ntitle" x="506" y="233" font-size="11.5" font-weight="600" fill="#1f2328">osf lint writing</text>
+<text class="nsub" x="506" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">--context commit</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="648" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="662" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="675" cy="237" r="6.5"/>
+<path class="glyph-stroke" d="M675,233.5 V237 H678" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="233" font-size="10.5" font-weight="600" fill="#1f2328">osf check scan-comm…</text>
+<text class="nsub" x="698" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">pre-push checkpoint</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="880" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="894" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="907" y="469.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="930" y="461" font-size="13" font-weight="600" fill="#1f2328">commit_gate_findings</text>
+<text class="nsub" x="930" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">fn commit_gate_findings(message, known)</text>
+<g class="bdg bdg-added"><rect x="1204.45" y="426" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1224.73" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="880" y="548" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="907" y="583.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="930" y="575" font-size="11.5" font-weight="600" fill="#1f2328">lint_writing</text>
+<text class="nsub" x="930" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">fn lint_writing(..,…</text>
+<g class="bdg bdg-modified"><rect x="986.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1019.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="1072" y="548" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="1086" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1092,575 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1092,583 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="1097" cy="575" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="1102" cy="583" r="2.2"/></g>
+<text class="ntitle" x="1122" y="575" font-size="10.5" font-weight="600" fill="#1f2328">COMMIT_GATE_RU…</text>
+<text class="nsub" x="1122" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">3 rule ids</text>
+<g class="bdg bdg-added"><rect x="1204.45" y="540" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1224.73" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="880" y="662" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="894" y="680" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="907" y="697.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="930" y="689" font-size="13" font-weight="600" fill="#1f2328">commit_subject_rules</text>
+<text class="nsub" x="930" y="707" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">has_commit_subject</text>
+<g class="bdg bdg-added"><rect x="1204.45" y="654" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1224.73" y="665" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="880" y="776" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="794" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M900,803 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,811 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="905" cy="803" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="910" cy="811" r="2.2"/></g>
+<text class="ntitle" x="930" y="803" font-size="13" font-weight="600" fill="#1f2328">RULE_META</text>
+<text class="nsub" x="930" y="821" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">commit-subject-missing entry</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="768" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1211.69" y="779" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="1314" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="1328" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1335,123 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1364" y="119" font-size="10.5" font-weight="600" fill="#1f2328">commit_message_rul…</text>
+<text class="nsub" x="1364" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">hook and scan parity</text>
+<g class="bdg bdg-added"><rect x="1446.45" y="84" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1466.73" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1506" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1520" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1527,123 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1556" y="119" font-size="10.5" font-weight="600" fill="#1f2328">audited_rule_policy te…</text>
+<text class="nsub" x="1556" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">trailing full stop…</text>
+<g class="bdg bdg-modified"><rect x="1612.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1645.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1314" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1328" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="1341" y="241.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="1364" y="233" font-size="13" font-weight="600" fill="#1f2328">scan_commits</text>
+<text class="nsub" x="1364" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/src/scan/mod.rs</text>
+<g class="bdg bdg-modified"><rect x="1612.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1645.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1314" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1328" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="1341" y="355.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="1364" y="347" font-size="11" font-weight="600" fill="#1f2328">check::scan_commits</text>
+<text class="nsub" x="1364" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/src/chec…</text>
+<g class="bdg bdg-modified"><rect x="1420.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1453.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1506" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1520" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="1533" y="355.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="1556" y="347" font-size="11.5" font-weight="600" fill="#1f2328">Rules::scan_text</text>
+<text class="nsub" x="1556" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">configured scan rul…</text></g></g>
+<g><g><rect class="lpill" x="128.06" y="172.5" width="75.89" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="166" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">message text</text></g>
+<g><rect class="lpill" x="965.51" y="628.5" width="104.98" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1018" y="639.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">commit context only</text></g>
+<g><rect class="lpill" x="1044.29" y="742.5" width="43.42" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1066" y="753.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">rule id</text></g>
+<g><rect class="lpill" x="1276.14" y="274" width="83.73" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1318" y="285" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">extend findings</text></g>
+<g><rect class="lpill" x="1296.97" y="400" width="82.05" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1338" y="411" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">chain per hash</text></g>
+<g><rect class="lpill" x="954.24" y="514.5" width="119.53" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1014" y="525.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">commit context, filtered</text></g>
+<g><rect class="lpill" x="1133.58" y="519.5" width="56.85" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1162" y="530.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">retain ids</text></g>
+<g><rect class="lpill" x="1192.12" y="287" width="75.88" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1230.06" y="298" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">asserts parity</text></g></g>
+</svg>

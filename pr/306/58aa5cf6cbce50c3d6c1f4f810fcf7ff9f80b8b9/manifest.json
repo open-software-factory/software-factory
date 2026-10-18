@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "58aa5cf6cbce50c3d6c1f4f810fcf7ff9f80b8b9",
+    "contentHash": "49af0993b5197fa01fd59ab44d464159"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "commit-message-checks-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "commit-message-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f847f02135ec03f00d96bb02ffe1869a",
+      "bytes": 24811,
+      "width": 1728,
+      "height": 874,
+      "animated": false,
+      "path": "commit-message-checks-light-f847f02135ec03f00d96bb02ffe1869a.svg"
+    },
+    {
+      "id": "commit-message-checks-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "commit-message-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67548bafb15e9ea7e64be004bb6aa1e0",
+      "bytes": 25092,
+      "width": 1728,
+      "height": 874,
+      "animated": false,
+      "path": "commit-message-checks-dark-67548bafb15e9ea7e64be004bb6aa1e0.svg"
+    },
+    {
+      "id": "writing-lint-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7949afe220af3b718c77bb8a24021039",
+      "bytes": 10151,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "writing-lint-internals-light-7949afe220af3b718c77bb8a24021039.svg"
+    },
+    {
+      "id": "writing-lint-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "51c84dec15eab8513b881e9fc7afd099",
+      "bytes": 10264,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "writing-lint-internals-dark-51c84dec15eab8513b881e9fc7afd099.svg"
+    }
+  ]
+}
