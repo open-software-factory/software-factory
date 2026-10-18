@@ -340,11 +340,11 @@ Before `osf` saves an answer, and again in `osf review reduce`, it removes
 the exact value of every secret the job holds from every field. These are
 each reviewer's provider key and the code host's token. `osf` removes
 each one in plain, base64 and hex form. The pattern redaction runs as
-well. `osf` never copies a login file into the reviewer's home, for any
+well. `osf` does not copy a login file into the reviewer's home, for any
 agent. A reviewer signs in only through the API key variable that
 `agents.rs` names for it, which the job puts in the environment. When that
 variable is not set, the reviewer does not start. It reports could-not-run,
-and the reason names the variable, never its value.
+and the reason names the variable, not its value.
 
 The reviewer starts in a clean copy of the change. The copy is a temporary
 folder. It holds the change's files and no coding agent's settings,
@@ -525,7 +525,7 @@ under that one policy. So does the traffic each docker container makes.
 A reviewer is a coding-agent tool, run headless, such as Codex or
 Claude Code. `crates/osf/src/agents.rs` is the one list of agents osf can
 drive. Each entry holds the agent's command, model family, and credential
-variables, so a repository never repeats them. This
+variables, so a repository does not repeat them. This
 repository's `osf.toml` selects from that list under `[agents]`:
 
 ```toml
@@ -557,7 +557,7 @@ family.
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | no variable is defined, so it cannot review | `--tools read,grep,glob`, from `omp --help` |
 
-No reviewer ever gets a copy of a login file. The table below is built
+A reviewer does not get a copy of a login file. The table below is built
 from the agent list in `agents.rs`: it shows how each agent that can review
 signs in, and what osf does when it cannot.
 
