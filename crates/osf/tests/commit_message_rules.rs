@@ -1,6 +1,6 @@
 //! The commit-message rules `CONTRIBUTING.md` states that are decided from
-//! a message's structure: no full stop ends the subject, the subject
-//! exists, and a reference names its repository and says what it is. Each
+//! a message's structure: the subject exists, and a reference names its
+//! repository and says what it is. Each
 //! rule has a passing and a failing message, checked on the two paths that
 //! enforce it: the writing lint the `commit-msg` hook runs, and the commit
 //! scan that the pre-push checkpoint and the pull request check run.
@@ -15,10 +15,6 @@ use osf::config::WritingConfig;
 use osf::lints::writing::{lint_writing, COMMIT_GATE_RULES};
 use osf::lints::{load_known_names, Context};
 use osf::scan::{scan_commits, Rules};
-
-/// A message with this subject ends in one of the four full stops the rule
-/// reads: the ASCII, ideographic, fullwidth and halfwidth ones.
-const FULL_STOPS: [char; 4] = ['.', '\u{3002}', '\u{FF0E}', '\u{FF61}'];
 
 const PROJECT: &str = "open-software-factory/software-factory";
 
@@ -80,35 +76,33 @@ fn assert_clean(name: &str, message: &str, rule: &str) {
 }
 
 #[test]
-fn a_subject_ending_in_any_full_stop_is_flagged() {
-    for (index, stop) in FULL_STOPS.iter().enumerate() {
-        let message = format!("Add a status subcommand{stop}\n\nThe body explains why.\n");
-        assert_flagged(
-            &format!("stop-{index}"),
-            &message,
-            "commit-subject-full-stop",
+fn a_message_with_no_subject_is_flagged() {
+    for (index, message) in ["", "\n\n", "# only a comment\n"].iter().enumerate() {
+        assert!(
+            hook_rules(message).contains(&"commit-subject-missing"),
+            "hook: {message:?}"
+        );
+        assert!(
+            scan_rules_for(&format!("missing-{index}"), message)
+                .contains(&"commit-subject-missing"),
+            "scan: {message:?}"
         );
     }
 }
 
 #[test]
-fn a_subject_without_a_full_stop_passes() {
-    let message = "Add a status subcommand\n\nThe body ends with a stop.\n";
-    assert_clean("no-stop", message, "commit-subject-full-stop");
+fn a_message_with_a_subject_is_not_flagged_as_missing() {
+    assert_clean(
+        "has-subject",
+        "Add a status subcommand\n",
+        "commit-subject-missing",
+    );
 }
 
 #[test]
-fn a_full_stop_in_the_body_is_not_the_subjects() {
-    let message = "Add a status subcommand\n\nThe subject above has none. This body has.\n";
-    assert_clean("body-stop", message, "commit-subject-full-stop");
-}
-
-#[test]
-fn the_subject_is_the_first_line_that_is_not_a_comment() {
-    let message = "# a comment git strips\n\nAdd a status subcommand.\n";
-    assert!(hook_rules(message).contains(&"commit-subject-full-stop"));
-    let clean = "# a comment git strips.\nAdd a status subcommand\n";
-    assert!(!hook_rules(clean).contains(&"commit-subject-full-stop"));
+fn a_comment_line_before_the_subject_is_not_the_subject() {
+    let message = "# a comment git strips\n\nAdd a status subcommand\n";
+    assert_clean("comment-before", message, "commit-subject-missing");
 }
 
 #[test]
@@ -171,10 +165,10 @@ fn the_scan_command_fails_a_range_with_a_bad_subject_and_passes_a_good_one() {
     assert_eq!(clean.status.code(), Some(0), "{clean:?}");
 
     repo.write("c.txt", "three\n");
-    repo.commit("Add the third file.");
+    repo.commit("Add the third file (#12)");
     let dirty = run_osf(&repo.dir, &home, &["scan", "--commits", &range]);
     assert_eq!(dirty.status.code(), Some(1), "{dirty:?}");
-    assert!(String::from_utf8_lossy(&dirty.stdout).contains("commit-subject-full-stop"));
+    assert!(String::from_utf8_lossy(&dirty.stdout).contains("bare-reference"));
 }
 
 #[test]
@@ -182,7 +176,7 @@ fn the_hook_command_fails_a_bad_subject_and_passes_a_good_one() {
     let repo = TempRepo::new("hook-exit");
     let home = isolated_home("hook-exit");
     repo.write("good.txt", "Add a status subcommand\n");
-    repo.write("bad.txt", "Add a status subcommand.\n");
+    repo.write("bad.txt", "Add a status subcommand (#12)\n");
     for (file, code) in [("good.txt", 0), ("bad.txt", 1)] {
         let output = run_osf(
             &repo.dir,

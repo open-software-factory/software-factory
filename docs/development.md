@@ -161,7 +161,7 @@ checkpoint runs.
 
 | Rule in `CONTRIBUTING.md` | Hook | Commit scan |
 |---|---|---|
-| The subject has no full stop at the end (`commit-subject-full-stop`) | Checked | Checked |
+| The message has a subject (`commit-subject-missing`) | Checked | Checked |
 | A reference names its repository, not a bare number (`bare-reference`) | Checked | Checked |
 | A reference says what it is, in brackets (`reference-without-label`) | Checked | Checked |
 | Short sentences (`long-sentence`) | Checked | Not checked |
@@ -182,7 +182,7 @@ The checks read these exemptions and no others. The forge's generated
 `Merge pull request #N from owner/branch` subject is exempt from
 `bare-reference`, and nothing else about that message is exempt. A message
 from a dependency bot is not exempt from anything. It passes today because
-it holds no bare number and no full stop at the end of its subject.
+it holds no bare number.
 
 A leading line that starts with `#` is read as a comment git strips. A
 subject saved verbatim with a leading `#` is therefore not checked. The commit scan

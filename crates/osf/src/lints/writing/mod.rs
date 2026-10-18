@@ -95,7 +95,7 @@ pub fn lint_writing(
 /// message's structure alone. The `commit-msg` hook runs the whole writing
 /// lint in commit context, which includes these.
 pub const COMMIT_GATE_RULES: &[&str] = &[
-    "commit-subject-full-stop",
+    "commit-subject-missing",
     "bare-reference",
     "reference-without-label",
 ];

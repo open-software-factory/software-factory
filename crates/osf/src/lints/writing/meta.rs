@@ -711,25 +711,22 @@ pub const RULE_META: &[RuleMeta] = &[
          document, and a skill. It reads English text only."
     ),
     rule_meta!(
-        "commit-subject-full-stop",
+        "commit-subject-missing",
         House,
-        Style,
+        Comprehension,
         "house",
         "### What it does\n\
-         Flags a commit message whose subject, its first line that is not \
-         blank and not a `#` comment line, ends with a full stop. It reads \
-         the ASCII full stop, the ideographic full stop, the fullwidth full \
-         stop and the halfwidth full stop. It runs only on a commit message.\n\
+         Flags a commit message that has no subject: it is empty, blank, or \
+         only `#` comment lines. It runs only on a commit message.\n\
          ### Why it is bad\n\
-         The contributing guide asks for a subject with no full stop at the \
-         end. A subject is a title, not a sentence, and a title carries no \
-         final stop.\n\
+         The contributing guide asks for a subject in the present tense. A \
+         message with no subject gives the reader of the log nothing to scan.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: Add a status subcommand.\n\
+         Bad: a message that holds only a comment line.\n\
          Good: Add a status subcommand"
     ),
 ];

@@ -70,38 +70,29 @@ pub fn rule_ids() -> Vec<&'static str> {
             "undefined-name",
             "undefined-name-at-start",
             "recap-ending",
-            "commit-subject-full-stop",
+            "commit-subject-missing",
         ])
         .collect()
 }
 
-/// The line number and text of a commit message's subject: the first line
-/// that is neither blank nor a `#` comment line. A comment line is one git
-/// strips from a message an editor wrote, so the message file the
-/// `commit-msg` hook reads still holds them. A subject git saved verbatim
-/// with a leading `#` is read as a comment too.
-fn commit_subject(text: &str) -> Option<(usize, &str)> {
+/// Whether a commit message has a subject: a line that is neither blank nor
+/// a `#` comment line. A comment line is one git strips from a message an
+/// editor wrote, so the message file the `commit-msg` hook reads still holds
+/// them. A subject git saved verbatim with a leading `#` is read as a
+/// comment too.
+fn has_commit_subject(text: &str) -> bool {
     text.lines()
-        .enumerate()
-        .find(|(_, line)| !line.trim().is_empty() && !line.starts_with('#'))
-        .map(|(index, line)| (index + 1, line.trim_end()))
+        .any(|line| !line.trim().is_empty() && !line.starts_with('#'))
 }
 
-/// The full stops this rule reads at the end of a subject: the ASCII one,
-/// the ideographic one, the fullwidth one and the halfwidth one.
-const FULL_STOPS: [char; 4] = ['.', '\u{3002}', '\u{FF0E}', '\u{FF61}'];
-
 pub fn commit_subject_rules(text: &str, out: &mut Vec<Finding>) {
-    let Some((line, subject)) = commit_subject(text) else {
-        return;
-    };
-    if subject.ends_with(FULL_STOPS) {
+    if !has_commit_subject(text) {
         out.push(Finding::new(
-            "commit-subject-full-stop",
+            "commit-subject-missing",
             Level::Error,
-            line,
-            "do not end the subject with a full stop".to_string(),
-            subject.to_string(),
+            1,
+            "write a subject line; the message has none".to_string(),
+            "no subject".to_string(),
         ));
     }
 }
