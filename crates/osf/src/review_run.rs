@@ -216,8 +216,8 @@ pub struct ReviewerRun {
     #[serde(default)]
     pub binding: Option<Binding>,
     /// Why this reviewer made no attempt at all, when it was left out on
-    /// purpose: its family built the change, or the builder's family is
-    /// unknown. An empty `attempts` list without this reads as "nothing was
+    /// purpose: its family built the change, or another reviewer is the one
+    /// that runs without independence. An empty `attempts` list without this reads as "nothing was
     /// looked at" and "looked at, clean" alike.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_run: Option<String>,
@@ -280,10 +280,18 @@ struct Setup {
     prompt: String,
     builder_families: Vec<String>,
     skip_families: BTreeSet<String>,
-    /// Why the builder's family is unknown, when it is: the trailer text
-    /// that named none, or that the commits carry none. While set, no
-    /// reviewer can be shown independent of the builder, so none counts.
-    unknown_builder: Option<String>,
+    /// Set when no reviewer can be shown to come from a different family
+    /// than the builder's: the review still runs, with one reviewer, and
+    /// says so.
+    fallback: Option<Fallback>,
+}
+
+/// The review that runs without independence: one reviewer, and the note
+/// that says independence was not achieved.
+struct Fallback {
+    /// The first configured reviewer that can run. The others sit out.
+    reviewer: String,
+    note: String,
 }
 
 /// The reason a reviewer sits out because its family built the change.
@@ -291,16 +299,62 @@ fn same_family_reason(family: &str) -> String {
     format!("skipped: same model family as the builder ({family})")
 }
 
-/// The reason no reviewer counts while the builder's family is unknown.
-fn unknown_builder_reason(detail: &str) -> String {
+/// The note for a run whose builder family is unknown. `detail` names each
+/// unknown commit by its short hash and a fixed cause.
+fn unknown_builder_note(detail: &str) -> String {
     format!(
-        "could not run: the builder's model family is unknown ({detail}), \
-         so no reviewer can be shown to be a different family; name the family \
-         with --builder-family or fix the Code-Generator trailer"
+        "builder family unknown, independence not achieved ({detail}); name the \
+         family with --builder-family or fix the Code-Generator trailer"
     )
 }
 
+/// The note for a run whose every reviewer is of the builder's family.
+const SAME_FAMILY_NOTE: &str = "reviewer family same as builder, independence not achieved";
+
+/// The reason a reviewer sits out while the run has no independent reviewer
+/// and only the first configured one runs.
+const ONLY_FIRST_RUNS: &str =
+    "skipped: independence not achieved, so only the first configured reviewer runs";
+
+/// Picks the fallback, if the run needs one. A different model family for
+/// the reviewer is a preference: when the builder's family is unknown, or
+/// every reviewer that can run is of the builder's family, the first
+/// reviewer runs anyway and the note says independence was not achieved.
+fn choose_fallback(
+    roster: &[Reviewer],
+    skip_families: &BTreeSet<String>,
+    unknown: Option<&str>,
+) -> Option<Fallback> {
+    let mut runnable = roster.iter().filter(|r| r.family_error.is_none());
+    let first = runnable.next()?;
+    let note = if let Some(detail) = unknown {
+        unknown_builder_note(detail)
+    } else if first.is_excluded_by(skip_families)
+        && runnable.all(|r| r.is_excluded_by(skip_families))
+    {
+        SAME_FAMILY_NOTE.to_string()
+    } else {
+        return None;
+    };
+    Some(Fallback {
+        reviewer: first.name.clone(),
+        note,
+    })
+}
+
 impl Setup {
+    /// Why `reviewer` makes no attempt on this change, when it does not: its
+    /// family built the change, or another reviewer is the one that runs
+    /// without independence.
+    fn skip_reason(&self, reviewer: &Reviewer) -> Option<String> {
+        if let Some(fallback) = &self.fallback {
+            return (fallback.reviewer != reviewer.name).then(|| ONLY_FIRST_RUNS.to_string());
+        }
+        reviewer
+            .is_excluded_by(&self.skip_families)
+            .then(|| same_family_reason(&reviewer.family))
+    }
+
     fn selected_lenses(&self) -> Vec<&Lens> {
         self.catalogue
             .lenses
@@ -332,9 +386,13 @@ fn setup(req: &Request) -> Result<Setup, String> {
     let prompt = review_prompt::load(req.config_root, review_config.prompt_file.as_deref())?;
     let BuilderFamilies {
         all: builder_families,
-        skip: skip_families,
-        unknown: unknown_builder,
+        mut skip,
+        unknown,
     } = detect_builder_families(req, &review_config)?;
+    let fallback = choose_fallback(&roster, &skip, unknown.as_deref());
+    if fallback.is_some() {
+        skip.clear();
+    }
     Ok(Setup {
         catalogue,
         selected,
@@ -346,8 +404,8 @@ fn setup(req: &Request) -> Result<Setup, String> {
         cost_ceiling: review_config.cost_ceiling,
         prompt,
         builder_families,
-        skip_families,
-        unknown_builder,
+        skip_families: skip,
+        fallback,
     })
 }
 
@@ -376,8 +434,9 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
 /// Runs the roster reviewer called `name` over every selected lens, and
 /// returns what it did, unchecked and unjournaled. A reviewer whose family
-/// built the change, or whose family is unknown, is not started: its run
-/// holds no attempts.
+/// built the change, while another family is available, is not started: its
+/// run holds no attempts. So is every reviewer but the first when the run
+/// has no independent reviewer.
 ///
 /// # Errors
 /// Returns an error when [`setup`] fails, or the roster has no reviewer
@@ -596,14 +655,10 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
             head: &binding.head,
         }),
     };
-    let not_run = if let Some(detail) = &setup.unknown_builder {
-        Some(unknown_builder_reason(detail))
-    } else if let Some(reason) = &reviewer.family_error {
+    let not_run = if let Some(reason) = &reviewer.family_error {
         Some(format!("could not run: {reason}"))
-    } else if reviewer.is_excluded_by(&setup.skip_families) {
-        Some(same_family_reason(&reviewer.family))
     } else {
-        None
+        setup.skip_reason(reviewer)
     };
     let idle = not_run.is_some();
     // Written once per reviewer run, and removed when this run ends.
@@ -1052,24 +1107,21 @@ fn reduce_with(
 }
 
 /// One note per roster reviewer the run left out on purpose, so a posted
-/// summary says who did not look and why. An unknown builder family is one
-/// note for the whole roster.
+/// summary says who did not look and why. A run without independence leads
+/// with its own note, so the reader learns that the review is not
+/// independent of the builder.
 fn left_out_notes(setup: &Setup) -> Vec<String> {
-    if let Some(detail) = &setup.unknown_builder {
-        return vec![unknown_builder_reason(detail)];
-    }
-    setup
+    let independence = setup.fallback.iter().map(|f| f.note.clone());
+    let left_out = setup
         .roster
         .iter()
-        .filter(|r| r.family_error.is_none() && r.is_excluded_by(&setup.skip_families))
-        .map(|r| {
-            format!(
-                "reviewer {} {}",
-                plain(&r.name),
-                same_family_reason(&r.family)
-            )
-        })
-        .collect()
+        .filter(|r| r.family_error.is_none())
+        .filter_map(|r| {
+            setup
+                .skip_reason(r)
+                .map(|reason| format!("reviewer {} {reason}", plain(&r.name)))
+        });
+    independence.chain(left_out).collect()
 }
 
 /// How many unknown-builder reasons the note names before counting the rest.
@@ -1105,8 +1157,8 @@ struct BuilderFamilies {
 /// [`builder::detect_detailed`]), the subset of them a roster entry is left
 /// out for (every detected family other than [`builder::UNKNOWN`], which
 /// names no real family to leave a reviewer out for), and, when any family
-/// is unknown, the trailer text that names none. An unknown family fails
-/// the run closed: see [`Setup::unknown_builder`].
+/// is unknown, the commits that name none. An unknown family does not stop
+/// the run: see [`Setup::fallback`].
 ///
 /// # Errors
 /// Returns an error when git cannot read the reviewed range's own commits.
@@ -1248,20 +1300,11 @@ fn judge_lens(
     let mut context_error: Option<String> = None;
     let mut ran: Vec<(&Reviewer, Vec<Judged>)> = Vec::new();
     for reviewer in &setup.roster {
-        if let Some(detail) = &setup.unknown_builder {
-            // The lens line repeats this per reviewer, so it stays short; the
-            // detail is in the run's notes.
-            let _ = detail;
-            let reason = "the builder's model family is unknown (see the note)".to_string();
-            judged.push(Judged::missing(reviewer, "could-not-run", reason));
-            continue;
-        }
         if let Some(reason) = &reviewer.family_error {
             judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
             continue;
         }
-        if reviewer.is_excluded_by(&setup.skip_families) {
-            let reason = same_family_reason(&reviewer.family);
+        if let Some(reason) = setup.skip_reason(reviewer) {
             judged.push(Judged::missing(reviewer, "skipped", reason));
             continue;
         }
@@ -1999,6 +2042,60 @@ mod tests {
         assert_eq!(unknown_detail(&[]), "no family named");
         let four: Vec<String> = reasons.iter().take(4).cloned().collect();
         assert!(unknown_detail(&four).ends_with("and 1 more commit with an unknown builder family"));
+    }
+
+    fn roster_entry(name: &str, family: &str, family_error: Option<&str>) -> Reviewer {
+        Reviewer {
+            name: name.to_string(),
+            family: family.to_string(),
+            family_error: family_error.map(str::to_string),
+            command: Vec::new(),
+            read_only: None,
+            clean_copy: reviewers::Switches {
+                args: &[],
+                env: &[],
+            },
+            schema_flag: None,
+            schema_as: reviewers::SchemaArg::default(),
+            answer_pointer: String::new(),
+            model: None,
+            model_flag: None,
+            credential_env: Vec::new(),
+            login_paths: Vec::new(),
+            review_dir: None,
+        }
+    }
+
+    #[test]
+    fn independence_is_a_preference_so_the_first_reviewer_runs_without_it() {
+        let skip: BTreeSet<String> = ["f1".to_string()].into();
+        let same = [roster_entry("a", "f1", None), roster_entry("b", "f1", None)];
+        let fallback =
+            choose_fallback(&same, &skip, None).expect("every reviewer is the builder's");
+        assert_eq!(
+            (fallback.reviewer.as_str(), fallback.note.as_str()),
+            ("a", SAME_FAMILY_NOTE)
+        );
+
+        let mixed = [roster_entry("a", "f1", None), roster_entry("b", "f2", None)];
+        assert!(choose_fallback(&mixed, &skip, None).is_none());
+
+        let unknown = choose_fallback(&mixed, &BTreeSet::new(), Some("commit 0000: none"))
+            .expect("an unknown builder family");
+        assert_eq!(unknown.reviewer, "a");
+        assert!(unknown
+            .note
+            .starts_with("builder family unknown, independence not achieved"));
+
+        // A reviewer whose own family is unknown cannot be the one that runs.
+        let broken_first = [
+            roster_entry("a", "unknown", Some("why")),
+            roster_entry("b", "f1", None),
+        ];
+        let fallback = choose_fallback(&broken_first, &skip, None).expect("b is the builder's");
+        assert_eq!(fallback.reviewer, "b");
+        assert!(choose_fallback(&broken_first[..1], &skip, Some("x")).is_none());
+        assert!(choose_fallback(&[], &skip, None).is_none());
     }
 
     #[test]

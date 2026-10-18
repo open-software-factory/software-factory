@@ -1496,10 +1496,11 @@ fn opencode_on_an_unknown_model_is_could_not_run_and_never_started() {
 }
 
 /// No `Code-Generator:` trailer at all on the reviewed commit leaves the
-/// builder family unknown. The run fails closed: no reviewer counts, the
-/// outcome is could-not-run (exit 2), and the output says why.
+/// builder family unknown. The review runs anyway, with the first configured
+/// reviewer only, and says that independence was not achieved. Its verdict
+/// counts like any other.
 #[test]
-fn no_builder_family_detected_fails_closed_as_could_not_run() {
+fn no_builder_family_detected_runs_the_first_reviewer_and_says_so() {
     let fakes = Fakes::new(
         "",
         &[
@@ -1514,13 +1515,22 @@ fn no_builder_family_detected_fails_closed_as_could_not_run() {
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
+    assert!(stdout.contains("verdict: pass"), "{stdout}");
     assert!(
-        stdout.contains("builder's model family is unknown")
+        stdout.contains("builder family unknown, independence not achieved")
             && stdout.contains("no Code-Generator trailer"),
         "{stdout}"
+    );
+    assert!(
+        journal_lines_of(&home, "codex").contains("\"result\":\"answered\""),
+        "the first reviewer ran"
+    );
+    let second = journal_lines_of(&home, "claude");
+    assert!(
+        !second.contains("\"result\":\"answered\"") && second.contains("only the first"),
+        "{second}"
     );
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
@@ -1533,32 +1543,81 @@ fn no_builder_family_detected_fails_closed_as_could_not_run() {
     assert_eq!(builder_families, vec!["unknown"]);
 }
 
-/// A trailer that names no family fails the run closed, and the reason
+/// A trailer that names no family does not stop the review for any agent in
+/// the shared list: that agent, as the one reviewer, answers, and the note
 /// names the commit and a fixed cause, not the trailer text.
 #[test]
-fn an_unrecognised_trailer_fails_closed_naming_the_trailer() {
-    let fakes = Fakes::new(
-        "",
-        &[
-            ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
-        ],
-    );
-    let repo = review_repo_built_by("unknown-trailer", &fakes.osf_toml, "Some New Model");
-    let home = common::isolated_home("review-run-unknown-trailer");
-    let output = fakes.run(
-        &repo.dir,
-        &home,
-        &["review", "run", "--base", "origin/main"],
-    );
-    assert_eq!(output.status.code(), Some(2));
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
-    assert!(
-        stdout.contains("Code-Generator trailer names no known model family")
-            && !stdout.contains("Some New Model"),
-        "{stdout}"
-    );
+fn an_unrecognised_trailer_runs_each_agent_and_says_independence_was_not_achieved() {
+    let valid = std::fs::read_to_string(fixture("valid.json")).expect("fixture reads");
+    for agent in reviewer_agents() {
+        let dir = TempDir::new("osf-review-unknown-trailer");
+        let file = write_answer_file(&dir, "answer.json", &as_printed_by(agent, &valid));
+        let fakes = Fakes::new("", &[(agent, Fake::Answers(&file))]);
+        let repo = review_repo_built_by(
+            &format!("unknown-trailer-{agent}"),
+            &fakes.osf_toml,
+            "Some New Model",
+        );
+        let home = common::isolated_home(&format!("review-run-unknown-trailer-{agent}"));
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(output.status.code(), Some(0), "{agent}: {stdout}");
+        assert!(stdout.contains("verdict: pass"), "{agent}: {stdout}");
+        assert!(
+            stdout.contains("builder family unknown, independence not achieved")
+                && stdout.contains("Code-Generator trailer names no known model family")
+                && !stdout.contains("Some New Model"),
+            "{agent}: {stdout}"
+        );
+        assert!(
+            journal_lines_of(&home, agent).contains("\"result\":\"answered\""),
+            "{agent}"
+        );
+    }
+}
+
+/// When every configured reviewer is of the builder's family, the first one
+/// still reviews and the note says so, for each agent in the shared list.
+/// The builder's trailer names the agent's own family.
+#[test]
+fn a_reviewer_of_the_builder_s_family_runs_when_no_other_family_is_configured() {
+    let valid = std::fs::read_to_string(fixture("valid.json")).expect("fixture reads");
+    for agent in reviewer_agents() {
+        let family = osf::agents::AGENTS
+            .iter()
+            .find(|a| a.name == agent)
+            .and_then(|a| a.family_for(None).ok())
+            .expect("a reviewer agent with a known family");
+        let dir = TempDir::new("osf-review-same-family");
+        let file = write_answer_file(&dir, "answer.json", &as_printed_by(agent, &valid));
+        let fakes = Fakes::new("", &[(agent, Fake::Answers(&file))]);
+        let repo = review_repo_built_by(
+            &format!("same-family-{agent}"),
+            &fakes.osf_toml,
+            &format!("{family} some-model"),
+        );
+        let home = common::isolated_home(&format!("review-run-same-family-{agent}"));
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(output.status.code(), Some(0), "{agent}: {stdout}");
+        assert!(stdout.contains("verdict: pass"), "{agent}: {stdout}");
+        assert!(
+            stdout.contains("reviewer family same as builder, independence not achieved"),
+            "{agent}: {stdout}"
+        );
+        assert!(
+            journal_lines_of(&home, agent).contains("\"result\":\"answered\""),
+            "{agent}"
+        );
+    }
 }
 
 /// Whichever way a trailer names its model, the family is read from it:
@@ -1696,7 +1755,6 @@ fn a_credential_in_a_trailer_reaches_no_destination() {
         String::from_utf8_lossy(&job.stderr)
     );
     let saved = std::fs::read_to_string(&file).expect("saved run reads");
-    assert!(saved.contains("names no known model family"), "{saved}");
     assert!(!saved.contains(secret), "saved JSON: {saved}");
 
     // Console, journal and posted summary.
@@ -1726,7 +1784,7 @@ fn a_credential_in_a_trailer_reaches_no_destination() {
     assert!(!payload.contains(secret), "posted summary: {payload}");
 }
 
-/// Fifty commits without a trailer still let the explanatory review post: the
+/// Fifty commits without a trailer still post the review: the
 /// note names the first few and counts the rest, so the body stays in its limit.
 #[test]
 #[cfg(unix)]
@@ -1773,14 +1831,14 @@ fn many_commits_without_a_trailer_still_post_a_review_within_the_limit() {
     );
     assert_eq!(
         payload.get("event").and_then(serde_json::Value::as_str),
-        Some("COMMENT")
+        Some("APPROVE")
     );
 }
 
-/// A saved run of a reviewer that fails closed on an unknown builder family
-/// names the trailer text in its own record.
+/// A saved run of the reviewer that runs without independence holds its
+/// attempts and no reason for sitting out; the reduce step adds the note.
 #[test]
-fn an_unknown_builder_family_is_recorded_in_each_saved_run() {
+fn an_unknown_builder_family_still_gives_a_saved_run_with_attempts() {
     let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
     let repo = review_repo_built_by("unknown-saved", &fakes.osf_toml, "Some New Model");
     let home = common::isolated_home("review-run-unknown-saved");
@@ -1806,19 +1864,55 @@ fn an_unknown_builder_family_is_recorded_in_each_saved_run() {
     );
     let text = std::fs::read_to_string(&file).expect("saved run reads");
     let run: serde_json::Value = serde_json::from_str(&text).expect("saved run is JSON");
-    let reason = run
-        .get("not_run")
-        .and_then(serde_json::Value::as_str)
-        .expect("a reason");
-    assert!(
-        reason.contains("Code-Generator trailer names no known model family")
-            && !reason.contains("Some New Model"),
-        "{reason}"
-    );
+    assert!(run.get("not_run").is_none(), "{run}");
     assert!(
         run.pointer("/lenses/0/attempts")
             .and_then(serde_json::Value::as_array)
-            .is_some_and(Vec::is_empty),
+            .is_some_and(|attempts| !attempts.is_empty()),
+        "{run}"
+    );
+}
+
+/// With two reviewers and an unknown builder family, only the first runs; the
+/// second records why it sat out.
+#[test]
+fn only_the_first_reviewer_runs_when_independence_is_not_achieved() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("only-first", &fakes.osf_toml, "Some New Model");
+    let home = common::isolated_home("review-run-only-first");
+    let file = repo.dir.join("claude.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "claude",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let run: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&file).expect("saved run reads"))
+            .expect("saved run is JSON");
+    assert!(
+        run.get("not_run")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|reason| reason.contains("only the first configured reviewer runs")),
         "{run}"
     );
 }

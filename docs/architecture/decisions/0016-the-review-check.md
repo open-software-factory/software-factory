@@ -140,7 +140,7 @@ An agent that runs many model families, such as opencode or omp, takes its famil
 
 An agent with no read-only mode cannot be a reviewer until it has one. A run that selects such an agent reports could-not-run for that reviewer, with the reason, and never runs it with write tools.
 
-The goal is reviewers from two model families, both different from the builder's family, with more than one review round per family. When a second family has no working reviewer, the review runs one extra critical round with the one family it has. It does not report the lens as could-not-run. This is an interim policy. The factory collects data on how it performs, and the owner sets the final policy once that data exists.
+The goal is reviewers from two model families, which preferably differ from the builder's family, with more than one review round per family. A different family is a preference, not a requirement. When the reviewer cannot come from a different model family (no other model is available, or the builder's family is unknown), the review runs anyway. The review states that independence was not achieved. Its verdict counts like any other. The owner decided this in the design session on 2026-10-14 and restated it on 2026-10-18. When a second family has no working reviewer, the review runs one extra critical round with the one family it has. It does not report the lens as could-not-run. This is an interim policy. The factory collects data on how it performs, and the owner sets the final policy once that data exists.
 
 ### The review prompt
 
@@ -198,7 +198,7 @@ Deterministic code then checks every finding. A finding counts only when its quo
 
 The reducer decides per lens, and it is plain code:
 
-- A lens needs answers from reviewers in two model families, both different from the builder's. A family counts toward the quorum only with at least two answered independent rounds. A round that failed, timed out or did not validate does not count, and a family with fewer answered rounds counts for nothing.
+- A lens needs answers from reviewers in two model families, which preferably differ from the builder's. A family counts toward the quorum only with at least two answered independent rounds. A round that failed, timed out or did not validate does not count, and a family with fewer answered rounds counts for nothing.
 - When exactly one family has two answered rounds, the lens runs one extra critical round with that family instead of going could-not-run. That critical round must also have answered. Without it, the lens is could-not-run. A lens with no family that has two answered rounds is could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
 - A finding with a blocker severity or a must-fix action vetoes the lens, when its quote is verified.
 - The lens score is the mean of its criterion scores.
