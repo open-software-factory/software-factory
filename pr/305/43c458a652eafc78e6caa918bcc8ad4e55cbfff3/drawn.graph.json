@@ -1,0 +1,470 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:03:55.932Z",
+  "title": "Commit messages row reads its own CI job",
+  "summary": "The `osf status` pull-request block used to print a hardcoded 'not run' for the Commit messages row because no check linted commit messages. This change gives that scan its own CI job named `commit messages` (so it gets its own check run), teaches `parse_gates` to pull that job's result out of the gate list into a dedicated `commit_scan` field, and renders the row from it: passed with a description of what is covered, failed with the scan's reason, or 'not run' when no result was reported. The CI row deliberately excludes the commit-scan entry so one result is not counted twice.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "43c458a652eafc78e6caa918bcc8ad4e55cbfff3",
+      "ref": "43c458a652eafc78e6caa918bcc8ad4e55cbfff3"
+    },
+    "pullRequest": {
+      "number": 305,
+      "url": "https://github.com/open-software-factory/software-factory/pull/305"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI pipeline",
+      "subtitle": "GitHub Actions",
+      "order": 0,
+      "summary": "The workflow jobs that produce check runs on a pull request."
+    },
+    {
+      "id": "status",
+      "label": "osf status",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The command that renders the pull-request status block from gate results and review data."
+    },
+    {
+      "id": "inputs",
+      "label": "Inputs",
+      "subtitle": "gh + config",
+      "order": 2,
+      "summary": "Where the gate spec and review data come from."
+    },
+    {
+      "id": "tests",
+      "label": "Tests",
+      "subtitle": "crates/osf/tests",
+      "order": 3,
+      "summary": "Integration tests pinning the rendered rows."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "GitHub Actions workflow",
+      "summary": "The workflow gains a dedicated `commit-messages` job, gated on pull_request, that checks out with full history, caches the cargo build, builds the `osf` binary and runs `osf scan --commits`. The scan step moved out of the shared job so its result becomes its own check run.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 118,
+          "endLine": 146
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-messages-job",
+      "label": "commit messages job",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "name: commit messages",
+      "summary": "A new job whose name is the check-run name the status block looks for. It runs only on pull requests and produces the pass/fail result the Commit messages row reads.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 121,
+          "endLine": 146
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-scan-commits",
+      "label": "osf scan --commits",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "commit-message lint",
+      "summary": "The existing scan over the commits a pull request adds: session links, agent state paths, co-author trailers, local paths, foreign repository references, secrets and private names. Unchanged; only its job placement moved.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 143,
+          "endLine": 146
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status",
+      "label": "pr_status::render",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "status",
+      "subtitle": "render(&RenderInput) -> String",
+      "summary": "The status block renderer. The hardcoded Commit messages row is replaced by a call to `gates.commit_row()`, whose result and details are interpolated into the markdown table.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 94,
+          "endLine": 130
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gate-summary",
+      "label": "GateSummary",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "status",
+      "subtitle": "struct GateSummary",
+      "summary": "The parsed view of the gate spec. It gains a `commit_scan: Option<Result<(), String>>` field so the commit-message result is held separately from the pass/fail counters that feed the CI row.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 418,
+          "endLine": 428
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-row",
+      "label": "GateSummary::commit_row",
+      "kind": "function",
+      "delta": "added",
+      "lane": "status",
+      "subtitle": "fn commit_row(&self) -> (String, String)",
+      "summary": "Maps the stored commit-scan result to a result cell and a details cell: passed with the coverage description, failed with the scan's reason (or a generic message when the reason is empty), and 'not run' with an explanation when no result was reported. Never renders as passed without a result.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 429,
+          "endLine": 452
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "parse-gates",
+      "label": "parse_gates",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "status",
+      "subtitle": "fn parse_gates(spec: &str)",
+      "summary": "Parses the `name: result` gate list. Entries named `commit messages` are routed into `commit_scan` instead of the total/passed counters, so the CI row's counts exclude the commit scan while the Commit messages row reads it.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 495,
+          "endLine": 520
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-row",
+      "label": "GateSummary::ci_row",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "status",
+      "subtitle": "fn ci_row(&self)",
+      "summary": "Renders the CI row from the total/passed/failed counters. Unchanged in itself, but its inputs now exclude the commit-scan entry.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 453,
+          "endLine": 494
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-scan-check-const",
+      "label": "COMMIT_SCAN_CHECK",
+      "kind": "config",
+      "delta": "added",
+      "lane": "status",
+      "subtitle": "pub const &str = \"commit messages\"",
+      "summary": "The single source of truth for the check-run name, shared by the parser and the row renderer so the job name and the lookup cannot drift apart.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 18,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-scan-covers-const",
+      "label": "COMMIT_SCAN_COVERS",
+      "kind": "config",
+      "delta": "added",
+      "lane": "status",
+      "subtitle": "const &str",
+      "summary": "The prose description of what the commit-message scan checks, shown in the passed and generic-failed details cells.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 24,
+          "endLine": 27
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-checks",
+      "label": "gh pr checks",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "inputs",
+      "subtitle": "GitHub CLI",
+      "summary": "Supplies the gate spec the status block parses, including the new `commit messages` entry once the job reports.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 495,
+          "endLine": 500
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-tests",
+      "label": "pr_status tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "crates/osf/tests/pr_status.rs",
+      "summary": "The old 'no implementation' test is narrowed to the contributor agreement, and four new tests cover a passed scan, a failed scan with a reason, a failed scan without one, and an absent scan that must read as not run.",
+      "files": [
+        {
+          "path": "crates/osf/tests/pr_status.rs",
+          "startLine": 149,
+          "endLine": 194
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "readme",
+      "label": "crates/osf README",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "status block table",
+      "summary": "The Commit messages row description is updated from 'not run yet' to describe the CI job, what it checks and what it does not check.",
+      "files": [
+        {
+          "path": "crates/osf/README.md",
+          "startLine": 42,
+          "endLine": 42
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "ci-workflow-runs-commit-job",
+      "from": "ci-workflow",
+      "to": "commit-messages-job",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "defines job",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "commit-job-runs-scan",
+      "from": "commit-messages-job",
+      "to": "osf-scan-commits",
+      "kind": "call",
+      "delta": "added",
+      "label": "cargo build + scan",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 143,
+          "endLine": 146
+        }
+      ]
+    },
+    {
+      "id": "gh-checks-feeds-parse",
+      "from": "gh-checks",
+      "to": "parse-gates",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "gate spec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "parse-fills-summary",
+      "from": "parse-gates",
+      "to": "gate-summary",
+      "kind": "data",
+      "delta": "modified",
+      "label": "commit_scan + counters",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 495,
+          "endLine": 520
+        }
+      ]
+    },
+    {
+      "id": "summary-commit-row",
+      "from": "gate-summary",
+      "to": "commit-row",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "summary-ci-row",
+      "from": "gate-summary",
+      "to": "ci-row",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "render-calls-commit-row",
+      "from": "pr-status",
+      "to": "commit-row",
+      "kind": "call",
+      "delta": "added",
+      "label": "Commit messages row",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 97,
+          "endLine": 97
+        }
+      ]
+    },
+    {
+      "id": "render-calls-ci-row",
+      "from": "pr-status",
+      "to": "ci-row",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "check-const-used-by-parse",
+      "from": "commit-scan-check-const",
+      "to": "parse-gates",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "covers-const-used-by-row",
+      "from": "commit-scan-covers-const",
+      "to": "commit-row",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "tests-exercise-render",
+      "from": "pr-status-tests",
+      "to": "pr-status",
+      "kind": "call",
+      "delta": "modified",
+      "label": "render_ok",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "readme-documents-row",
+      "from": "readme",
+      "to": "commit-row",
+      "kind": "other",
+      "delta": "modified",
+      "label": "describes",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 4,
+    "additions": 127,
+    "deletions": 8,
+    "chips": [
+      {
+        "label": "New CI job",
+        "value": "commit messages",
+        "tone": "added"
+      },
+      {
+        "label": "New row states",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "New tests",
+        "value": "4",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "status-block",
+      "title": "Status block and its CI source",
+      "lens": "architecture",
+      "summary": "How the commit-message check run reaches the Commit messages row, and why the CI row's counters no longer include it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
