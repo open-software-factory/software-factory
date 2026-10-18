@@ -186,7 +186,7 @@ pub struct Attempt {
     /// `answered`, `invalid` or `could-not-run`.
     pub result: String,
     pub reason: Option<String>,
-    /// What the run noted, such as a declared login path that was missing.
+    /// What the run noted. Empty for a run that noted nothing.
     pub notes: Vec<String>,
     /// The reviewer's own attempt number for this lens, one-based.
     pub round: u32,

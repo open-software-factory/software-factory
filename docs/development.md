@@ -469,8 +469,11 @@ Before `osf` saves an answer, and again in `osf review reduce`, it removes
 the exact value of every secret the job holds from every field. These are
 each reviewer's provider key and the code host's token. `osf` removes
 each one in plain, base64 and hex form. The pattern redaction runs as
-well. Where an API key in the environment is enough to sign in, `osf`
-copies no login file into the reviewer's home.
+well. `osf` does not copy a login file into the reviewer's home, for any
+agent. A reviewer signs in only through the API key variable that
+`agents.rs` names for it, which the job puts in the environment. When that
+variable is not set, the reviewer does not start. It reports could-not-run,
+and the reason names the variable, not its value.
 
 The reviewer starts in a clean copy of the change. The copy is a temporary
 folder. It holds the change's files and no coding agent's settings,
@@ -650,8 +653,8 @@ under that one policy. So does the traffic each docker container makes.
 
 A reviewer is a coding-agent tool, run headless, such as Codex or
 Claude Code. `crates/osf/src/agents.rs` is the one list of agents osf can
-drive. Each entry holds the agent's command, model family, credential
-variables, and login files, so a repository never repeats them. This
+drive. Each entry holds the agent's command, model family, and credential
+variables, so a repository does not repeat them. This
 repository's `osf.toml` selects from that list under `[agents]`:
 
 ```toml
@@ -668,8 +671,8 @@ opencode = "openrouter/qwen/qwen3-coder-next"
 `enabled` defaults to every agent in the list, `builder` to dsh, and
 `reviewers` to none. A name the list does not hold is an error. So is a
 builder or reviewer that is not enabled. A reviewer needs its own tool
-installed and logged in inside the development container, the same as it
-would on a person's own machine. Run `osf agents list` to see every
+installed inside the development container and its own API key variable
+set. Run `osf agents list` to see every
 agent, with what `osf.toml` selects.
 
 Decision 0016 prefers a reviewer's family to differ from the builder's own
@@ -681,7 +684,19 @@ family.
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
-| `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
+| `omp` | from its model | none: it takes no model flag | no variable is defined, so it cannot review | `--tools read,grep,glob`, from `omp --help` |
+
+A reviewer does not get a copy of a login file. The table below is built
+from the agent list in `agents.rs`: it shows how each agent that can review
+signs in, and what osf does when it cannot.
+
+| Agent | Key variable | When the variable is not set |
+|---|---|---|
+| `codex` | `CODEX_API_KEY` | could-not-run, the reason names `CODEX_API_KEY` |
+| `dsh` | `DEEPSEEK_API_KEY` | could-not-run, the reason names `DEEPSEEK_API_KEY`; it also has no read-only mode |
+| `claude` | `CLAUDE_CODE_OAUTH_TOKEN` | could-not-run, the reason names `CLAUDE_CODE_OAUTH_TOKEN` |
+| `opencode` | `OPENROUTER_API_KEY` | could-not-run, the reason names `OPENROUTER_API_KEY` |
+| `omp` | none defined | could-not-run, "no API key variable is defined for this agent" |
 
 A reviewer runs in a read-only mode, and codex inside the review
 container is the one exception: its own sandbox is off there and

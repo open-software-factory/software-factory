@@ -88,10 +88,23 @@ fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
     ]
 }
 
+/// The credential variable the fake reviewer declares. A reviewer does not
+/// start without one, so the first fake reviewer sets it, to a dummy value.
+const FAKE_KEY_VARIABLE: &str = "OSF_FAKE_REVIEWER_KEY";
+
 /// A reviewer backed by the fake harness, started with `vars` set for its
-/// own run (see [`fake_harness_command`]) and no declared credential: tests
-/// that need one set `credential_env` on the result themselves.
+/// own run (see [`fake_harness_command`]) and [`FAKE_KEY_VARIABLE`] as its
+/// declared credential: tests that need another set `credential_env` on the
+/// result themselves.
 fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
+    static KEY: std::sync::Once = std::sync::Once::new();
+    KEY.call_once(|| {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // SAFETY: serialised by ENV_LOCK; no other thread touches the environment here.
+        unsafe { std::env::set_var(FAKE_KEY_VARIABLE, "a-dummy-key") };
+    });
     Reviewer {
         name: "fake".to_string(),
         family: "fake-family".to_string(),
@@ -110,8 +123,7 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         answer_pointer: String::new(),
         model: None,
         model_flag: None,
-        credential_env: Vec::new(),
-        login_paths: Vec::new(),
+        credential_env: vec![FAKE_KEY_VARIABLE.to_string()],
         review_dir: None,
     }
 }

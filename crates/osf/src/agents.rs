@@ -1,8 +1,8 @@
 //! The coding agents osf can drive, in one place.
 //!
 //! This is the one list. Each entry carries everything osf needs to know
-//! about an agent: its name, model family, command, hook wiring, session
-//! state folders, and the login paths a reviewer home needs. Every rule that
+//! about an agent: its name, model family, command, hook wiring, and session
+//! state folders. Every rule that
 //! names an agent reads this list, so adding an agent here is the whole of
 //! adding it. A repository selects from it in `osf.toml` under `[agents]`,
 //! and naming an agent this list does not hold is a configuration error.
@@ -100,11 +100,10 @@ pub struct Review {
     /// The flag that introduces a model name, when the agent takes one.
     pub model_flag: Option<&'static str>,
     /// The environment variables that carry the agent's own provider
-    /// credential. A reviewer starts with only these.
+    /// credential. A reviewer starts with only these, and does not start at
+    /// all when none is set. Empty when the agent defines no API key
+    /// variable: it then never starts as a reviewer.
     pub credential_env: &'static [&'static str],
-    /// Paths, relative to the real home, that the agent's own login lives
-    /// in. A reviewer's fresh home holds a copy of only these.
-    pub login_paths: &'static [&'static str],
 }
 
 /// Where and how an agent's stop hook, and its prompt hook when it has one,
@@ -289,7 +288,6 @@ pub const AGENTS: &[Agent] = &[
             answer_pointer: "",
             model_flag: None,
             credential_env: &["DEEPSEEK_API_KEY"],
-            login_paths: &[".dsh/.credentials.yaml"],
         }),
     },
     // omp is built on pi, and covers it. It keeps conversations under
@@ -325,7 +323,6 @@ pub const AGENTS: &[Agent] = &[
             answer_pointer: "",
             model_flag: None,
             credential_env: &[],
-            login_paths: &[".omp/agent/agent.db"],
         }),
     },
     // opencode keeps configuration in one place and its data, including
@@ -371,7 +368,6 @@ pub const AGENTS: &[Agent] = &[
             answer_pointer: "",
             model_flag: Some("--model"),
             credential_env: &["OPENROUTER_API_KEY"],
-            login_paths: &[".local/share/opencode/auth.json"],
         }),
     },
     // codex keeps live and archived sessions, a history file, and logs
@@ -416,7 +412,6 @@ pub const AGENTS: &[Agent] = &[
             model_flag: Some("--model"),
             // `CODEX_API_KEY` is the variable `codex exec` reads; it does not read `OPENAI_API_KEY`.
             credential_env: &["CODEX_API_KEY"],
-            login_paths: &[".codex/auth.json"],
             // `codex sandbox --help` runs a command under the same Linux sandbox, and exits non-zero when the sandbox cannot start.
         }),
     },
@@ -464,7 +459,6 @@ pub const AGENTS: &[Agent] = &[
             answer_pointer: "/structured_output",
             model_flag: Some("--model"),
             credential_env: &["CLAUDE_CODE_OAUTH_TOKEN"],
-            login_paths: &[".claude/.credentials.json"],
         }),
     },
 ];
@@ -800,26 +794,6 @@ mod tests {
             command("UserPromptSubmit").as_deref(),
             Some("osf hook prompt")
         );
-    }
-
-    #[test]
-    fn a_reviewer_has_login_paths_inside_its_own_state_directories() {
-        for a in AGENTS {
-            let Some(review) = &a.review else { continue };
-            assert!(
-                !review.login_paths.is_empty(),
-                "{} has no login path",
-                a.name
-            );
-            for path in review.login_paths {
-                assert!(
-                    a.state_dirs.iter().any(|d| Path::new(path).starts_with(d)),
-                    "{}: {path} is outside {:?}",
-                    a.name,
-                    a.state_dirs
-                );
-            }
-        }
     }
 
     fn read_only_of(name: &str) -> Option<ReadOnly> {
