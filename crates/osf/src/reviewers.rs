@@ -1224,7 +1224,7 @@ mod tests {
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness never starts
         let command = ["sh", "-c", &format!("touch '{}'", started.display())];
         let reviewers = every_reviewing_agent(&command);
-        assert!(!reviewers.is_empty());
+        assert!(reviewers.len() >= 2, "more than one agent can review");
         for r in &reviewers {
             for var in &r.credential_env {
                 std::env::remove_var(var);
@@ -1348,7 +1348,10 @@ mod tests {
     #[test]
     fn no_agents_reviewer_home_holds_a_login_file_from_the_real_home() {
         let listings = run_every_agent_against_a_fake_home(false);
-        assert!(!listings.is_empty());
+        assert!(
+            listings.len() >= 2,
+            "more than one agent has a key variable"
+        );
         for (name, listing) in listings {
             assert_eq!(listing.trim(), "", "{name}");
         }
@@ -1358,7 +1361,10 @@ mod tests {
     #[test]
     fn a_reviewer_runs_the_same_when_the_real_home_cannot_be_read() {
         let listings = run_every_agent_against_a_fake_home(true);
-        assert!(!listings.is_empty());
+        assert!(
+            listings.len() >= 2,
+            "more than one agent has a key variable"
+        );
         for (name, listing) in listings {
             assert_eq!(listing.trim(), "", "{name}");
         }
