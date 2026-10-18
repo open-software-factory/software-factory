@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1708 636" width="1708" height="636" role="img" aria-label="Review check after the change" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Review check after the change</title>
+<desc>The workflow, the osf CLI and the agent list, with the new dsh job and the dsh entry it runs.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1708" height="636" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1708" height="636" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="576" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">REVIEW WORKFLOW · GITHUB ACTIONS, REVIEW-CHECK.…</text>
+<rect class="lanebox" x="440" y="44" width="404" height="576" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">OSF CLI · CRATES/OSF</text>
+<rect class="lanebox" x="864" y="44" width="404" height="576" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="880" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">AGENT LIST · AGENTS.RS, OSF.TOML</text>
+<rect class="lanebox" x="1288" y="44" width="404" height="576" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1304" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">EXTERNAL SERVICES · MODEL PROVIDERS, GITHUB</text></g>
+<g><path class="edge edge-added" d="M122,248 L122,300" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="glow" stroke="#3fb950" d="M158,362 L158,424" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M158,362 L158,424" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="2.25"/>
+<path class="edge edge-added" d="M114,362 L114,365 C114,366.66 115.34,368 117,368 L431.5,368 C441.72,368 450,359.72 450,349.5 L450,334 C450,332.34 451.34,331 453,331 L456,331" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M130,362 L130,370 C130,374.42 133.58,378 138,378 L413.33,378 C418.86,378 423.33,382.48 423.33,388 C423.33,393.52 427.81,398 433.33,398 L1260,398 C1278.78,398 1294,382.78 1294,364 L1294,331 C1294,328.24 1296.24,326 1299,326 L1304,326" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M146,362 L146,375 C146,382.18 151.82,388 159,388 L426.67,388 C432.19,388 436.67,392.48 436.67,398 C436.67,403.52 441.14,408 446.67,408 L1244,408 C1262.78,408 1278,392.78 1278,374 L1278,292 C1278,273.22 1293.22,258 1312,258 L1565,258 C1576.6,258 1586,267.4 1586,279 L1586,300" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#d29922" d="M828,331 L849,331 C860.6,331 870,340.4 870,352 L870,450 C870,452.76 872.24,455 875,455 L880,455" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M828,331 L849,331 C860.6,331 870,340.4 870,352 L870,450 C870,452.76 872.24,455 875,455 L880,455" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-modified" d="M1066,486 L1066,538" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added" d="M880,222 L867,222 C859.82,222 854,227.82 854,235 L854,556 C854,563.18 859.82,569 867,569 L880,569" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1252,118 L1257,118 C1259.76,118 1262,120.24 1262,123 L1262,450 C1262,452.76 1259.76,455 1257,455 L1252,455" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M880,118 L859,118 C847.4,118 838,127.4 838,139 L838,256 C838,274.78 822.78,290 804,290 L430.5,290 C419.18,290 410,299.18 410,310.5 L410,328 C410,329.66 408.66,331 407,331 L404,331" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="92" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="105" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="59" cy="118" r="6.5"/>
+<path class="glyph-stroke" d="M59,114.5 V118 H62" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="123" font-size="11.5" font-weight="600" fill="#e6edf3">review codex</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="224" y="92" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="238" y="105" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="251" cy="118" r="6.5"/>
+<path class="glyph-stroke" d="M251,114.5 V118 H254" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="274" y="123" font-size="11.5" font-weight="600" fill="#e6edf3">review claude</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="196" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="209" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="59" cy="222" r="6.5"/>
+<path class="glyph-stroke" d="M59,218.5 V222 H62" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="227" font-size="11.5" font-weight="600" fill="#e6edf3">build job</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="224" y="196" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="238" y="209" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="251" cy="222" r="6.5"/>
+<path class="glyph-stroke" d="M251,218.5 V222 H254" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="274" y="227" font-size="11.5" font-weight="600" fill="#e6edf3">review opencode</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="32" y="300" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="46" y="318" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="59" cy="331" r="6.5"/>
+<path class="glyph-stroke" d="M59,327.5 V331 H62" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="327" font-size="11.5" font-weight="600" fill="#e6edf3">review dsh</text>
+<text class="nsub" x="82" y="345" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">new reviewer job</text>
+<g class="bdg bdg-neutral"><rect x="107.83" y="292" width="50.62" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="133.14" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">7 hosts</text></g>
+<g class="bdg bdg-added"><rect x="164.45" y="292" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="184.73" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="224" y="300" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="238" y="318" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M244,327 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M244,335 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="249" cy="327" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="254" cy="335" r="2.2"/></g>
+<text class="ntitle" x="274" y="327" font-size="11.5" font-weight="600" fill="#e6edf3">review-check.yml</text>
+<text class="nsub" x="274" y="345" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">reusable workflow</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="292" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="424" width="372" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="437" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="59" cy="450" r="6.5"/>
+<path class="glyph-stroke" d="M59,446.5 V450 H62" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="455" font-size="13" font-weight="600" fill="#e6edf3">review (reduce)</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="416" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="427" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="300" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="318" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><text class="glyph" x="483" y="335.5" text-anchor="middle" fill="#9198a1" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="506" y="327" font-size="13" font-weight="600" fill="#e6edf3">osf review run</text>
+<text class="nsub" x="506" y="345" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">--reviewer &lt;name&gt;</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="292" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="787.69" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="92" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="105" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M901,118 l4,4 l8,-8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="123" font-size="11.5" font-weight="600" fill="#e6edf3">review_workflow.rs</text>
+<g class="bdg bdg-modified"><rect x="986.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1019.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1072" y="92" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1086" y="105" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1093,118 l4,4 l8,-8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="123" font-size="11.5" font-weight="600" fill="#e6edf3">agents.rs tests</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="196" width="372" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="209" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M900,218 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,226 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="905" cy="218" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="910" cy="226" r="2.2"/></g>
+<text class="ntitle" x="930" y="227" font-size="13" font-weight="600" fill="#e6edf3">osf.toml roster</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="188" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="199" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="424" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="442" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><text class="glyph" x="907" y="459.5" text-anchor="middle" fill="#9198a1" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">{ }</text></g>
+<text class="ntitle" x="930" y="451" font-size="13" font-weight="600" fill="#e6edf3">AGENTS</text>
+<text class="nsub" x="930" y="469" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/src/agents.rs</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="416" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="427" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="538" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="556" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M900,565 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,573 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="905" cy="565" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="910" cy="573" r="2.2"/></g>
+<text class="ntitle" x="930" y="565" font-size="13" font-weight="600" fill="#e6edf3">dsh entry</text>
+<text class="nsub" x="930" y="583" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">family deepseek</text>
+<g class="bdg bdg-neutral"><rect x="1084.65" y="530" width="87.73" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1128.52" y="541" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">read-only mode</text></g>
+<g class="bdg bdg-modified"><rect x="1178.38" y="530" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="541" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1304" y="300" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1318" y="313" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1323" y="320" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1323,322 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1354" y="331" font-size="11.5" font-weight="600" fill="#e6edf3">api.deepseek.com</text>
+<g class="bdg bdg-neutral"><rect x="1396.29" y="292" width="80.71" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1436.65" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">newly allowed</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1496" y="300" width="180" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1510" y="313" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1515" y="320" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1515,322 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1546" y="331" font-size="11.5" font-weight="600" fill="#e6edf3">GitHub + ghcr.io</text>
+<g class="bdg bdg-neutral"><rect x="1618.38" y="292" width="50.62" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1643.69" y="303" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">6 hosts</text></g></g></g>
+<g><g><rect class="lpill" x="67.28" y="265" width="109.44" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="122" y="276" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">osf-binary, work-item</text></g>
+<g><rect class="lpill" x="116.71" y="389" width="82.58" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="158" y="400" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">review-run-dsh</text></g>
+<g><rect class="lpill" x="209.29" y="371" width="145.26" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="281.92" y="382" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">osf review run --reviewer dsh</text></g>
+<g><rect class="lpill" x="786.64" y="390.5" width="66.36" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="819.82" y="401.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">model calls</text></g>
+<g><rect class="lpill" x="871" y="400.5" width="94.91" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="918.46" y="411.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">checkout, registry</text></g>
+<g><rect class="lpill" x="854.07" y="365.5" width="131.86" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="920" y="376.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">command, env, read_only</text></g>
+<g><rect class="lpill" x="804.92" y="415.5" width="59.08" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="834.46" y="426.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">reviewers</text></g></g>
+</svg>

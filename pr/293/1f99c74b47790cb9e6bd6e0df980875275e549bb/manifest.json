@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1f99c74b47790cb9e6bd6e0df980875275e549bb",
+    "contentHash": "29b1828ed108939039ef12c341da9fd8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "280da729219038bae302b0206f34b271",
+      "bytes": 22150,
+      "width": 1708,
+      "height": 636,
+      "animated": false,
+      "path": "review-check-architecture-light-280da729219038bae302b0206f34b271.svg"
+    },
+    {
+      "id": "review-check-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "32965502b792304b2fd4fc204ba15757",
+      "bytes": 22479,
+      "width": 1708,
+      "height": 636,
+      "animated": false,
+      "path": "review-check-architecture-dark-32965502b792304b2fd4fc204ba15757.svg"
+    },
+    {
+      "id": "dsh-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bd10474363e079aeb6f8b682e1489698",
+      "bytes": 11190,
+      "width": 1708,
+      "height": 304,
+      "animated": false,
+      "path": "dsh-job-detail-light-bd10474363e079aeb6f8b682e1489698.svg"
+    },
+    {
+      "id": "dsh-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c9382d4992bf97d63bfe84b49b537bdf",
+      "bytes": 11351,
+      "width": 1708,
+      "height": 304,
+      "animated": false,
+      "path": "dsh-job-detail-dark-c9382d4992bf97d63bfe84b49b537bdf.svg"
+    }
+  ]
+}
