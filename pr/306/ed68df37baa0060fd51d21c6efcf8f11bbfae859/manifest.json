@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ed68df37baa0060fd51d21c6efcf8f11bbfae859",
+    "contentHash": "531c01aa964bcf796783454681ded1bd"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "commit-gate-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "commit-gate-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2144cd105723ca6c231cc9c676b66287",
+      "bytes": 22207,
+      "width": 1708,
+      "height": 874,
+      "animated": false,
+      "path": "commit-gate-architecture-light-2144cd105723ca6c231cc9c676b66287.svg"
+    },
+    {
+      "id": "commit-gate-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "commit-gate-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6a9c3d42e4118cec5c83756d5c79b5f7",
+      "bytes": 22456,
+      "width": 1708,
+      "height": 874,
+      "animated": false,
+      "path": "commit-gate-architecture-dark-6a9c3d42e4118cec5c83756d5c79b5f7.svg"
+    }
+  ]
+}

@@ -1,0 +1,448 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:07:31.749Z",
+  "title": "Commit-message gate rules reach the commit scan",
+  "summary": "Adds two structural commit-message rules — `commit-subject-full-stop` and `commit-subject-missing` — to the writing lint's commit context, and introduces `COMMIT_GATE_RULES`, the four rules a commit message must pass in a gate. The `commit-msg` hook already ran the writing lint; this change makes the commit scan (`osf scan --commits`, used by the pre-push checkpoint and the pull request check) run the same gate detectors through `commit_gate_findings`, so a bad subject is caught on both paths. Rule metadata gains Coverage sections and `docs/development.md` gains a table of which rules each path enforces.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "ed68df37baa0060fd51d21c6efcf8f11bbfae859",
+      "ref": "ed68df37baa0060fd51d21c6efcf8f11bbfae859"
+    },
+    "pullRequest": {
+      "number": 306,
+      "url": "https://github.com/open-software-factory/software-factory/pull/306"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "git-hooks",
+      "label": "Git hooks",
+      "subtitle": "local, thin calls to osf",
+      "order": 0
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "check and scan commands",
+      "order": 1
+    },
+    {
+      "id": "writing-lint",
+      "label": "Writing lint",
+      "subtitle": "crates/osf/src/lints/writing",
+      "order": 2
+    },
+    {
+      "id": "rule-catalog",
+      "label": "Rule catalog",
+      "subtitle": "metadata and docs",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "commit-msg-hook",
+      "label": "commit-msg hook",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "git-hooks",
+      "subtitle": "osf lint writing <msgfile>",
+      "summary": "Runs the whole writing lint in commit context over the message file, which now includes the two new subject rules.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 47,
+          "endLine": 47
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pre-push-hook",
+      "label": "pre-push hook",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "git-hooks",
+      "subtitle": "osf verify --stage pre-push",
+      "summary": "Runs the pre-push checkpoint, which includes the commit scan over pushed commit messages.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-scan-commits",
+      "label": "check scan-commits",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "scan_commits(opts)",
+      "summary": "Loads known names once and chains `commit_gate_findings` onto the scan-rule findings for every commit message in the range.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 366,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-commits",
+      "label": "scan::scan_commits",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "scan_commits(dir, range, rules)",
+      "summary": "The library commit scan. Now extends each commit's findings with the gate rules, so the pre-push checkpoint and the pull request check see the same subject rules the hook does.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 794,
+          "endLine": 818
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing",
+      "label": "lint_writing",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "writing-lint",
+      "subtitle": "lint_writing(text, known, cfg, ctx, …)",
+      "summary": "In commit context it now calls `commit_subject_rules` before the existing reference checks, so the hook path reports the new subject findings.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 59,
+          "endLine": 62
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-gate-findings",
+      "label": "commit_gate_findings",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-lint",
+      "subtitle": "(message, known) -> Vec<Finding>",
+      "summary": "Runs the writing lint in commit context with default config and keeps only the findings whose rule is in `COMMIT_GATE_RULES`. This is the single entry point the commit scan uses to reuse the hook's detectors.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 92,
+          "endLine": 119
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-gate-rules",
+      "label": "COMMIT_GATE_RULES",
+      "kind": "config",
+      "delta": "added",
+      "lane": "writing-lint",
+      "subtitle": "4 rule ids",
+      "summary": "The rules a commit message must pass in a gate, which no suppression marker or configured level can turn off: the two subject rules plus `bare-reference` and `reference-without-label`.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 92,
+          "endLine": 99
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-subject-rules",
+      "label": "commit_subject_rules",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-lint",
+      "subtitle": "(text, out)",
+      "summary": "Finds the subject — the first line that is neither blank nor a `#` comment — and flags a missing subject or a subject ending in any of four full stops.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 78,
+          "endLine": 117
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-ids",
+      "label": "rule_ids",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "writing-lint",
+      "subtitle": "registered rule ids",
+      "summary": "Registers the two new rule ids so the catalog and policy tests see them.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 70,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-meta",
+      "label": "RULE_META",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "rule-catalog",
+      "subtitle": "rule documentation",
+      "summary": "Adds metadata for the two subject rules and Coverage sections to the two reference rules, stating which paths enforce each rule and what it cannot decide.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 723,
+          "endLine": 778
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "development-doc",
+      "label": "docs/development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "rule-catalog",
+      "subtitle": "hook coverage table",
+      "summary": "Documents which commit-message rules the hook and the commit scan each enforce, the exemptions, and the rules no deterministic check decides.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 57,
+          "endLine": 94
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-message-rules-test",
+      "label": "commit_message_rules tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "rule-catalog",
+      "subtitle": "both paths, pass and fail",
+      "summary": "For each gate rule, asserts a passing and a failing message on both the hook lint and the commit scan, plus the forge merge and dependency-bot exemptions and the CLI exit codes.",
+      "files": [
+        {
+          "path": "crates/osf/tests/commit_message_rules.rs",
+          "startLine": 1,
+          "endLine": 234
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "commit-msg-hook-to-lint-writing",
+      "from": "commit-msg-hook",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "message file",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "pre-push-hook-to-check-scan-commits",
+      "from": "pre-push-hook",
+      "to": "check-scan-commits",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "verify --stage pre-push",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "check-scan-commits-to-scan-commits",
+      "from": "check-scan-commits",
+      "to": "scan-commits",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "scan-commits-to-commit-gate-findings",
+      "from": "scan-commits",
+      "to": "commit-gate-findings",
+      "kind": "call",
+      "delta": "added",
+      "label": "gate findings per message",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new link: the commit scan now reuses the hook's detectors instead of only running scan rules.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 812,
+          "endLine": 815
+        }
+      ]
+    },
+    {
+      "id": "check-scan-commits-to-commit-gate-findings",
+      "from": "check-scan-commits",
+      "to": "commit-gate-findings",
+      "kind": "call",
+      "delta": "added",
+      "label": "chained onto scan rules",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 374,
+          "endLine": 377
+        }
+      ]
+    },
+    {
+      "id": "commit-gate-findings-to-lint-writing",
+      "from": "commit-gate-findings",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "added",
+      "label": "Context::Commit",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "commit-gate-findings-to-commit-gate-rules",
+      "from": "commit-gate-findings",
+      "to": "commit-gate-rules",
+      "kind": "data",
+      "delta": "added",
+      "label": "filter",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-writing-to-commit-subject-rules",
+      "from": "lint-writing",
+      "to": "commit-subject-rules",
+      "kind": "call",
+      "delta": "added",
+      "label": "commit context",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "commit-subject-rules-to-rule-ids",
+      "from": "commit-subject-rules",
+      "to": "rule-ids",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "rule ids",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "rule-meta-to-development-doc",
+      "from": "rule-meta",
+      "to": "development-doc",
+      "kind": "other",
+      "delta": "modified",
+      "label": "Coverage sections",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "commit-message-rules-test-to-lint-writing",
+      "from": "commit-message-rules-test",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "added",
+      "label": "hook path",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "commit-message-rules-test-to-scan-commits",
+      "from": "commit-message-rules-test",
+      "to": "scan-commits",
+      "kind": "call",
+      "delta": "added",
+      "label": "scan path",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 8,
+    "additions": 422,
+    "deletions": 7,
+    "chips": [
+      {
+        "label": "Gate rules",
+        "value": "4",
+        "tone": "hero"
+      },
+      {
+        "label": "New subject rules",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "Enforcement paths",
+        "value": "2",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "commit-gate-architecture",
+      "title": "Commit-message gate: hook and scan paths",
+      "lens": "architecture",
+      "summary": "Both enforcement paths — the commit-msg hook and the commit scan — now converge on the same gate detectors.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
