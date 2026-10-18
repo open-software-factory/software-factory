@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "90662ecd2044a409e13fbc88aaab678518aab9d5",
+    "contentHash": "0cc199f5decc1648219d7d979d80d677"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "commit-checks-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "commit-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4ebf461114578f45b2b809d7812ba4ce",
+      "bytes": 23911,
+      "width": 1758,
+      "height": 770,
+      "animated": false,
+      "path": "commit-checks-light-4ebf461114578f45b2b809d7812ba4ce.svg"
+    },
+    {
+      "id": "commit-checks-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "commit-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "85da0c730b5aada4e4ac66fec897daa2",
+      "bytes": 24159,
+      "width": 1758,
+      "height": 770,
+      "animated": false,
+      "path": "commit-checks-dark-85da0c730b5aada4e4ac66fec897daa2.svg"
+    },
+    {
+      "id": "writing-lint-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "197f1547a505b68fa58406c64cdc6fba",
+      "bytes": 9503,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "writing-lint-internals-light-197f1547a505b68fa58406c64cdc6fba.svg"
+    },
+    {
+      "id": "writing-lint-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6037872ced6ed2f181482b18f811174c",
+      "bytes": 9616,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "writing-lint-internals-dark-6037872ced6ed2f181482b18f811174c.svg"
+    },
+    {
+      "id": "commit-gate-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "commit-gate-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cb7e041c9cf8c6990550176e18b942ea",
+      "bytes": 15870,
+      "width": 1641,
+      "height": 521,
+      "animated": true,
+      "path": "commit-gate-flow-view-light-cb7e041c9cf8c6990550176e18b942ea.svg"
+    },
+    {
+      "id": "commit-gate-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "commit-gate-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c440be1c122bfb77cfe37ddb60d562c0",
+      "bytes": 16016,
+      "width": 1641,
+      "height": 521,
+      "animated": true,
+      "path": "commit-gate-flow-view-dark-c440be1c122bfb77cfe37ddb60d562c0.svg"
+    }
+  ]
+}
