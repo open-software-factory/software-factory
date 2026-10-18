@@ -59,6 +59,7 @@ pub fn lint_writing(
         }
     }
     if context == Context::Commit {
+        rules::commit_subject_rules(text, &mut findings);
         findings.retain(|f| f.rule != "reference-without-link");
         if let Some(reference) = generated_subject {
             // Sentence segmentation can join a subject and the first body
@@ -86,6 +87,36 @@ pub fn lint_writing(
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);
     findings
+}
+
+/// The rules a commit message must pass in a gate, which no suppression
+/// marker and no configured level can turn off. Each states something
+/// `CONTRIBUTING.md` says about a commit message and is decided from the
+/// message's structure alone. The `commit-msg` hook runs the whole writing
+/// lint in commit context, which includes these.
+pub const COMMIT_GATE_RULES: &[&str] = &[
+    "commit-subject-full-stop",
+    "commit-subject-missing",
+    "bare-reference",
+    "reference-without-label",
+];
+
+/// The findings of [`COMMIT_GATE_RULES`] for one commit message, as the
+/// commit scan reports them: the same detectors the hook runs, at the level
+/// each rule resolves to in commit context.
+#[must_use]
+pub fn commit_gate_findings(message: &str, known: &KnownNames) -> Vec<Finding> {
+    lint_writing(
+        message,
+        known,
+        &WritingConfig::default(),
+        Context::Commit,
+        false,
+        true,
+    )
+    .into_iter()
+    .filter(|f| COMMIT_GATE_RULES.contains(&f.rule))
+    .collect()
 }
 
 /// The known generated merge-subject format. This exempts only its first

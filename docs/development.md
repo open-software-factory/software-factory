@@ -44,7 +44,7 @@ root. Each hook is a thin call to `osf` and nothing else:
 | Hook | What it runs |
 |---|---|
 | `pre-commit` | `osf verify --stage pre-commit`, which scans staged files for text that must never reach a public repository. |
-| `commit-msg` | `osf lint writing` over the commit message file, checking prose style. |
+| `commit-msg` | `osf lint writing` over the commit message file, checking prose style and the commit message rules below. |
 | `pre-push` | `osf verify --stage pre-push`, which scans changed files, changed prose, changed skill folders, and pushed commit messages. |
 
 `git config --show-origin core.hooksPath` may still show a repository's
@@ -53,6 +53,44 @@ setting no longer matters. The git wrapper, below, forces
 `/opt/factory/githooks` on the command line for every git call under the
 workspace. A command-line setting always wins over one written to a
 config file, local or system.
+
+### What the commit message checks cover
+
+`CONTRIBUTING.md` sets rules for a commit message. The `commit-msg` hook
+and the commit scan check the ones that can be decided from the message's
+structure. The scan is `osf scan --commits`, which runs before a push and
+on a pull request, and `osf check scan-commits`, which the pre-push
+checkpoint runs.
+
+| Rule in `CONTRIBUTING.md` | Hook | Commit scan |
+|---|---|---|
+| The subject has no full stop at the end (`commit-subject-full-stop`) | Checked | Checked |
+| The message has a subject (`commit-subject-missing`) | Checked | Checked |
+| A reference names its repository, not a bare number (`bare-reference`) | Checked | Checked |
+| A reference says what it is, in brackets (`reference-without-label`) | Checked | Checked |
+| Short sentences (`long-sentence`) | Checked | Not checked |
+| No phrase that only a conversation explains (`chat-local-reference`) | Checked | Not checked |
+| The subject is in the present tense | Not checked | Not checked |
+| The body explains what and why | Not checked | Not checked |
+| The message stands on its own | Not checked | Not checked |
+
+The last three rows need a reader or a language model. A deterministic
+check cannot decide them, so no check approximates them. A clean result
+means none of the checked rules fired. It does not mean the other rules
+hold.
+
+The commit scan does not run the sentence rules. Many commits already in
+the history break them, so adding them to the scan needs its own decision.
+
+The checks read these exemptions and no others. The forge's generated
+`Merge pull request #N from owner/branch` subject is exempt from
+`bare-reference`, and nothing else about that message is exempt. A message
+from a dependency bot is not exempt from anything. It passes today because
+it holds no bare number and no full stop at the end of its subject.
+
+A leading line that starts with `#` is read as a comment git strips. A
+subject saved verbatim with a leading `#` is therefore not checked. The commit scan
+ignores a suppression marker in a message.
 
 ## What the hooks cannot do
 
