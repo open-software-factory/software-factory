@@ -178,7 +178,7 @@ fn a_dependency_bot_message_passes() {
         found.iter().all(|rule| !COMMIT_GATE_RULES.contains(rule)),
         "{found:?}"
     );
-    assert!(hook_rules(bump).is_empty());
+    assert_eq!(hook_rules(bump), Vec::<&str>::new());
 }
 
 #[test]
