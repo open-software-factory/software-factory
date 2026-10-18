@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1777 606" width="1777" height="606" role="img" aria-label="Workflow artifact hand-off" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Workflow artifact hand-off</title>
+<desc>Both workflows and the jobs that upload through the repinned action.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1777" height="606" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1777" height="606" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="546" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">TRIGGERS · GITHUB EVENTS</text>
+<rect class="lanebox" x="440" y="44" width="404" height="546" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">CI WORKFLOW · CI.YML JOBS</text>
+<rect class="lanebox" x="864" y="44" width="404" height="546" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="880" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">REVIEW-CHECK WORKFLOW · REVIEW-CHECK.YML JOBS</text>
+<rect class="lanebox" x="1356.02" y="44" width="404" height="546" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="1372.02" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">ARTIFACT STORE · ACTIONS/UPLOAD-ARTIFACT V7.0.2</text></g>
+<g><path class="edge edge-neutral context" d="M404,126 L421,126 C430.39,126 438,133.61 438,143 L438,213 C438,217.97 442.03,222 447,222 L456,222" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M404,110 L413,110 C417.97,110 422,114.03 422,119 L422,140 C422,156.57 435.43,170 452,170 L814,170 C825.05,170 834,178.95 834,190 C834,201.05 842.95,210 854,210 L880,210" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M642,248 L642,271 C642,283.7 631.7,294 619,294 L549,294 C547.34,294 546,295.34 546,297 L546,300" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M642,248 L642,251 C642,252.66 643.34,254 645,254 L715,254 C727.7,254 738,264.3 738,277 L738,300" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1014,248 L1014,300" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1118,248 L1118,300" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M880,222 L862,222 C852.06,222 844,230.06 844,240 L844,412 C844,421.94 852.06,430 862,430 L880,430" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1252,214 L1255,214 C1256.66,214 1258,215.34 1258,217 L1258,419 C1258,420.66 1256.66,422 1255,422 L1252,422" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M880,234 L867,234 C859.82,234 854,239.82 854,247 L854,531 C854,538.18 859.82,544 867,544 L880,544" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1252,230 L1261,230 C1265.97,230 1270,234.03 1270,239 L1270,527 C1270,531.97 1265.97,536 1261,536 L1252,536" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M546,352 L546,355 C546,356.66 547.34,358 549,358 L867.33,358 C871.02,358 874,360.98 874,364.67 C874,368.35 876.98,371.33 880.67,371.33 L1292.25,371.33 C1306.48,371.33 1318.01,382.87 1318.01,397.1 C1318.01,411.32 1329.54,422.86 1343.77,422.86 L1372.02,422.86" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M828,326 L846,326 C855.94,326 864,334.06 864,344 L864,355.33 C864,371.53 877.13,384.67 893.33,384.67 L1284.49,384.67 C1296.37,384.67 1306.01,394.3 1306.01,406.19 C1306.01,418.08 1315.65,427.71 1327.53,427.71 L1372.02,427.71" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M970,352 L970,375 C970,387.7 980.3,398 993,398 L1276.72,398 C1286.27,398 1294.01,405.74 1294.01,415.29 C1294.01,424.83 1301.75,432.57 1311.29,432.57 L1372.02,432.57" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1252,326 L1267,326 C1275.29,326 1282,332.72 1282,341 L1282,384 C1282,402.78 1297.23,418 1316,418 L1372.02,418" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M970,456 L970,466 C970,471.52 974.48,476 980,476 L1325.16,476 C1334.47,476 1342.02,468.45 1342.02,459.14 L1342.02,457.29 C1342.02,449 1348.73,442.29 1357.02,442.29 L1372.02,442.29" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1252,437.71 L1372.02,437.71" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M970,518 L970,505 C970,497.82 975.82,492 983,492 L1331.59,492 C1343.98,492 1354.02,481.96 1354.02,469.57 L1354.02,456.14 C1354.02,451.17 1358.05,447.14 1363.02,447.14 L1372.02,447.14" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1252,552 L1332.02,552 C1350.8,552 1366.02,536.78 1366.02,518 L1366.02,455 C1366.02,453.34 1367.36,452 1369.02,452 L1372.02,452" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="glow" stroke="#8c959f" d="M1558.02,466 L1558.02,518" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-neutral hero context" d="M1558.02,466 L1558.02,518" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="2.25" opacity="0.82"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="32" y="92" width="372" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="46" y="105" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="51" y="112" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M51,114 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="123" font-size="13" font-weight="600" fill="#1f2328">Push / pull request</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="456" y="196" width="372" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="209" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M476,218 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,226 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="481" cy="218" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="486" cy="226" r="2.2"/></g>
+<text class="ntitle" x="506" y="227" font-size="13" font-weight="600" fill="#1f2328">ci.yml</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="188" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="787.69" y="199" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="456" y="300" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="470" y="313" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="483" cy="326" r="6.5"/>
+<path class="glyph-stroke" d="M483,322.5 V326 H486" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="331" font-size="11.5" font-weight="600" fill="#1f2328">Writing lint job</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="648" y="300" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="662" y="313" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="675" cy="326" r="6.5"/>
+<path class="glyph-stroke" d="M675,322.5 V326 H678" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="331" font-size="11.5" font-weight="600" fill="#1f2328">Checkpoint job</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="880" y="196" width="372" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="209" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M900,218 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,226 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="905" cy="218" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="910" cy="226" r="2.2"/></g>
+<text class="ntitle" x="930" y="227" font-size="13" font-weight="600" fill="#1f2328">review-check.yml</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="188" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1211.69" y="199" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="880" y="300" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="894" y="313" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="907" cy="326" r="6.5"/>
+<path class="glyph-stroke" d="M907,322.5 V326 H910" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="331" font-size="11.5" font-weight="600" fill="#1f2328">Build osf job</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1072" y="300" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1086" y="313" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="1099" cy="326" r="6.5"/>
+<path class="glyph-stroke" d="M1099,322.5 V326 H1102" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="331" font-size="11" font-weight="600" fill="#1f2328">Prepare work item job</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="880" y="404" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="894" y="417" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="907" cy="430" r="6.5"/>
+<path class="glyph-stroke" d="M907,426.5 V430 H910" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="435" font-size="11.5" font-weight="600" fill="#1f2328">Reviewer: codex</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1072" y="404" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1086" y="417" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="1099" cy="430" r="6.5"/>
+<path class="glyph-stroke" d="M1099,426.5 V430 H1102" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="435" font-size="11.5" font-weight="600" fill="#1f2328">Reviewer: claude</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="880" y="518" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="894" y="531" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="907" cy="544" r="6.5"/>
+<path class="glyph-stroke" d="M907,540.5 V544 H910" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="549" font-size="11.5" font-weight="600" fill="#1f2328">Reviewer: opencode</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1072" y="518" width="180" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1086" y="531" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="1099" cy="544" r="6.5"/>
+<path class="glyph-stroke" d="M1099,540.5 V544 H1102" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="549" font-size="10.5" font-weight="600" fill="#1f2328">Aggregate findings job</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1372.02" y="404" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1386.02" y="422" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1399.02,428 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1392.52,431.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1399.02,435 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1422.02" y="431" font-size="13" font-weight="600" fill="#1f2328">actions/upload-artifact</text>
+<text class="nsub" x="1422.02" y="449" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">v7.0.1 → v7.0.2</text>
+<g class="bdg bdg-modified"><rect x="1670.4" y="396" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1703.71" y="407" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1372.02" y="518" width="372" height="52" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1386.02" y="531" width="26" height="26" rx="7" fill="#f1f3f5"/><g><ellipse class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="1399.02" cy="539.5" rx="6.5" ry="2.6"/>
+<path class="glyph-stroke" d="M1392.52,539.5 v9 a6.5,2.6 0 0 0 13 0 v-9" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1422.02" y="549" font-size="13" font-weight="600" fill="#1f2328">Workflow artifacts</text></g></g>
+<g><g><rect class="lpill" x="413.22" y="169" width="49.57" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="438" y="180" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">triggers</text></g>
+<g><rect class="lpill" x="608.22" y="162.5" width="49.57" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="633" y="173.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">triggers</text></g>
+<g><rect class="lpill" x="1060.83" y="363.83" width="51.26" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1086.46" y="374.83" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">osf.sarif</text></g>
+<g><rect class="lpill" x="1122.09" y="377.17" width="107.23" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1175.7" y="388.17" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">checkpoint evidence</text></g>
+<g><rect class="lpill" x="939.9" y="367.5" width="60.21" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="970" y="378.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">osf-binary</text></g>
+<g><rect class="lpill" x="1272" y="355.33" width="59.63" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1301.82" y="366.33" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">work-item</text></g>
+<g><rect class="lpill" x="1105.97" y="468.5" width="93.22" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1152.58" y="479.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">review-run-codex</text></g>
+<g><rect class="lpill" x="1270" y="430.21" width="96.02" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1318.01" y="441.21" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">review-run-claude</text></g>
+<g><rect class="lpill" x="985.39" y="484.5" width="110.58" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1040.68" y="495.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">review-run-opencode</text></g>
+<g><rect class="lpill" x="1264" y="544.5" width="83.15" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1305.58" y="555.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">review-findings</text></g>
+<g><rect class="lpill" x="1520.37" y="484.5" width="75.31" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="1558.02" y="495.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">writes artifact</text></g></g>
+</svg>

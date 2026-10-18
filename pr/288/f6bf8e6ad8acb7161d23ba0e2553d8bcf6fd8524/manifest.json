@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f6bf8e6ad8acb7161d23ba0e2553d8bcf6fd8524",
+    "contentHash": "f975da5169b2c1c6bd48ba1286fc0274"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workflow-artifact-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-artifact-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "25a945977d606e2a011ad96edea340df",
+      "bytes": 20941,
+      "width": 1777,
+      "height": 606,
+      "animated": false,
+      "path": "workflow-artifact-architecture-light-25a945977d606e2a011ad96edea340df.svg"
+    },
+    {
+      "id": "workflow-artifact-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-artifact-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3c6e44947d45bcf335eb00bf2fcb1f16",
+      "bytes": 21121,
+      "width": 1777,
+      "height": 606,
+      "animated": false,
+      "path": "workflow-artifact-architecture-dark-3c6e44947d45bcf335eb00bf2fcb1f16.svg"
+    }
+  ]
+}

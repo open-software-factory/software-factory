@@ -1,0 +1,615 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:50:58.577Z",
+  "title": "Bump upload-artifact to v7.0.2 across CI and review workflows",
+  "summary": "A dependency bump: every `actions/upload-artifact` step in the two GitHub Actions workflows moves from the v7.0.1 commit pin to the v7.0.2 commit pin. No step names, inputs, paths or job wiring change — only the pinned action SHA. The blast radius is the artifact hand-off between jobs: the CI workflow's lint findings and checkpoint evidence, and the review-check workflow's osf binary, work item, per-reviewer answers and final SARIF findings.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "e3e5757d01282a34ff5048a91777b06889990929",
+      "ref": "e3e5757d01282a34ff5048a91777b06889990929"
+    },
+    "head": {
+      "sha": "f6bf8e6ad8acb7161d23ba0e2553d8bcf6fd8524",
+      "ref": "f6bf8e6ad8acb7161d23ba0e2553d8bcf6fd8524"
+    },
+    "pullRequest": {
+      "number": 288,
+      "url": "https://github.com/open-software-factory/software-factory/pull/288"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0
+    },
+    {
+      "id": "ci-workflow",
+      "label": "CI workflow",
+      "subtitle": "ci.yml jobs",
+      "order": 1
+    },
+    {
+      "id": "review-workflow",
+      "label": "Review-check workflow",
+      "subtitle": "review-check.yml jobs",
+      "order": 2
+    },
+    {
+      "id": "artifacts",
+      "label": "Artifact store",
+      "subtitle": "actions/upload-artifact v7.0.2",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "push-pr-event",
+      "label": "Push / pull request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "summary": "GitHub event that starts both workflows.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci-workflow",
+      "summary": "Continuous integration workflow. Two upload steps repin upload-artifact to v7.0.2.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 303,
+          "endLine": 310
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 375,
+          "endLine": 382
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-lint-job",
+      "label": "Writing lint job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci-workflow",
+      "summary": "Runs the writing lint and produces osf.sarif.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "checkpoint-job",
+      "label": "Checkpoint job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci-workflow",
+      "summary": "Produces checkpoint evidence files.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "review-workflow",
+      "summary": "Review workflow. Six upload steps repin upload-artifact to v7.0.2.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 196,
+          "endLine": 202
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 226,
+          "endLine": 232
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 346,
+          "endLine": 352
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 453,
+          "endLine": 459
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 562,
+          "endLine": 568
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 682,
+          "endLine": 688
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-osf-job",
+      "label": "Build osf job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Compiles the release osf binary and uploads it for downstream reviewer jobs.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "prepare-work-item-job",
+      "label": "Prepare work item job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Writes work-item.json for the reviewer jobs.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "reviewer-codex-job",
+      "label": "Reviewer: codex",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Runs the codex reviewer and saves its answers.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "reviewer-claude-job",
+      "label": "Reviewer: claude",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Runs the claude reviewer and saves its answers.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "reviewer-opencode-job",
+      "label": "Reviewer: opencode",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Runs the opencode reviewer and saves its answers.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "aggregate-findings-job",
+      "label": "Aggregate findings job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-workflow",
+      "summary": "Collects reviewer output into review.sarif.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "upload-artifact-action",
+      "label": "actions/upload-artifact",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "artifacts",
+      "subtitle": "v7.0.1 → v7.0.2",
+      "summary": "The pinned action whose commit SHA changed in all eight upload steps. Inputs and behavior are unchanged.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 306,
+          "endLine": 306
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 199,
+          "endLine": 199
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "artifact-store",
+      "label": "Workflow artifacts",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifacts",
+      "summary": "Artifacts persisted by the action and downloaded by later jobs.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-to-ci",
+      "from": "push-pr-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "event-to-review",
+      "from": "push-pr-event",
+      "to": "review-check-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-to-lint",
+      "from": "ci-workflow",
+      "to": "writing-lint-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-to-checkpoint",
+      "from": "ci-workflow",
+      "to": "checkpoint-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-build",
+      "from": "review-check-workflow",
+      "to": "build-osf-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-workitem",
+      "from": "review-check-workflow",
+      "to": "prepare-work-item-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-codex",
+      "from": "review-check-workflow",
+      "to": "reviewer-codex-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-claude",
+      "from": "review-check-workflow",
+      "to": "reviewer-claude-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-opencode",
+      "from": "review-check-workflow",
+      "to": "reviewer-opencode-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-aggregate",
+      "from": "review-check-workflow",
+      "to": "aggregate-findings-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-uploads",
+      "from": "writing-lint-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf.sarif",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 303,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-uploads",
+      "from": "checkpoint-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "checkpoint evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 375,
+          "endLine": 382
+        }
+      ]
+    },
+    {
+      "id": "build-uploads",
+      "from": "build-osf-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf-binary",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 196,
+          "endLine": 202
+        }
+      ]
+    },
+    {
+      "id": "workitem-uploads",
+      "from": "prepare-work-item-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "work-item",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 226,
+          "endLine": 232
+        }
+      ]
+    },
+    {
+      "id": "codex-uploads",
+      "from": "reviewer-codex-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-run-codex",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 346,
+          "endLine": 352
+        }
+      ]
+    },
+    {
+      "id": "claude-uploads",
+      "from": "reviewer-claude-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-run-claude",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 453,
+          "endLine": 459
+        }
+      ]
+    },
+    {
+      "id": "opencode-uploads",
+      "from": "reviewer-opencode-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-run-opencode",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 562,
+          "endLine": 568
+        }
+      ]
+    },
+    {
+      "id": "aggregate-uploads",
+      "from": "aggregate-findings-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-findings",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 682,
+          "endLine": 688
+        }
+      ]
+    },
+    {
+      "id": "action-stores",
+      "from": "upload-artifact-action",
+      "to": "artifact-store",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "writes artifact",
+      "emphasis": "hero",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "artifact-upload-flow",
+      "title": "Artifact upload after the repin",
+      "summary": "How a job's output reaches the artifact store through the repinned action, using the osf binary hand-off as the exemplar.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "build-osf-job"
+        },
+        {
+          "node": "upload-artifact-action"
+        },
+        {
+          "node": "artifact-store"
+        },
+        {
+          "node": "reviewer-codex-job"
+        }
+      ],
+      "messages": [
+        {
+          "id": "build-produces-binary",
+          "from": "build-osf-job",
+          "to": "build-osf-job",
+          "label": "cargo build --release --bin osf",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 194,
+              "endLine": 196
+            }
+          ]
+        },
+        {
+          "id": "upload-binary",
+          "from": "build-osf-job",
+          "to": "upload-artifact-action",
+          "label": "upload osf-binary",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 196,
+              "endLine": 202
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "ArtifactUpload",
+              "shape": "{ name: string; path: string }",
+              "sample": {
+                "name": "osf-binary",
+                "path": "build-out/target/release/osf"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "store-binary",
+          "from": "upload-artifact-action",
+          "to": "artifact-store",
+          "label": "persist artifact",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "download-binary",
+          "from": "artifact-store",
+          "to": "reviewer-codex-job",
+          "label": "download osf-binary",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 8,
+    "deletions": 8,
+    "chips": [
+      {
+        "label": "Upload steps repinned",
+        "value": "8",
+        "tone": "modified"
+      },
+      {
+        "label": "Action version",
+        "value": "v7.0.1 → v7.0.2",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "workflow-artifact-architecture",
+      "title": "Workflow artifact hand-off",
+      "lens": "architecture",
+      "summary": "Both workflows and the jobs that upload through the repinned action.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
