@@ -9,7 +9,6 @@ mod common;
 
 use common::TempDir;
 use osf::moon::{run, Invocation, Outcome, TaskStatus};
-use std::process::Command;
 use std::sync::Mutex;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -100,20 +99,14 @@ impl MoonWorkspace {
         .expect("moon.yml writes");
         std::fs::write(root.join("app").join("notes.md"), "hello\n").expect("fixture md writes");
         let ws = MoonWorkspace { root };
-        ws.git(&["init", "-q", "-b", "main"]);
-        ws.git(&["config", "user.email", "test@example.com"]);
-        ws.git(&["config", "user.name", "Test"]);
+        common::scratch_git::init(&ws.root);
         ws.git(&["add", "-A"]);
         ws.git(&["commit", "-q", "-m", "init"]);
         ws
     }
 
     fn git(&self, args: &[&str]) {
-        let mut command = Command::new("git");
-        command.current_dir(&self.root).args(args);
-        osf::scrub_git_env(&mut command);
-        let status = command.status().expect("git runs");
-        assert!(status.success(), "git {args:?} failed");
+        common::scratch_git::ok(&self.root, args);
     }
 }
 

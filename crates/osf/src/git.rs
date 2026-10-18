@@ -29,6 +29,9 @@ pub fn scrub_git_env(command: &mut Command) {
     }
 }
 
+/// The variable naming which index file git reads. Tests name it through this constant, so no test code spells the variable out.
+pub(crate) const INDEX_FILE_VAR: &str = "GIT_INDEX_FILE";
+
 /// The `GIT_*` variables that tell git which repository to use, as opposed
 /// to `GIT_INDEX_FILE`, which only names which index to read once the
 /// repository is already settled.
@@ -41,6 +44,13 @@ const LOCATING_VARS: &[&str] = &[
     "GIT_NAMESPACE",
     "GIT_PREFIX",
 ];
+
+/// Removes only the `GIT_*` variables that name which repository to use, and leaves `GIT_INDEX_FILE` and everything else alone, for a child such as moon that finds its repository from its working directory and runs git itself.
+pub(crate) fn scrub_locating_git_env(command: &mut Command) {
+    for var in LOCATING_VARS {
+        command.env_remove(var);
+    }
+}
 
 /// `dir`'s own `.git` directory, absolute, resolved with every locating
 /// variable already removed so the answer is `dir`'s and not a caller's.
@@ -117,17 +127,15 @@ fn index_file_is_within_dirs_git_dir(index_file: &std::ffi::OsStr, dir: &Path) -
 /// Also forces `LC_ALL=C` and removes `LANGUAGE`, so git's own messages are
 /// stable English text a caller can match, whatever locale is inherited.
 pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
-    scrub_with_index(command, dir, std::env::var_os("GIT_INDEX_FILE"));
+    scrub_with_index(command, dir, std::env::var_os(INDEX_FILE_VAR));
 }
 
 /// [`scrub_git_env_for_dir`] with the inherited `GIT_INDEX_FILE` passed in, so a test never has to set a process-wide variable.
 fn scrub_with_index(command: &mut Command, dir: &Path, index_file: Option<std::ffi::OsString>) {
-    for var in LOCATING_VARS {
-        command.env_remove(var);
-    }
+    scrub_locating_git_env(command);
     if let Some(index_file) = index_file {
         if !index_file_is_within_dirs_git_dir(&index_file, dir) {
-            command.env_remove("GIT_INDEX_FILE");
+            command.env_remove(INDEX_FILE_VAR);
         }
     }
     command.env("LC_ALL", "C");
@@ -135,7 +143,7 @@ fn scrub_with_index(command: &mut Command, dir: &Path, index_file: Option<std::f
 }
 
 fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
-    run_with_index(dir, args, std::env::var_os("GIT_INDEX_FILE"))
+    run_with_index(dir, args, std::env::var_os(INDEX_FILE_VAR))
 }
 
 fn run_with_index(
@@ -146,7 +154,7 @@ fn run_with_index(
     let mut command = Command::new("git");
     command.current_dir(dir).args(args);
     if let Some(f) = &index_file {
-        command.env("GIT_INDEX_FILE", f);
+        command.env(INDEX_FILE_VAR, f);
     }
     scrub_with_index(&mut command, dir, index_file);
     let output = command
@@ -194,9 +202,10 @@ pub fn tracked_files(dir: &Path, under: Option<&Path>) -> Result<Vec<String>, Gi
 /// common ancestor. Git reports that case with an empty stderr, so the
 /// message here names the likely cause instead of repeating nothing.
 pub fn merge_base(dir: &Path, a: &str, b: &str) -> Result<String, GitError> {
-    let output = Command::new("git")
-        .current_dir(dir)
-        .args(["merge-base", a, b])
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(["merge-base", a, b]);
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
     if output.status.success() {
@@ -223,6 +232,93 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
     Ok(text.lines().map(str::to_string).collect())
 }
 
+/// Whether `hash` is a merge commit that introduces nothing of its own: it
+/// has exactly two parents, `git merge-tree --write-tree` merges them with no
+/// conflict, and the tree that gives is the merge commit's own tree. A
+/// conflict resolved either way, a dropped change and an extra edit all make
+/// the trees differ or the merge conflict.
+///
+/// Anything else is `false`, so a caller fails closed: more than two
+/// parents, a merge that conflicts, and a git too old for `merge-tree
+/// --write-tree` (before 2.38) or one that errors. A commit with fewer than
+/// two parents is never a merge.
+///
+/// # Errors
+/// Returns an error if git cannot read `hash`'s parents or tree in `dir`.
+pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
+    let line = run_text(dir, &["rev-list", "--parents", "-n", "1", hash])?;
+    let ids: Vec<&str> = line.split_whitespace().collect();
+    let [_, first, second] = ids.as_slice() else {
+        return Ok(false);
+    };
+    let tree = run_text(dir, &["rev-parse", &format!("{hash}^{{tree}}")])?;
+    let Some(merged) = merge_tree_in_scratch_store(dir, first, second)? else {
+        return Ok(false);
+    };
+    Ok(merged.lines().next().map(str::trim) == Some(tree.trim()))
+}
+
+/// `path` as one entry of `GIT_ALTERNATE_OBJECT_DIRECTORIES`, a list split on
+/// `:` (`;` on Windows). git reads an entry in double quotes C-style, so a
+/// path holding the separator, a quote or a backslash is quoted and escaped.
+fn alternate_entry(path: &str) -> String {
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    if !path.contains([separator, '"', '\\']) {
+        return path.to_string();
+    }
+    let escaped = path.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\"")
+}
+
+/// The output of `git merge-tree --write-tree <first> <second>`, or `None`
+/// when it conflicts or fails. The merge writes its objects, and a checkout
+/// may be read-only, so they go to a scratch object store that is removed
+/// afterwards, while the repository's own objects are only read through an
+/// alternate.
+fn merge_tree_in_scratch_store(
+    dir: &Path,
+    first: &str,
+    second: &str,
+) -> Result<Option<String>, GitError> {
+    let objects = run_text(
+        dir,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+        ],
+    )?;
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per call (pid and time) and removed after
+    let scratch = base.join(format!(
+        "osf-merge-tree-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos())
+    ));
+    std::fs::create_dir_all(&scratch)
+        .map_err(|e| GitError(format!("cannot create {}: {e}", scratch.display())))?;
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["merge-tree", "--write-tree", first, second]);
+    scrub_git_env_for_dir(&mut command, dir);
+    command.env("GIT_OBJECT_DIRECTORY", &scratch).env(
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        alternate_entry(objects.trim()),
+    );
+    let output = command.output();
+    let removed = std::fs::remove_dir_all(&scratch);
+    let output = output.map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    removed.map_err(|e| GitError(format!("cannot remove {}: {e}", scratch.display())))?;
+    if output.status.success() {
+        Ok(Some(String::from_utf8_lossy(&output.stdout).into_owned()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// One commit's full message.
 ///
 /// # Errors
@@ -237,7 +333,7 @@ pub fn commit_message(dir: &Path, hash: &str) -> Result<String, GitError> {
 /// # Errors
 /// Returns an error if git cannot run in `dir`.
 pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
-    staged_files_with_index(dir, std::env::var_os("GIT_INDEX_FILE"))
+    staged_files_with_index(dir, std::env::var_os(INDEX_FILE_VAR))
 }
 
 fn staged_files_with_index(
@@ -906,7 +1002,8 @@ mod tests {
 
     /// What `scrub_with_index` did to `GIT_INDEX_FILE` on a fresh command given `inherited`: `Some(true)` removed, `Some(false)` set, `None` left alone.
     fn index_file_action(dir: &Path, inherited: Option<&Path>) -> Option<bool> {
-        let mut command = Command::new("git");
+        // Never started: only its environment is read back.
+        let mut command = Command::new("env-is-inspected-not-run");
         scrub_with_index(
             &mut command,
             dir,
@@ -914,7 +1011,7 @@ mod tests {
         );
         command
             .get_envs()
-            .find(|(k, _)| *k == OsStr::new("GIT_INDEX_FILE"))
+            .find(|(k, _)| *k == OsStr::new(INDEX_FILE_VAR))
             .map(|(_, v)| v.is_none())
     }
 
@@ -946,52 +1043,23 @@ mod tests {
         assert!(parse_remote("nonsense").is_none());
     }
 
-    /// Runs `git init --quiet [--bare] dir`, GIT_* scrubbed first.
+    /// Initialises a repository in `dir`, bare or not.
     fn init_repo(dir: &Path, bare: bool) {
-        let mut command = Command::new("git");
-        command.arg("init").arg("--quiet");
         if bare {
-            command.arg("--bare");
+            crate::scratch_git::init_bare(dir);
+        } else {
+            crate::scratch_git::init(dir);
         }
-        command.arg(dir);
-        scrub_git_env(&mut command);
-        let out = command.output().expect("git init runs");
-        assert!(
-            out.status.success(),
-            "git init failed for {}: {}",
-            dir.display(),
-            String::from_utf8_lossy(&out.stderr)
-        );
     }
 
-    /// Runs `git` in `dir`, asserting success, GIT_* scrubbed first.
+    /// Runs `git` in `dir`, asserting success.
     fn run_ok(dir: &Path, args: &[&str]) {
-        let mut command = Command::new("git");
-        command.current_dir(dir).args(args);
-        scrub_git_env(&mut command);
-        let out = command.output().expect("git runs");
-        assert!(
-            out.status.success(),
-            "git {args:?} failed in {}: {}",
-            dir.display(),
-            String::from_utf8_lossy(&out.stderr)
-        );
+        crate::scratch_git::ok(dir, args);
     }
 
-    /// `git init -q -b main`, a commit, and `user.*` config, so a test can
-    /// commit without depending on the ambient `init.defaultBranch`.
+    /// `git init -q -b main` and a commit, so a test can commit without depending on the ambient `init.defaultBranch`.
     fn init_repo_on_main(dir: &Path) {
-        let mut command = Command::new("git");
-        command
-            .arg("init")
-            .arg("--quiet")
-            .arg("-b")
-            .arg("main")
-            .arg(dir);
-        scrub_git_env(&mut command);
-        assert!(command.output().expect("git init runs").status.success());
-        run_ok(dir, &["config", "user.email", "test@example.com"]);
-        run_ok(dir, &["config", "user.name", "Test"]);
+        crate::scratch_git::init(dir);
         std::fs::write(dir.join("a.txt"), "a\n").expect("file writes");
         run_ok(dir, &["add", "a.txt"]);
         run_ok(dir, &["commit", "-q", "-m", "base"]);
@@ -1151,7 +1219,8 @@ mod tests {
     #[test]
     fn scrub_removes_the_locating_variables_unconditionally() {
         let dir = TempDir::new("osf-git-test-scrub-locating");
-        let mut command = Command::new("git");
+        // Never started: only its environment is read back.
+        let mut command = Command::new("env-is-inspected-not-run");
         scrub_with_index(&mut command, &dir, None);
         let removed: Vec<String> = command
             .get_envs()
@@ -1299,16 +1368,7 @@ mod tests {
     }
 
     fn git(dir: &Path, args: &[&str]) {
-        let output = Command::new("git")
-            .current_dir(dir)
-            .args(args)
-            .output()
-            .expect("git runs");
-        assert!(
-            output.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        crate::scratch_git::ok(dir, args);
     }
 
     #[test]
