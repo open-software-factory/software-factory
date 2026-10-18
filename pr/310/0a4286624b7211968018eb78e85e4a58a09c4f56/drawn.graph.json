@@ -1,0 +1,687 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T13:06:31.699Z",
+  "title": "Reviewers sign in by key variable only",
+  "summary": "Removes the login-file seeding path from the reviewer runner. `Review::login_paths` and `Reviewer::login_paths` are gone, along with `RunHome::seed_login`, `real_home`, `copy_login` and `copy_dir`; a reviewer's fresh home is now always empty. In exchange, `run_with_retry` gains a `missing_credential` gate: a reviewer whose agent defines no credential variable, or whose variables are all unset or empty, returns could-not-run with a reason that names the variable and never its value. Run notes are now always empty, and the docs and ADRs are reworded to match.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "0a4286624b7211968018eb78e85e4a58a09c4f56",
+      "ref": "0a4286624b7211968018eb78e85e4a58a09c4f56"
+    },
+    "pullRequest": {
+      "number": 310,
+      "url": "https://github.com/open-software-factory/software-factory/pull/310"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "review-cli",
+      "label": "osf review CLI",
+      "subtitle": "crates/osf",
+      "order": 0,
+      "summary": "The command that runs one reviewer: it resolves the reviewer from the agent list, prepares a fresh home and environment, spawns the harness, and turns the result into an outcome."
+    },
+    {
+      "id": "agent-registry",
+      "label": "Agent registry",
+      "subtitle": "agents.rs",
+      "order": 1,
+      "summary": "The one list of agents osf can drive, and the per-agent review facts it carries: command, model flag, credential variables, read-only mode."
+    },
+    {
+      "id": "reviewer-process",
+      "label": "Reviewer harness",
+      "subtitle": "child process",
+      "order": 2,
+      "summary": "The coding agent run headless in a fresh, empty home with an allow-listed environment."
+    },
+    {
+      "id": "docs",
+      "label": "Docs & ADRs",
+      "subtitle": "docs/",
+      "order": 3,
+      "summary": "The written record of the review check's security posture, kept in step with the code."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-run",
+      "label": "review_run",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "Attempt.notes",
+      "summary": "The saved run record. Only the doc comment on `Attempt::notes` changed: notes are now empty for a run that noted nothing, since the login-path notes are gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 186,
+          "endLine": 192
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-mod",
+      "label": "reviewers",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "run_one / run_with_retry",
+      "summary": "The reviewer runner. Loses the login-seeding machinery and gains the credential gate that refuses a reviewer with no key variable before any child is spawned.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-one-noted",
+      "label": "run_one_noted",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "(Outcome, Vec<String>, Option<Cause>)",
+      "summary": "Still returns notes for the caller, but the vector is now always empty; the notes plumbing through `run_with_retry` and `run_child` is deleted.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 365,
+          "endLine": 381
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "missing-credential",
+      "label": "missing_credential",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-cli",
+      "subtitle": "fn missing_credential(&Reviewer) -> Option<String>",
+      "summary": "New gate. Returns a reason when the agent defines no credential variable at all, or when none of its variables is set to a non-empty value. The reason names variables, never values.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 384,
+          "endLine": 406
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-with-retry",
+      "label": "run_with_retry",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "first run + one retry",
+      "summary": "Calls `missing_credential` right after the read-only check and returns could-not-run on a hit. No longer takes a notes vector or a real home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 401,
+          "endLine": 460
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prepare-command",
+      "label": "prepare_command",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "(Command, RunHome)",
+      "summary": "Creates the fresh home and builds the allow-listed environment. The login-seeding branch and the empty-key note are gone, so it returns two values instead of three.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 521,
+          "endLine": 550
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "one harness attempt",
+      "summary": "Spawns the harness with the prepared command. Drops the `real_home` and `notes` parameters and the note de-duplication loop.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 585,
+          "endLine": 640
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "fresh empty home",
+      "summary": "The temporary home a reviewer runs in. `seed_login` is removed, so the home is created empty and only `apply`/`apply_temp`/`Drop` remain.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 300,
+          "endLine": 330
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "seed-login",
+      "label": "seed_login / copy_login",
+      "kind": "function",
+      "delta": "removed",
+      "lane": "review-cli",
+      "subtitle": "deleted",
+      "summary": "The copy path that pulled declared login files out of the real home into the reviewer's home, plus `real_home`, `copy_login` and `copy_dir`. Nothing replaces it: the home stays empty.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 328,
+          "endLine": 415,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-struct",
+      "label": "Reviewer",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-cli",
+      "subtitle": "login_paths removed",
+      "summary": "The runtime reviewer description loses its `login_paths` field; `credential_env` is now the only sign-in channel it carries.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 55,
+          "endLine": 75
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-list",
+      "label": "AGENTS",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "agent-registry",
+      "subtitle": "the one list",
+      "summary": "Each agent's `Review` entry drops `login_paths`; `credential_env` gains a doc note that an empty list means the agent can never start as a reviewer. omp is the one entry with an empty list.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 95,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-struct",
+      "label": "Review",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "agent-registry",
+      "subtitle": "credential_env only",
+      "summary": "The per-agent review facts. `login_paths` is deleted and `credential_env` is documented as the sole sign-in path, with an empty list meaning the agent never reviews.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 90,
+          "endLine": 108
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-entries",
+      "label": "dsh / omp / opencode / codex / claude",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "agent-registry",
+      "subtitle": "login_paths dropped",
+      "summary": "The five agent entries each lose their `login_paths` literal. Their `credential_env` values are unchanged: DEEPSEEK_API_KEY, none, OPENROUTER_API_KEY, CODEX_API_KEY, CLAUDE_CODE_OAUTH_TOKEN.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 280,
+          "endLine": 465
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness",
+      "label": "Reviewer harness",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "reviewer-process",
+      "subtitle": "codex / claude / opencode / dsh",
+      "summary": "The coding agent itself, run headless. It now starts with an empty home and signs in only from the credential variable in its environment.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 550,
+          "endLine": 585
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-tests",
+      "label": "reviewer tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "reviewer-process",
+      "subtitle": "crates/osf/tests",
+      "summary": "The fake reviewer now declares a dummy key variable and sets it once, and the integration harness injects a dummy value for every agent's key so runs still start. The login-copy unit tests are deleted.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 88,
+          "endLine": 130
+        },
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 432,
+          "endLine": 446
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0016",
+      "label": "ADR 0016 the review check",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs",
+      "subtitle": "security posture",
+      "summary": "Reworded: osf copies no login file, a reviewer signs in only through its key variable, and does not start when that variable is unset. Stale PR links are dropped.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0016-the-review-check.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0020",
+      "label": "ADR 0020 who can post",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs",
+      "subtitle": "secret containment",
+      "summary": "Same rewording of the login-file rule, plus the amendment history in the Date line is trimmed back to the original date.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0020-who-can-post-a-review-result.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-guide",
+      "label": "development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs",
+      "subtitle": "agent table",
+      "summary": "Documents the new rule and adds a table of each agent's key variable and what happens when it is unset; omp is listed as having no variable and so never reviewing.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 469,
+          "endLine": 700
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crate-readme",
+      "label": "crates/osf README",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs",
+      "subtitle": "agent list",
+      "summary": "Says a reviewer runs in a fresh empty home with only its own credential variables, and reports could-not-run when its variable is unset.",
+      "files": [
+        {
+          "path": "crates/osf/README.md",
+          "startLine": 200,
+          "endLine": 220
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "run-with-retry-checks-credential",
+      "from": "run-with-retry",
+      "to": "missing-credential",
+      "kind": "call",
+      "delta": "added",
+      "label": "gate before spawn",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new gate: a reviewer with no usable key variable never reaches the harness.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 417,
+          "endLine": 422
+        }
+      ]
+    },
+    {
+      "id": "run-with-retry-calls-run-child",
+      "from": "run-with-retry",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "modified",
+      "label": "no real_home, no notes",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The call loses two arguments; the retry path is otherwise unchanged.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 440,
+          "endLine": 460
+        }
+      ]
+    },
+    {
+      "id": "run-child-prepares",
+      "from": "run-child",
+      "to": "prepare-command",
+      "kind": "call",
+      "delta": "modified",
+      "label": "(Command, RunHome)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Two-value return; the note loop that followed it is deleted.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 605,
+          "endLine": 615
+        }
+      ]
+    },
+    {
+      "id": "prepare-command-creates-home",
+      "from": "prepare-command",
+      "to": "run-home",
+      "kind": "call",
+      "delta": "modified",
+      "label": "empty home",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The home is created and applied to the command, but nothing is seeded into it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 528,
+          "endLine": 535
+        }
+      ]
+    },
+    {
+      "id": "run-home-seeded-login",
+      "from": "run-home",
+      "to": "seed-login",
+      "kind": "call",
+      "delta": "removed",
+      "label": "copied login files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The seeding call is gone; the home no longer receives any file from the real home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 328,
+          "endLine": 415,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "run-child-spawns-harness",
+      "from": "run-child",
+      "to": "harness",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "allow-listed env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The harness still starts with only RUN_ENV_VARS plus its own credential variables; the home it sees is now always empty.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 615,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "reviewer-struct-from-review",
+      "from": "reviewer-struct",
+      "to": "review-struct",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "credential_env only",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The runtime reviewer is built from the agent's `Review` entry; the login-path field no longer crosses that boundary.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 100,
+          "endLine": 112
+        }
+      ]
+    },
+    {
+      "id": "agents-list-holds-entries",
+      "from": "agents-list",
+      "to": "agent-entries",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "5 entries",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The list still holds the five agents; each entry's review block is one field shorter.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 280,
+          "endLine": 465
+        }
+      ]
+    },
+    {
+      "id": "reviewer-tests-exercise-run-child",
+      "from": "reviewer-tests",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "modified",
+      "label": "new signature",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unit and integration tests call the runner with the shortened signature and supply a dummy key so runs start.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 88,
+          "endLine": 130
+        }
+      ]
+    },
+    {
+      "id": "dev-guide-describes-agents",
+      "from": "dev-guide",
+      "to": "agents-list",
+      "kind": "other",
+      "delta": "modified",
+      "label": "key-variable table",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The guide's new table is derived from the agent list's credential variables.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 684,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "adr-0016-describes-reviewers",
+      "from": "adr-0016",
+      "to": "reviewers-mod",
+      "kind": "other",
+      "delta": "modified",
+      "label": "no login file",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The ADR's security bullet now states the rule the runner enforces.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0016-the-review-check.md",
+          "startLine": 175,
+          "endLine": 185
+        }
+      ]
+    },
+    {
+      "id": "adr-0020-describes-reviewers",
+      "from": "adr-0020",
+      "to": "reviewers-mod",
+      "kind": "other",
+      "delta": "modified",
+      "label": "no login file",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Same rule restated in the secret-containment section.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0020-who-can-post-a-review-result.md",
+          "startLine": 20,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "id": "crate-readme-describes-agents",
+      "from": "crate-readme",
+      "to": "agents-list",
+      "kind": "other",
+      "delta": "modified",
+      "label": "credential variables",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The crate README's agent section now describes credential variables instead of login files.",
+      "files": [
+        {
+          "path": "crates/osf/README.md",
+          "startLine": 200,
+          "endLine": 220
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 9,
+    "additions": 133,
+    "deletions": 434,
+    "chips": [
+      {
+        "label": "Login-copy code",
+        "value": "deleted",
+        "tone": "removed"
+      },
+      {
+        "label": "Credential gate",
+        "value": "new",
+        "tone": "added"
+      },
+      {
+        "label": "Agents with no key var",
+        "value": "1 (omp)",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-run-containers",
+      "title": "Reviewer run: containers",
+      "lens": "architecture",
+      "summary": "The containers a single `osf review run` touches, and what changed between them.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "reviewer-run-components",
+      "title": "Reviewer runner internals",
+      "lens": "architecture",
+      "summary": "Inside the runner: the credential gate, the command preparation, and the fresh home.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "reviewers-mod",
+          "run-with-retry",
+          "missing-credential",
+          "run-child",
+          "prepare-command",
+          "run-home",
+          "seed-login",
+          "reviewer-struct",
+          "harness"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
