@@ -469,8 +469,9 @@ Before `osf` saves an answer, and again in `osf review reduce`, it removes
 the exact value of every secret the job holds from every field. These are
 each reviewer's provider key and the code host's token. `osf` removes
 each one in plain, base64 and hex form. The pattern redaction runs as
-well. Where an API key in the environment is enough to sign in, `osf`
-copies no login file into the reviewer's home.
+well. `osf` never copies a login file into the reviewer's home. It passes an
+API key from the environment, or mounts a user-supplied auth file
+read-only.
 
 The reviewer starts in a clean copy of the change. The copy is a temporary
 folder. It holds the change's files and no coding agent's settings,
@@ -562,8 +563,9 @@ holds the target. Until then, a person reads its result and decides.
   `secrets.OPENROUTER_API_KEY`. Each key belongs to one reviewer job, and
   that job passes into its container the one variable that its agent's
   `credential_env` entry names. The codex job gives `secrets.OPENAI_API_KEY`
-  to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
-  value from answers.
+  to codex as `CODEX_API_KEY`. When the repository uses a Codex subscription
+  instead, the job mounts the auth file from a secret as `CODEX_AUTH_FILE`.
+  `osf` itself reads a key only to remove its value from answers.
 - Leave the `review` job out of branch protection and every ruleset for
   now. Require every conversation resolved, so a person still looks at
   each finding.
@@ -650,9 +652,13 @@ under that one policy. So does the traffic each docker container makes.
 
 A reviewer is a coding-agent tool, run headless, such as Codex or
 Claude Code. `crates/osf/src/agents.rs` is the one list of agents osf can
-drive. Each entry holds the agent's command, model family, credential
-variables, and login files, so a repository never repeats them. This
-repository's `osf.toml` selects from that list under `[agents]`:
+drive. Each entry holds the agent's command, model family, accepted
+credential variables, and login file locations, so a repository never
+repeats them. A reviewer can use an API key or a subscription. An API-key
+variable is optional, not mandatory: when it is present osf passes it,
+and when the user configures the agent's auth file, osf mounts it
+read-only. This repository's `osf.toml` selects from that list under
+`[agents]`:
 
 ```toml
 [agents]
@@ -733,8 +739,14 @@ could-not-run, and tries the next one. The review as a whole never
 stalls on one missing key.
 
 `CLAUDE_CODE_OAUTH_TOKEN` comes from `claude setup-token`, run once
-against the owner's own Claude subscription. Claude Code reads it the
-same way it would outside `osf`, and talks to Anthropic directly.
+against the user's Claude subscription. Claude Code reads it the same
+way it would outside `osf`, and talks to Anthropic directly. A
+subscription works the same way for any agent that stores a login file:
+set the agent's auth-file variable, such as `CODEX_AUTH_FILE` for Codex,
+and osf mounts that file read-only. It is never copied. OpenCode accepts
+either `OPENCODE_API_KEY` for its own gateway or `OPENROUTER_API_KEY` for
+OpenRouter. Either can be absent, and a missing key makes only that
+reviewer could-not-run.
 
 DeepSeek Harness needs one adjustment the other agents do not need. Its
 headless profile takes the task as a command-line argument. It never
