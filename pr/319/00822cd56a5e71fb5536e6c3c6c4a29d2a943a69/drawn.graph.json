@@ -1,0 +1,279 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-21T03:22:53.236Z",
+  "title": "console-lab: Vite devDependency bump 8.3.1 → 8.3.3",
+  "summary": "A single-line dependency bump in the console-lab app: the Vite devDependency moves from 8.3.1 to 8.3.3. Nothing in the app's source, build configuration or runtime wiring changes; the effect is confined to the toolchain that builds and serves the console-lab bundle, so the blast radius is the local dev server and the single-file production build.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "00822cd56a5e71fb5536e6c3c6c4a29d2a943a69",
+      "ref": "00822cd56a5e71fb5536e6c3c6c4a29d2a943a69"
+    },
+    "pullRequest": {
+      "number": 319,
+      "url": "https://github.com/open-software-factory/software-factory/pull/319"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "toolchain",
+      "label": "Build toolchain",
+      "subtitle": "Node devDependencies",
+      "order": 0,
+      "summary": "The packages that compile and serve console-lab: Vite and its React and single-file plugins."
+    },
+    {
+      "id": "console-lab",
+      "label": "console-lab app",
+      "subtitle": "React SPA",
+      "order": 1,
+      "summary": "The lab console application source and its Vite configuration."
+    },
+    {
+      "id": "output",
+      "label": "Build output",
+      "subtitle": "Static bundle",
+      "order": 2,
+      "summary": "What the toolchain emits: a dev server for local work and a single inlined HTML file for distribution."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "vite",
+      "label": "vite",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "subtitle": "8.3.1 → 8.3.3",
+      "summary": "The Vite build tool and dev server, pinned as a devDependency of console-lab. This change bumps the pin from 8.3.1 to 8.3.3; no other dependency or script in the manifest moves.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": [
+        "devDependency",
+        "patch bump"
+      ]
+    },
+    {
+      "id": "vite-plugin-react",
+      "label": "@vitejs/plugin-react",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "6.1.2",
+      "summary": "React fast-refresh and JSX transform plugin, unchanged at 6.1.2. It runs inside Vite's plugin pipeline, so it is the neighbour most directly exposed to the Vite version.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 19,
+          "endLine": 19
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite-plugin-singlefile",
+      "label": "vite-plugin-singlefile",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "2.3.3",
+      "summary": "Build-only plugin that inlines all assets into one HTML file. Unchanged, but it hooks Vite's build lifecycle and therefore shares the upgraded Vite runtime.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 21,
+          "endLine": 21
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-lab-source",
+      "label": "console-lab source",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "console-lab",
+      "summary": "The React application code of the lab console. Untouched by this change; it is the input the toolchain consumes.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite-config",
+      "label": "Vite config",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "console-lab",
+      "summary": "The Vite configuration that registers the React and single-file plugins and defines the build target. Unchanged, but it is where the upgraded Vite version is actually applied.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-server",
+      "label": "Dev server",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "output",
+      "summary": "The local Vite dev server with HMR that serves console-lab during development. Its behaviour comes from the Vite version now pinned at 8.3.3.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "single-file-bundle",
+      "label": "Single-file bundle",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "output",
+      "summary": "The production artifact: one HTML file with scripts and styles inlined by vite-plugin-singlefile, produced by the Vite build.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "vite-config-uses-vite",
+      "from": "vite-config",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "configures",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Vite config is executed by the Vite binary resolved from the bumped devDependency.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "vite-loads-react-plugin",
+      "from": "vite",
+      "to": "vite-plugin-react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "plugin pipeline",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite loads the React plugin into its transform pipeline; the plugin runs against the upgraded Vite API.",
+      "files": []
+    },
+    {
+      "id": "vite-loads-singlefile-plugin",
+      "from": "vite",
+      "to": "vite-plugin-singlefile",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "build hook",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite invokes the single-file plugin during the build to inline emitted assets.",
+      "files": []
+    },
+    {
+      "id": "vite-serves-source",
+      "from": "vite",
+      "to": "console-lab-source",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "transform + HMR",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The connection the change is really about: the bumped Vite version is what transforms and hot-reloads the console-lab source.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "vite-runs-dev-server",
+      "from": "vite",
+      "to": "dev-server",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "serve",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite hosts the development server that console-lab developers hit locally.",
+      "files": []
+    },
+    {
+      "id": "vite-builds-bundle",
+      "from": "vite",
+      "to": "single-file-bundle",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "build",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite's production build, with the single-file plugin, emits the inlined HTML artifact.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 1,
+    "chips": [
+      {
+        "label": "Dependency bumps",
+        "value": "1",
+        "tone": "modified"
+      },
+      {
+        "label": "Vite",
+        "value": "8.3.1 → 8.3.3",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "console-lab-toolchain",
+      "title": "console-lab build toolchain",
+      "lens": "architecture",
+      "summary": "Where the Vite pin sits: the toolchain lane feeds the console-lab app and its two outputs. Only the vite node is modified.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
