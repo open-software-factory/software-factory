@@ -1,6 +1,6 @@
 # Console design
 
-This folder holds the design work for the operator console. The console is the product's user interface. The console-stack record, `docs/architecture/decisions/0007-console-stack.md`, says how it is built. The operator-console record, `docs/product/decisions/0001-factory-ui-is-an-operator-console.md`, says what it is for.
+This folder holds the design work for the console. The console is the product's user interface. The console-stack record, `docs/architecture/decisions/0007-console-stack.md`, says how it is built. The console record, `docs/product/decisions/0001-factory-ui-is-a-console.md`, says what it is for.
 
 Read in this order.
 
@@ -17,7 +17,7 @@ one self-contained file.
 
 | Page | What it shows |
 |---|---|
-| `shell.html` | The operator console shell. It uses the placement model in `packages/console-model` and the component package in `packages/console-ui`. |
+| `shell.html` | The console shell. It uses the placement model in `packages/console-model` and the component package in `packages/console-ui`. |
 | `orb.html` | The floating orb on its own, with its variants. |
 | `public/spikes/workspace-spike.html` | The docking spike, kept for reference. |
 | `public/spikes/workspace-spike-panels.html` | The docking spike with panels, kept for reference. |

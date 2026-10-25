@@ -4,7 +4,7 @@ Software Factory is an agent-native operating environment for shipping high-qual
 
 It is for engineers who run coding agents over their own repositories and want that work verified, recorded and visible.
 
-The project is moving from vision and research toward its first architecture and implementation. There is no runnable factory yet. What runs is `osf`, a command-line tool. It lints prose and skill files. It scans for text that must never reach a public repository. It reports the risk of a change, and it keeps a status block on a pull request. Build it and try it on this repository:
+The develop job is the first working factory. `osf` reads one work item, runs the builder agent inside a container, runs the repository's deterministic checks, runs the in-sandbox review loop, opens the pull requests and records the journal. It also lints prose and skill files, scans for text that must never reach a public repository, reports the risk of a change, and keeps a status block on a pull request. Build it and try it on this repository:
 
 ```
 cargo run -p osf -- --help
@@ -13,10 +13,10 @@ cargo run -p osf -- lint writing README.md
 
 ## Current direction
 
-- The Factory Engine starts in Rust: small, native, strongly typed and cross-platform.
+- The factory starts in Rust: small, native, strongly typed and cross-platform.
 - Coding agents, work trackers, forges, runners and other providers remain replaceable integrations.
 - Existing skills and deterministic ecosystem tooling should be composed rather than cloned.
-- The operator experience is an active control surface, not a read-only dashboard or a chat wrapper.
+- The person's console is an active control surface, not a read-only dashboard or a chat wrapper.
 - Intent, work, implementation, verification, delivery and production evidence should remain traceable.
 
 These are implementation constraints, not a claim that the wider ecosystem must use Rust.

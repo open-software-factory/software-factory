@@ -36,6 +36,103 @@ the worktree mount at `/workspace`, in `devcontainer.json`'s `mounts` or
 on `docker run`'s own `-v`. Git then finds the path its worktree file
 already names, unchanged.
 
+## One container per worktree
+
+The paragraph above mounts the main clone's `.git` read-only. A commit in
+the container writes objects, refs, and this worktree's own files there,
+so the launcher below mounts it read-write and protects only the config
+file.
+
+Run each worktree's build, test, and git work in its own container, so
+two worktrees never share a process, a scratch folder, or a leaked
+setting. `.devcontainer/worktree-container` starts and drives one. It
+is a POSIX `sh` script that calls `docker` (or the engine named in
+`OSF_CONTAINER_ENGINE`) and `git`. It is not an osf command: osf starts
+no container in this release, and the person or orchestrator supplies it.
+
+What a container holds:
+
+| Mount | Where | Access |
+|---|---|---|
+| The worktree | `/workspace` | read-write |
+| The main clone's `.git` directory | its host path | read-write |
+| The main clone's `.git/config` file | its host path | read-only, over the line above |
+
+Nothing else comes from the host. The real home folder and every login
+folder stay out. `HOME` is the image's own home for its `dev` user, and
+goes away with the container. The name is `osf-wt-<folder>-<checksum of
+the full path>`, so two worktrees never share a container, even when
+their folders have the same name.
+
+Build the image once, then start a container and run commands in it:
+
+```sh
+docker build -t osf-devcontainer -f .devcontainer/Dockerfile .
+# or: export OSF_IMAGE=<the pinned image you pulled>
+
+W=/path/to/worktree
+.devcontainer/worktree-container start "$W"
+.devcontainer/worktree-container exec "$W" -- git status
+.devcontainer/worktree-container exec "$W" -- cargo fmt --all -- --check
+.devcontainer/worktree-container exec "$W" -- cargo clippy --workspace --all-targets -- -D warnings
+.devcontainer/worktree-container exec "$W" -- cargo test --workspace
+.devcontainer/worktree-container stop "$W"
+```
+
+Leave `"$W"` out to use the current directory's worktree. Start as many
+worktrees as you like. Each gets its own container, and they run side by
+side.
+
+Set the commit identity once per worktree, in the worktree's own scope.
+The shared config is read-only, so `--worktree` is the only scope that
+works, and the repository already enables it:
+
+```sh
+.devcontainer/worktree-container exec "$W" -- git config --worktree user.name "<builder app name>"
+.devcontainer/worktree-container exec "$W" -- git config --worktree user.email "<bot user id>+<slug>[bot]@users.noreply.github.com"
+```
+
+To push or call `gh`, set the builder's token in the same shell call.
+The script passes `GH_TOKEN` by name, so the value is in no argument and
+no file. A token from an app lasts about an hour, so pass a fresh one
+on each call rather than only at `start`:
+
+```sh
+GH_TOKEN=<token from your token tool> .devcontainer/worktree-container exec "$W" -- \
+  sh -c 'gh auth setup-git && git push https://github.com/<owner>/<repo>.git HEAD:refs/heads/<branch>'
+```
+
+Push with a full URL and a `HEAD:refs/heads/<branch>` refspec. A push
+with `-u` or a `git town` command writes branch settings to the shared
+config, and fails (see below).
+
+What is covered:
+
+- A POSIX shell with `git` and a Docker-compatible engine on Linux, macOS,
+  and Windows through WSL. The image is Linux, so the container is too.
+- The git wrapper and the forced hooks path apply, because the worktree
+  is mounted at `/workspace`.
+
+What is not covered:
+
+- A native Windows shell, and Git Bash on Windows: it rewrites the mount
+  paths. Use WSL.
+- A host user whose id is not 1000. The image's `dev` user is 1000, so
+  files in the worktree would be owned by another id.
+- Podman: the script uses only options both engines share, but no test
+  has run it there.
+- A change to the shared config. Anything that writes a branch's tracking
+  or `git town` parent, such as `git push -u`, `git branch --set-upstream-to`,
+  or `git town hack`, fails with `Device or resource busy`. Do those on
+  the host, outside the container, or avoid them. This is the point of
+  the read-only mount.
+- A hook or a script in the shared `.git/hooks` directory: it is
+  read-write. The wrapper forces the hooks path, so git does not run it,
+  but a process can still write there.
+- Network limits: the container has the engine's default network.
+- An image tag: the script defaults to `osf-devcontainer:latest` and does
+  not build or pull it.
+
 ## What the hooks check
 
 Git hooks live at `/opt/factory/githooks` inside the container, owned by
@@ -207,24 +304,25 @@ the verdict, and the push always continues. Pre-push runs inside your
 own workspace, so you could change its result there. The real gate is a
 separate job.
 
-GitHub always reads a `pull_request_target` workflow from the base
+GitHub always reads a `pull_request_target` workflow from the default
 branch. That is why `.github/workflows/review.yml` is the real gate, and
 a pull request cannot change what this job does. The workflow runs again
-when the pull request text is edited.
+when the pull request text is edited. `review.yml` holds no step. It calls
+the reusable workflow `.github/workflows/review-check.yml`, which holds
+every job below. See [Calling the review check from another
+workflow](#calling-the-review-check-from-another-workflow).
 
-The workflow has one job for each step. A `build` job builds the `osf`
-tool from the base branch only, with no secrets. Each reviewer then runs
-in its own job: `review codex`, `review claude` and `review opencode`.
-All three reviewer jobs run `osf` in the container.
-A reviewer job gets only its own provider's key. Its network list holds
-only its own provider host and the hosts it needs to run. It saves what
-the reviewer did as an artifact, with `osf review run --reviewer <name>
---out <file>`. The last job, named `review`, downloads every saved
-file and runs `osf review reduce <files>`. It checks the findings,
-decides, and posts. It alone mints the verifier app's token. The `build`
-job holds a read-only token, which it uses to find the work item. A
-reviewer whose job left no file counts as could-not-run, and
-could-not-run never passes.
+The workflow has two jobs. A `build` job builds the `osf` tool from the
+trusted commit of the workflow itself, with no secrets. The pull
+request's base commit is used only as what the reviewers diff against.
+The one `review` job runs `osf review run` over every configured
+reviewer, inside the container. It holds the repository-level
+`OSF_REVIEW_*` credentials, and passes into each reviewer container only
+that reviewer's provider variable. Its network list holds every
+configured provider's host. It checks the findings, decides, and posts.
+It alone mints the verifier app's token. The `build` job holds a
+read-only token, which it uses to find the work item. A reviewer that
+left no answer counts as could-not-run, and could-not-run never passes.
 
 ### Why a reviewer could not run
 
@@ -263,15 +361,41 @@ invalid answer, which keeps its own validation reason, and any failure
 whose text matches none of the patterns. The last category means that no
 pattern matched. It does not mean that nothing failed. In a failure
 reason, `osf` never keeps or prints the reviewer's own text, because it can
-hold a credential. That covers the console, the journal, SARIF and the saved
-file. Each saved reason also goes through the secret removal below. The text
-of a valid finding is different: it is the reviewer's own words, and it
-reaches the review output after that same secret removal.
+hold a credential. That covers the console, the step log, the journal, SARIF
+and the posted review. Each saved reason also goes through the secret removal
+below. The text of a valid finding is different: it is the reviewer's own
+words, and it reaches the review output after that same secret removal.
 
-A reviewer job turns red when it made attempts and none answered. It still
-writes its `--out` file and uploads it first. A reviewer that is off under
-`--if-enabled`, or left out for the builder's family, does not fail. The
-last job runs even after a red reviewer job and decides by quorum.
+The category is osf's reading of the output, and it can be wrong. So the run
+file that `osf review run --out` writes, which CI uploads as the
+`review-run-<agent>` artifact, keeps the evidence for each failed attempt in
+that attempt's `cause` field, and nowhere else:
+
+- `tail` holds the last 40 lines of the command's standard output followed by
+  its standard error. The two streams are read separately, so this is not
+  their true interleaving. A line longer than 2000 characters is cut and
+  ends with `[line cut]`. The limits are `TAIL_LINES` and `TAIL_LINE_CHARS`
+  in `crates/osf/src/failure.rs`.
+- `basis` names what made the classifier choose its category. It comes from
+  a fixed list and never holds the reviewer's text: a phrase from the
+  classifier's own pattern list such as `quota exceeded`, `http status 429`,
+  `json status 429`, `json label rate_limit_error` or `json errno eacces`. It
+  is empty when the category is the last one.
+
+The tail passes through the same secret removal as every other saved text
+before the run file is written: the exact values of the secrets the job
+holds, in plain, base64 and hex form, then the pattern redaction, which
+replaces a whole line that matches a secret pattern. If that
+removal cannot run, the tail becomes a one-line notice, never the raw text.
+This covers a command that exited with an error and a command that timed out,
+where the tail is its partial output. It does not cover a command that
+exited with code 0 and printed an invalid answer, or a command that never
+started. The journal, the summary and the posted review do not carry the
+tail, and the step log never prints it. Download the artifact to read it.
+
+The one review job turns red when it made attempts and none answered. A
+reviewer that is off under `--if-enabled`, or left out for the builder's
+family, does not fail. The job decides by quorum.
 
 A reviewer runs in a fresh home that `osf` removes whole when the run ends,
 whether the reviewer answered, failed, timed out or never started. If the
@@ -280,11 +404,11 @@ only each reviewer's saved answers, never a home.
 
 Each reviewer asks for two rounds for each lens. A reviewer that answered
 also runs one more round, the critical round, and saves it marked as
-critical. A reviewer job cannot know whether another family answered. So
-`osf review reduce` counts a family's critical round only when exactly one
-family answered. This is the interim policy of decision 0016. In every
-other case, `osf review reduce` ignores the critical rounds. The cost is one
-more round for each reviewer for each lens.
+critical. The one review job knows which families answered. So it counts a
+family's critical round only when exactly one family answered. This is the
+interim policy of decision 0016. In every other case, it ignores the
+critical rounds. The cost is one more round for each reviewer for each
+lens.
 
 A reviewer runs its selected lenses on a fixed pool of threads. It starts
 a lens when a thread is free, up to the configured number at once. Each
@@ -319,7 +443,7 @@ total_timeout_seconds = 2700
 
 `osf review reduce` treats every saved file as input to check. It checks
 each answer again against the schema and the lens, the same way the
-reviewer job does. The lens name must match. Every criterion needs a
+one review job does. The lens name must match. Every criterion needs a
 score, and each score must be between 0 and 1. A file counts only for
 the reviewer its file name gives, and no two files may carry one name. A
 file that fails a check is could-not-run for that reviewer. The reducer
@@ -371,7 +495,7 @@ takes the first: the `Issue:` line wins, and otherwise the first closing
 keyword does.
 It reads that issue from this repository through the code host's API. It
 saves the issue's text, or the reason there is none, as the `work-item`
-artifact, and each reviewer job receives that file read-only. The saved work
+artifact, and the one review job receives that file read-only. The saved work
 item records the issue number and the pull request's head commit. A reviewer
 refuses a saved work item that does not match its own pull request text and
 commit, and reports the reason. The issue's text is untrusted, like the pull
@@ -411,47 +535,45 @@ review, with a comment on each finding's own line. A must-fix finding
 fails the job. A review that could not run fails the job too, and every
 other outcome passes.
 
-A same-repository pull request's jobs read their secrets and variables
-through a GitHub environment named `review`. A repository admin must
-create it. Set up this short list, then the check is live.
+A same-repository pull request's one review job reads the
+repository-level `OSF_REVIEW_*` secrets and variables. Set up this short
+list, then the check is live.
 
 ### The review check is advisory
 
-The review check posts its result as a check run and as a review. It is
-not a required check, and no branch protection or ruleset names it. It
-becomes a required check when the key proxy and the network split land.
-[open-software-factory/software-factory#208 (the key proxy and network split)](https://github.com/open-software-factory/software-factory/issues/208)
-holds the target. Until then, a person reads its result and decides.
+The review check posts its result as a check run and as a review under
+the verifier app. It becomes a required check once the rebuilt workflow
+is verified: one review job, one check. Until then, no branch protection
+or ruleset requires it. A pull request cannot merge while a must-fix
+finding is open, or while a reviewer answered could-not-run, once it is
+required.
 
 ### Required setup
 
-- The verifier app. Set `vars.VERIFIER_APP_ID` and
-  `secrets.VERIFIER_APP_PRIVATE_KEY` in the `review` environment. The
-  job mints a short-lived token from this app, to post the review.
-- The `review` environment itself, holding at least two of these keys:
-  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` and
-  `secrets.OPENROUTER_API_KEY`. Each key belongs to one reviewer job, and
-  that job passes into its container the one variable that its agent's
-  `credential_env` entry names. The codex job gives `secrets.OPENAI_API_KEY`
-  to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
-  value from answers.
-- Leave the `review` job out of branch protection and every ruleset for
-  now. Require every conversation resolved, so a person still looks at
-  each finding.
+- The verifier app at repository level: `OSF_REVIEW_VERIFIER_APP_ID` and
+  `OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY`. The one review job mints a
+  short-lived token from this app, to post the review.
+- The repository-level reviewer credentials: `OSF_REVIEW_OPENAI_API_KEY`,
+  `OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN`, `OSF_REVIEW_OPENROUTER_API_KEY`,
+  `OSF_REVIEW_DEEPSEEK_API_KEY` and `OSF_REVIEW_CODEX_AUTH_JSON`. One
+  review job runs `osf review run` over every configured reviewer. Each
+  reviewer container receives only the one variable its agent's
+  `credential_env` entry names. `osf` itself reads a key only to remove
+  its value from answers.
+- Make the one review job a required check once the rebuilt workflow is
+  verified. Require every conversation resolved, so a person still looks
+  at each finding.
 
-A fork's pull request runs a separate job, also named `review`. It
-fails on purpose, with one line explaining why, unless the repository
-variable `OSF_REVIEW_FORKS` is `true` and the `fork-review` environment
-is also set up. When both are set, the same jobs run, and the reviewer
-jobs and the last job use the `fork-review` environment. This is why: GitHub creates a missing environment on
-demand, with no protection at all. Without this off switch, a fork's
-pull request could run with the model keys before anyone set up
-`fork-review` at all. The recommendations below keep it off.
+A fork's pull request is reviewed only when the repository variable
+`OSF_REVIEW_FORKS` is `true`. The one review job then uses the same
+repository-level credentials. The default is off, and the
+recommendations below keep it off. A fork's pull request otherwise
+fails with one line explaining why.
 
 ### Recommended
 
-- Limit the `review` environment's deployment branches to `main` only.
-  This stops a pull request branch from widening its own review.
+- Limit the repository-level reviewer credentials to the `main` branch
+  ruleset. This stops a pull request branch from widening its own review.
 - Use a dedicated key for each reviewer, separate from any other use.
   Give each one a low monthly spending cap on the provider's own site.
   A leaked or misbehaving key then costs little to replace, and its
@@ -461,11 +583,7 @@ pull request could run with the model keys before anyone set up
   review job only ever reads variables.
 - Keep fork review off. It is off by default, and only the repository
   variable `OSF_REVIEW_FORKS` set to `true` turns it on. Leave that
-  variable unset until the review check is a required check. To turn it on
-  later, create a `fork-review` environment, with its own copy of the
-  required settings above, its deployment branches also limited to
-  `main`, and required reviewers. A fork's pull request then waits
-  there until a maintainer approves the run.
+  variable unset until the review check is a required check.
 
 ### The container image
 
@@ -473,7 +591,7 @@ Most jobs run directly on the runner and log in to `ghcr.io` with their
 own token first. That login works whether the image behind it stays
 public or turns private later. Every job that uses a container pulls
 the same image, named once by digest in the `REVIEW_IMAGE` variable at
-the top of `.github/workflows/review.yml`. No job names a moving tag.
+the top of `.github/workflows/review-check.yml`. No job names a moving tag.
 This is the image that the development container workflow builds from the
 `.devcontainer` folder in this repository. It already carries a pinned
 Rust toolchain, moon, and every reviewer tool the agent list can enable.
@@ -484,15 +602,15 @@ is reviewed like any other workflow change.
 
 Each step that runs `osf` in a container goes through `docker run` against
 that image. Each docker run gets its own fresh, disposable container. The
-`build` job mounts `base` read-write, and `cargo build` writes its own
-output there. It uploads the `osf` binary as an artifact, and every later
-job downloads that one binary. A reviewer job, and the last job, mount
+`build` job mounts the pinned osf checkout, `osf-src`, read-only, and
+`cargo build` writes its own output to a separate `build-out` folder. It uploads the `osf` binary as an artifact, and every later
+job downloads that one binary. The one review job mounts
 `base` and `pr` read-only. The pull request's tree is
 only ever data. A third mount,
 `out`, holds the saved reviewer file, the SARIF file, and the review's
-own journal and state, written through `OSF_STATE_DIR`. A reviewer job
-passes only its own provider's key. The last job
-passes only the verifier's token.
+own journal and state, written through `OSF_STATE_DIR`. The one review job passes into each
+reviewer container only that reviewer's provider variable, and holds the
+verifier's token for the result.
 
 ### Outbound network access
 
@@ -503,12 +621,10 @@ hosts that job needs. The `build` job names four GitHub hosts:
 `objects.githubusercontent.com`. It names `ghcr.io` and
 `pkg-containers.githubusercontent.com` for the container registry. It
 names `index.crates.io`, `static.crates.io` and `crates.io`
-for the crates.io registry. A reviewer job names GitHub and the
-container registry, and also `api.openai.com` for codex,
-`api.anthropic.com` for claude and `openrouter.ai` for opencode.
-opencode also reads its model catalogue from `models.opencode.ai`, so
-that host is on its list. The last job names GitHub and the container
-registry.
+for the crates.io registry. The one review job names GitHub and the container registry, and every
+configured provider's host. The current list holds `api.openai.com`,
+`api.anthropic.com`, `openrouter.ai` and `models.opencode.ai`; an enabled
+agent adds its provider's host.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
@@ -539,11 +655,12 @@ opencode = "openrouter/qwen/qwen3-coder-next"
 `enabled` defaults to every agent in the list, `builder` to dsh, and
 `reviewers` to none. A name the list does not hold is an error. So is a
 builder or reviewer that is not enabled. A reviewer needs its own tool
-installed and logged in inside the development container, the same as it
-would on a person's own machine. Run `osf agents list` to see every
+installed inside the development container, and the credential its
+`credential_env` entry names, the same as it would on a person's own
+machine. Run `osf agents list` to see every
 agent, with what `osf.toml` selects.
 
-Decision 0016 needs a reviewer's family to differ from the builder's own
+Decision 0016 prefers a reviewer's family to differ from the builder's own
 family.
 
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
@@ -604,7 +721,7 @@ could-not-run, and tries the next one. The review as a whole never
 stalls on one missing key.
 
 `CLAUDE_CODE_OAUTH_TOKEN` comes from `claude setup-token`, run once
-against the owner's own Claude subscription. Claude Code reads it the
+against the adopter's own Claude subscription. Claude Code reads it the
 same way it would outside `osf`, and talks to Anthropic directly.
 
 DeepSeek Harness needs one adjustment the other agents do not need. Its
@@ -627,7 +744,13 @@ family before it runs any reviewer.
 
 It reads every commit in the reviewed range. It looks for each
 commit's own `Code-Generator:` trailer. It maps the model name in that
-trailer to a family, through a small table this tool ships. A commit may
+trailer to a family, through the model-family table this tool ships. Any
+word of the model name can decide the family: a vendor name or a model
+id, such as `Acme Coder acme-code-2`, which a repository maps with an
+`[[review.builder_family_aliases]]` entry of prefix `acme` and family
+`acme-labs`. The shipped table covers each family it lists, and every
+form works the same way for each. A name whose words point to two
+families is unknown. A commit may
 also carry an `Orchestrator:` trailer naming the model that supervised
 the work; that line is not read here, because this rule concerns the
 model that wrote the change. A
@@ -636,15 +759,51 @@ repository's own `osf.toml` can add more names to that table, under
 this reading and names the family directly; pass it more than once for
 more than one family.
 
-A reviewer whose family matches does not run for this change. The
-review's decision still names every family it found, so a person
-reading the result can see why a reviewer sat out. When no trailer
-names a known family, `osf` records `unknown` and runs the roster the
-way it always did: nothing is left out.
+A reviewer whose family matches does not run first for this change. The
+review's decision still names every family it found, so a person reading
+the result can see why a reviewer sat out. A different family for the
+reviewer is a preference, not a requirement, and a reviewer of the
+builder's family is a last resort. It counts only when no reviewer of
+another family answered the lens, and only with evidence: the summary
+lists every configured reviewer of another family and the error text of
+each attempt that failed. A reviewer that was never tried is no evidence.
+Without the evidence the reviewer is not counted, and the lens is
+could-not-run. When no reviewer of another family is configured, the
+summary says so, and the reviewer counts. `osf review run` tries the
+reviewers of other families first, in the configured order, and starts the
+builder's family only afterwards. A single reviewer run (`--reviewer`)
+starts a reviewer of the builder's family only when the roster holds no
+reviewer of another family; otherwise `osf review reduce` finds that
+reviewer's run empty and does not count it.
 
-Too few other families can then mean the review could-not-run.
-`decide_lens` still needs answers from two families to score a lens.
-When leaving out the builder's family drops it below two, the lens
+When no trailer names a known family, or any one commit has none, `osf`
+records `unknown`. No reviewer is left out, every configured reviewer is
+tried, and the summary says `builder family unknown, independence not
+achieved` and names each unknown commit by its short hash and a fixed
+cause. It never repeats any text from a trailer, so an author's text
+cannot reach a saved run, the journal, the console or a posted review. The
+verdict counts like any other. A reviewer counted as the last resort adds
+`reviewer family same as builder, independence not achieved` and its
+evidence to the summary. A reviewer left out for its family records
+`skipped: same model family as the builder (<family>)` in its saved run
+and in the posted summary. Findings that point outside the pull request's
+diff are posted in the review body, not as inline comments; the body
+stays within its limit by listing what fits and counting the rest.
+
+One commit is exempt without a trailer: a merge commit that introduces
+nothing of its own. It must have exactly two parents, and
+`git merge-tree --write-tree <parent1> <parent2>` must merge them with no
+conflict into the same tree as the merge commit. A conflict resolved
+either way, a dropped change and an extra edit all fail that test. A merge
+with a trailer counts like any commit. Any other merge without a trailer
+makes the family unknown, and the reason names the commit. A git older
+than 2.38 has no `merge-tree --write-tree`: every merge without a trailer
+then counts as unknown, so the review runs without independence. The
+note lists up to three commits and counts the rest.
+
+Too few other families can still mean a lens is could-not-run. `decide_lens`
+needs answers from two families to score a lens, unless the interim policy
+of decision 0016 applies. A reviewer that never answered leaves the lens
 could-not-run, and its reason names the family that was left out.
 
 ### Pin a reviewer's model
@@ -692,13 +851,146 @@ can break parsing.
 
 ### Run one reviewer, then decide
 
-`osf review run` with no `--reviewer` runs every reviewer in turn and
-decides, in one process. The pull request job splits the same work in
-two. `osf review run --reviewer <name> --out <file>` runs one reviewer
-and saves what it did. `osf review reduce <files...>` takes the saved
-files, checks the findings against the files, journals, and decides. Both
-reach the same decision. Pass `--pull-request <file>`, a JSON file with
+`osf review run` runs every configured reviewer in turn and decides, in
+one process. The one review job runs that command. `osf review run
+--reviewer <name> --out <file>` runs one reviewer and saves what it did,
+for debugging. `osf review reduce <files...>` takes the saved files,
+checks the findings against the files, journals, and decides. Pass `--pull-request <file>`, a JSON file with
 the `number`, `title` and `body`, to put the pull request in the prompt.
+
+## Calling the review check from another workflow
+
+The review check is a reusable workflow, `.github/workflows/review-check.yml`
+in this repository. osf's own `review.yml` calls it, and so does a caller in
+any other repository. Both run the same one review job, so osf tests what an
+adopter runs.
+
+### The caller
+
+A caller is one job that has no step of its own. It must sit in a workflow
+triggered by `pull_request_target`, because GitHub reads that workflow from the
+base branch and a pull request cannot change it. Any other event fails the
+`build` job with a message.
+
+```yaml
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+jobs:
+  review:
+    permissions:
+      contents: read
+      packages: read
+      issues: read
+      pull-requests: read
+    uses: <owner>/<repo>/.github/workflows/review-check.yml@<40-character SHA>
+    with:
+      osf-ref: <the same 40-character SHA>
+      verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
+    secrets:
+      VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+```
+
+Map each secret by name, as above, and leave out the key of a reviewer that
+`[agents]` does not select. `secrets: inherit` passes every secret of the
+caller, but GitHub allows it only within one organization or enterprise. A
+caller in another organization than the workflow cannot use it. It suits a
+caller in the same organization, such as an adopter's own factory repo that
+calls a shared workflow for its watched repositories. osf's own caller uses it.
+
+Two references pin the check, and both name the same commit. The `@<SHA>` after
+the file name pins the jobs. The `osf-ref` input pins the `osf` that the `build`
+job compiles and that the one review job later runs next to its keys. A moving
+reference, such as a branch name, is refused for `osf-ref`. The `build` job also
+compares `osf-ref` and `osf-repository` with the workflow's own commit and
+repository, which GitHub reports as `job.workflow_sha` and
+`job.workflow_repository`, and fails when they differ. Change the two references
+together. GitHub Enterprise Server does not report these two values yet, so there the check fails and a caller there needs a different pin.
+
+osf's own caller names the file by a local path. GitHub reads a local path at
+the same commit as the caller, which is the head of the default branch for
+`pull_request_target`. It passes `osf-repository` as its own repository and
+`osf-ref` as `github.workflow_sha`, the commit of the caller. A pull request's
+base can be any branch, so the base commit is never where `osf` comes from. It
+is only the commit the reviewers diff against. A pull request therefore cannot
+change the caller, the called jobs, or the `osf` that runs them.
+
+### Inputs
+
+| Input | Required | Default | Why it is an input |
+| --- | --- | --- | --- |
+| `osf-ref` | yes | none | The commit of osf to build. This value decides which code runs next to the keys. It must be a full commit SHA, and the `build` job refuses any commit but the workflow's own. |
+| `osf-repository` | no | `open-software-factory/software-factory` | The repository that holds that commit. It must be the repository of the workflow. Only osf's own caller, and a fork of osf, set it. |
+| `runs-on` | no | `"ubuntu-latest"` | The runner label, written as JSON: a string or an array of labels. It must name a Linux runner with Docker. The adopter's own settings choose it, so the caller reads its variable and passes the value. |
+| `verifier-app-id` | yes | none | The id of the app that posts the review. It is not a secret. |
+| `allow-forks` | no | `false` | Review a fork's pull request too. A fork's pull request fails the check on purpose while this is `false`. |
+
+Left out on purpose:
+
+- The image. It is pinned by digest inside the workflow, together with the
+  codex version it carries, so a caller cannot choose what runs beside the keys.
+  An osf release moves it.
+- The environment names. The jobs that hold a key use `review`, or
+  the repository-level settings. A caller cannot name another repository's settings.
+- The reviewer list. `[agents]` in the watched repository's `osf.toml` on its
+  base branch chooses reviewers, and `osf review run --if-enabled` reads it.
+- The repository under review. It is the repository of the calling workflow.
+
+### Secrets
+
+The one review job reads its keys from the repository-level `OSF_REVIEW_*`
+secrets and variables. A caller passes nothing: the job reads its own
+repository's settings. An empty reviewer key still lets that reviewer run;
+it cannot sign in, so `osf review run` records a note that names the empty
+variable, and the aggregate verdict follows the quorum policy.
+
+| Secret | Required | Read by |
+| --- | --- | --- |
+| `OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY` | yes | The one review job, which mints the verifier token. |
+| `OSF_REVIEW_OPENAI_API_KEY` | no | The codex reviewer container. |
+| `OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN` | no | The claude reviewer container. |
+| `OSF_REVIEW_OPENROUTER_API_KEY` | no | The opencode reviewer container. |
+| `OSF_REVIEW_DEEPSEEK_API_KEY` | no | The DeepSeek Harness reviewer container. |
+| `OSF_REVIEW_CODEX_AUTH_JSON` | no | The codex reviewer container, for subscription auth. |
+
+A reviewer key is not required, because a repository can leave a reviewer out of
+`[agents]`. A reviewer that is selected and has an empty key still runs. It
+cannot sign in, so `osf review run` records a note that names the empty
+variable. That reviewer's attempts and job fail, and the aggregate verdict
+follows the existing quorum policy, so the other reviewers can still reach
+quorum and approve.
+
+The one review job reads the repository-level settings directly, so the
+repository's ruleset and its limit to the `main` branch
+still apply. [Required setup](#required-setup) lists what the `review`
+environment holds.
+
+### What is stable
+
+The input names, their types, and their meaning are stable. A change to an
+input's name or meaning is a breaking change, and osf releases it under a new
+major version. Adding an optional input is not breaking. The job names and
+the artifact names are not part of the contract.
+
+### Private factory repo and its other repositories
+
+A private repository can share its workflows with other private repositories
+of the same organisation only after an organisation setting allows it. In the
+private factory repo, open Settings, then Actions, then General, and under
+"Access" choose "Accessible from repositories in the organization". Without
+it, a watched repository's caller cannot use a reusable workflow stored there.
+The setting applies to a workflow in the factory repo. The workflow in this
+public repository needs no setting.
+
+This slice makes the check callable. Who holds the keys when a factory repo
+wraps the check for several watched repositories is not decided here. The
+environment secrets above live in the repository that holds the calling
+workflow.
 
 ## Which osf a check uses
 
@@ -895,9 +1187,17 @@ result.
 ## Builder tools
 
 One image serves both the builder and the reviewer role. Besides the
-coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `osf`,
-`moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`, and
-`bun`.
+coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `kache`,
+`osf`, `moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`,
+and `bun`.
+
+`kache` is the Rust compiler cache. Cargo uses it as its `rustc-wrapper`
+in the container, so compiler outputs are stored once and restored in
+every worktree instead of being rebuilt in each one. The cache lives in
+the developer user's home, and every worktree in the same container
+shares it. `KACHE_DISABLED=1` bypasses it for one command. The wrapper
+changes nothing about how Cargo is run: `cargo build`, `cargo test` and
+`cargo clippy` work as usual.
 
 [SkillSpector and SkillEvaluator](https://github.com/NVIDIA/skillspector)
 are two NVIDIA tools that check an agent skill, the first for safety and

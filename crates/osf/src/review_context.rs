@@ -30,6 +30,24 @@ pub struct PullRequest {
     pub body: Option<String>,
 }
 
+impl PullRequest {
+    /// Reads the pull request from the JSON file at `path`. The file is either
+    /// the number, title and body, or a code host event file, such as the one
+    /// `GITHUB_EVENT_PATH` names, which holds them under `pull_request`.
+    ///
+    /// # Errors
+    /// Names the file and the reason when it cannot be read or parsed.
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        if let Some(inner) = value.get_mut("pull_request").map(serde_json::Value::take) {
+            value = inner;
+        }
+        serde_json::from_value(value).map_err(|e| format!("{}: {e}", path.display()))
+    }
+}
+
 /// The pull request a saved work item must belong to: its repository and head commit.
 #[derive(Debug, Clone, Copy)]
 pub struct WorkItemBinding<'a> {
@@ -497,6 +515,31 @@ fn append_redaction_note(mut text: String, count: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_pull_request_file_may_be_an_event_file_that_nests_the_pull_request() {
+        let dir = std::env::temp_dir().join(format!("osf-load-pr-{}", std::process::id())); // osf: temp-dir allowed, a test folder named by this process id and removed at the end
+        std::fs::create_dir_all(&dir).expect("temp folder");
+        let flat = dir.join("flat.json");
+        let event = dir.join("event.json");
+        std::fs::write(&flat, r#"{"number":7,"title":"t","body":"b"}"#).expect("write");
+        std::fs::write(
+            &event,
+            r#"{"action":"opened","pull_request":{"number":7,"title":"t","body":"b","draft":false}}"#,
+        )
+        .expect("write");
+        for path in [&flat, &event] {
+            let pr = super::PullRequest::load(path).expect("loads");
+            assert_eq!((pr.number, pr.title.as_str()), (7, "t"));
+            assert_eq!(pr.body.as_deref(), Some("b"));
+        }
+        std::fs::write(&flat, r#"{"action":"opened"}"#).expect("write");
+        assert!(
+            super::PullRequest::load(&flat).is_err(),
+            "no pull request in it"
+        );
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
     use super::*;
 
     /// `body` with every LF rewritten as the CRLF a web editor saves.

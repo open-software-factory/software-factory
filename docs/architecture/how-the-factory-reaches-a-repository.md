@@ -56,8 +56,8 @@ Installing, syncing, verifying a surface against the pinned version, deploying t
 
 ## Constraints this model must keep
 
-- Provider neutrality ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)): the forge, the container runtime, and the agent harness are adapters, and the composition rule names none of them.
+- Provider neutrality ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)): the forge, the container runtime, and the agent runner are adapters, and the composition rule names none of them.
 - Deterministic verification is authoritative ([decision 0003](decisions/0003-deterministic-verification-is-authoritative.md)): the drift gate and the hooks are deterministic checks, so no model judges them.
-- The console reads the engine and probes nothing itself ([decision 0007](decisions/0007-console-stack.md)), so the surface it needs is an engine concern.
+- The console reads the factory and probes nothing itself ([decision 0007](decisions/0007-console-stack.md)), so the surface it needs is a factory concern.
 - One sandbox per repository must remain possible, so nothing in the installer may assume every repository shares one filesystem.
 - A part binary is replaceable on its own, so no part may require another part to be present.
