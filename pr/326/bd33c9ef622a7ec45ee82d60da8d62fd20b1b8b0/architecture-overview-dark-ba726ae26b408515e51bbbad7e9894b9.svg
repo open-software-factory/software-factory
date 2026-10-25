@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1708 542" width="1708" height="542" role="img" aria-label="Dependency bump across the workspace" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Dependency bump across the workspace</title>
+<desc>The console-ui manifest is the only authored edit; the shared lockfile and its user-event entry follow, with incidental OpenTelemetry deprecation metadata.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1708" height="542" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1708" height="542" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="482" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">WORKSPACE · PNPM MONOREPO ROOT</text>
+<rect class="lanebox" x="440" y="44" width="404" height="482" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">CONSOLE-UI · PACKAGES/CONSOLE-UI</text>
+<rect class="lanebox" x="864" y="44" width="404" height="482" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="880" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">TEST TOOLING · DEV DEPENDENCIES</text>
+<rect class="lanebox" x="1288" y="44" width="404" height="482" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1304" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">LOCKFILE · PNPM-LOCK.YAML</text></g>
+<g><path class="glow" stroke="#d29922" d="M530,154 L530,162 C530,166.42 533.58,170 538,170 L854,170 C865.05,170 874,178.95 874,190 C874,201.05 882.95,210 894,210 L1151,210 C1152.66,210 1154,211.34 1154,213 L1154,216" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M530,154 L530,162 C530,166.42 533.58,170 538,170 L854,170 C865.05,170 874,178.95 874,190 C874,201.05 882.95,210 894,210 L1151,210 C1152.66,210 1154,211.34 1154,213 L1154,216" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-neutral context" d="M546,154 L546,167 C546,174.18 551.82,180 559,180 L813.33,180 C832.11,180 847.33,195.22 847.33,214 L847.33,344.67 C847.33,353.69 854.65,361 863.67,361 L880,361" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M562,154 L562,172 C562,181.94 570.06,190 580,190 L832.17,190 C847.91,190 860.67,202.76 860.67,218.5 L860.67,237.33 C860.67,242.67 864.99,247 870.33,247 L880,247" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1252,247 L1269,247 C1278.39,247 1286,254.61 1286,264 L1286,458 C1286,467.39 1278.39,475 1269,475 L1252,475" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1066,392 L1066,444" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral faded context" d="M828,123 L831,123 C832.66,123 834,124.34 834,126 L834,166 C834,184.78 849.22,200 868,200 L1162,200 C1166.42,200 1170,203.58 1170,208 L1170,216" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-neutral context" d="M404,123 L417,123 C424.18,123 430,128.82 430,136 L430,141.5 C430,151.72 438.28,160 448.5,160 L1236,160 C1254.78,160 1270,175.22 1270,194 L1270,230 C1270,239.39 1277.61,247 1287,247 L1304,247" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#d29922" d="M1490,278 L1490,295 C1490,304.39 1482.39,312 1473,312 L1403,312 C1398.03,312 1394,316.03 1394,321 L1394,330" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M1490,278 L1490,295 C1490,304.39 1482.39,312 1473,312 L1403,312 C1398.03,312 1394,316.03 1394,321 L1394,330" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-modified faded" d="M1490,278 L1490,287 C1490,291.97 1494.03,296 1499,296 L1569,296 C1578.39,296 1586,303.61 1586,313 L1586,330" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5" opacity="0.45"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="92" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M52,119 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,127 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="57" cy="119" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="62" cy="127" r="2.2"/></g>
+<text class="ntitle" x="82" y="119" font-size="13" font-weight="600" fill="#e6edf3">pnpm workspace</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">root workspace manifest</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M483,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M483,123 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="119" font-size="10.5" font-weight="600" fill="#e6edf3">console-ui package.js…</text>
+<text class="nsub" x="506" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">@software-factory/c…</text>
+<g class="bdg bdg-modified"><rect x="562.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="595.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="648" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="662" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="668" y="117" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M668,121 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">console-ui app</text>
+<text class="nsub" x="698" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">React 18 + jsdom</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="880" y="216" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="894" y="234" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M907,240 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900.5,243.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M907,247 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="243" font-size="11.5" font-weight="600" fill="#e6edf3">jsdom</text>
+<text class="nsub" x="930" y="261" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">30.0.1</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1072" y="216" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1086" y="234" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1099,240 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1092.5,243.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1099,247 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="243" font-size="10.5" font-weight="600" fill="#e6edf3">@testing-library/user-…</text>
+<text class="nsub" x="1122" y="261" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">14.6.7 → 14.6.8</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="208" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="219" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="880" y="330" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="894" y="348" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M907,354 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900.5,357.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M907,361 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="357" font-size="13" font-weight="600" fill="#e6edf3">@testing-library/react</text>
+<text class="nsub" x="930" y="375" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">16.3.3</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="880" y="444" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="894" y="462" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M907,468 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900.5,471.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M907,475 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="471" font-size="13" font-weight="600" fill="#e6edf3">@testing-library/dom</text>
+<text class="nsub" x="930" y="489" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">10.4.2</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1304" y="216" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1318" y="234" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1324,243 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1324,251 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="1329" cy="243" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="1334" cy="251" r="2.2"/></g>
+<text class="ntitle" x="1354" y="243" font-size="13" font-weight="600" fill="#e6edf3">pnpm-lock.yaml</text>
+<text class="nsub" x="1354" y="261" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">lockfileVersion 9</text>
+<g class="bdg bdg-modified"><rect x="1602.38" y="208" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1635.69" y="219" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1304" y="330" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1318" y="348" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="1326" cy="361" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1331" cy="361" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1336" cy="361" r="1.8"/></g>
+<text class="ntitle" x="1354" y="357" font-size="11.5" font-weight="600" fill="#e6edf3">user-event lock entry</text>
+<text class="nsub" x="1354" y="375" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">resolution + snapsh…</text>
+<g class="bdg bdg-modified"><rect x="1410.38" y="322" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1443.69" y="333" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1496" y="330" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1510" y="348" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="1518" cy="361" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1523" cy="361" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1528" cy="361" r="1.8"/></g>
+<text class="ntitle" x="1546" y="357" font-size="10.5" font-weight="600" fill="#e6edf3">OpenTelemetry trace…</text>
+<text class="nsub" x="1546" y="375" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">deprecation notices</text>
+<g class="bdg bdg-modified"><rect x="1602.38" y="322" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1635.69" y="333" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g></g>
+<g><g><rect class="lpill" x="648" y="162.5" width="119.56" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="707.78" y="173.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">devDependency 14.6.8</text></g>
+<g><rect class="lpill" x="737.77" y="206.5" width="119.56" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="797.55" y="217.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">devDependency 16.3.3</text></g>
+<g><rect class="lpill" x="646.3" y="182.5" width="119.56" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="706.08" y="193.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">devDependency 30.0.1</text></g>
+<g><rect class="lpill" x="1246.65" y="303" width="78.71" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1286" y="314" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">peer &gt;=7.21.4</text></g>
+<g><rect class="lpill" x="1047.93" y="410.5" width="36.15" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1066" y="421.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">peer</text></g>
+<g><rect class="lpill" x="977.06" y="192.5" width="75.88" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1015" y="203.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">test-time only</text></g>
+<g><rect class="lpill" x="840" y="152.5" width="75.88" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="877.94" y="163.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">single lockfile</text></g>
+<g><rect class="lpill" x="1385.37" y="294" width="105.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1438" y="305" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">importer + snapshot</text></g>
+<g><rect class="lpill" x="1500.64" y="288.5" width="113.4" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1557.34" y="299.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">deprecation metadata</text></g></g>
+</svg>

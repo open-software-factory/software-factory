@@ -1,0 +1,478 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T00:11:18.842Z",
+  "title": "Bump @testing-library/user-event to 14.6.8 in console-ui",
+  "summary": "A dependency-only change: the console-ui package's dev dependency @testing-library/user-event moves from 14.6.7 to 14.6.8, and pnpm-lock.yaml is regenerated to match (new resolution hash, updated importer and snapshot entries). The lockfile refresh also picks up deprecation notices on two OpenTelemetry trace packages that are unrelated to the bump. No application source, runtime behaviour or production dependency changes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "bd33c9ef622a7ec45ee82d60da8d62fd20b1b8b0",
+      "ref": "bd33c9ef622a7ec45ee82d60da8d62fd20b1b8b0"
+    },
+    "pullRequest": {
+      "number": 326,
+      "url": "https://github.com/open-software-factory/software-factory/pull/326"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo root",
+      "order": 0,
+      "summary": "The pnpm workspace that resolves and installs every package's dependencies from a single lockfile."
+    },
+    {
+      "id": "console-ui",
+      "label": "console-ui",
+      "subtitle": "packages/console-ui",
+      "order": 1,
+      "summary": "The React console application package whose dev tooling is being updated."
+    },
+    {
+      "id": "test-tooling",
+      "label": "Test tooling",
+      "subtitle": "dev dependencies",
+      "order": 2,
+      "summary": "Libraries used only when running the console-ui test suite; they never ship in the built app."
+    },
+    {
+      "id": "lockfile",
+      "label": "Lockfile",
+      "subtitle": "pnpm-lock.yaml",
+      "order": 3,
+      "summary": "The resolved dependency graph pnpm installs from, including integrity hashes and per-importer snapshots."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-workspace",
+      "label": "pnpm workspace",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "root workspace manifest",
+      "summary": "Defines the monorepo packages and the shared lockfile that all of them resolve against. Untouched by this change but the reason a single package bump ripples into pnpm-lock.yaml.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "console-ui-package",
+      "label": "console-ui package.json",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "console-ui",
+      "subtitle": "@software-factory/console-ui",
+      "summary": "The console-ui package manifest. The only authored edit in this PR: the devDependencies pin for @testing-library/user-event moves from 14.6.7 to 14.6.8.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 26,
+          "endLine": 32
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-ui-app",
+      "label": "console-ui app",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "console-ui",
+      "subtitle": "React 18 + jsdom",
+      "summary": "The React console application itself. Its source and runtime dependencies are untouched; only the test-time tooling version changes.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "user-event",
+      "label": "@testing-library/user-event",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "test-tooling",
+      "subtitle": "14.6.7 → 14.6.8",
+      "summary": "Simulates user interaction in React component tests. Patch bump to 14.6.8; its peer dependency on @testing-library/dom stays at >=7.21.4, so no peer range change is required.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 29,
+          "endLine": 29
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "testing-library-react",
+      "label": "@testing-library/react",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "test-tooling",
+      "subtitle": "16.3.3",
+      "summary": "The React renderer for tests that user-event drives. Pinned and unchanged; it shares the same @testing-library/dom peer.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "testing-library-dom",
+      "label": "@testing-library/dom",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "test-tooling",
+      "subtitle": "10.4.2",
+      "summary": "The DOM query layer both testing-library packages peer on. Resolved at 10.4.2 before and after, so the peer graph is stable across the bump.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "jsdom",
+      "label": "jsdom",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "test-tooling",
+      "subtitle": "30.0.1",
+      "summary": "The DOM environment the console-ui tests run in. Unchanged by this PR.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pnpm-lock",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "lockfileVersion 9",
+      "summary": "Regenerated lockfile: the console-ui importer specifier and version move to 14.6.8, the package entry gets a new integrity hash, and the snapshot key is renamed. Two OpenTelemetry trace packages also gain deprecation notices in the same refresh.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 108,
+          "endLine": 112
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "user-event-entry",
+      "label": "user-event lock entry",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "resolution + snapshot",
+      "summary": "The lockfile's record of @testing-library/user-event: new integrity hash for 14.6.8 and a renamed snapshot key, still depending only on @testing-library/dom 10.4.2.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1086,
+          "endLine": 1092
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "otel-trace-entries",
+      "label": "OpenTelemetry trace entries",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "deprecation notices",
+      "summary": "sdk-trace-base and sdk-trace-node at 2.12.0 gain 'deprecated: Use @opentelemetry/sdk-trace package' metadata during the lockfile refresh. Versions and resolutions are unchanged; this is incidental churn, not a dependency move.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 665,
+          "endLine": 676
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-ui-package-declares-user-event",
+      "from": "console-ui-package",
+      "to": "user-event",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 14.6.8",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one authored change: the manifest now pins user-event at 14.6.8 instead of 14.6.7.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 29,
+          "endLine": 29
+        }
+      ]
+    },
+    {
+      "id": "console-ui-package-declares-testing-library-react",
+      "from": "console-ui-package",
+      "to": "testing-library-react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "devDependency 16.3.3",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged sibling test dependency, shown for context.",
+      "files": []
+    },
+    {
+      "id": "console-ui-package-declares-jsdom",
+      "from": "console-ui-package",
+      "to": "jsdom",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "devDependency 30.0.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged test environment dependency.",
+      "files": []
+    },
+    {
+      "id": "user-event-peers-dom",
+      "from": "user-event",
+      "to": "testing-library-dom",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "peer >=7.21.4",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The peer range is identical in 14.6.7 and 14.6.8, so the resolved peer stays at 10.4.2.",
+      "files": []
+    },
+    {
+      "id": "testing-library-react-peers-dom",
+      "from": "testing-library-react",
+      "to": "testing-library-dom",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Shared peer dependency, unchanged.",
+      "files": []
+    },
+    {
+      "id": "console-ui-app-uses-user-event",
+      "from": "console-ui-app",
+      "to": "user-event",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "test-time only",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The app's tests drive interactions through user-event; the app's shipped code does not import it.",
+      "files": []
+    },
+    {
+      "id": "pnpm-workspace-resolves-lock",
+      "from": "pnpm-workspace",
+      "to": "pnpm-lock",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "single lockfile",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "All workspace packages resolve through this one lockfile, which is why a console-ui bump edits the root file.",
+      "files": []
+    },
+    {
+      "id": "pnpm-lock-records-user-event",
+      "from": "pnpm-lock",
+      "to": "user-event-entry",
+      "kind": "data",
+      "delta": "modified",
+      "label": "importer + snapshot",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lockfile's importer specifier, package resolution and snapshot key all move to 14.6.8.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 108,
+          "endLine": 112
+        }
+      ]
+    },
+    {
+      "id": "pnpm-lock-records-otel",
+      "from": "pnpm-lock",
+      "to": "otel-trace-entries",
+      "kind": "data",
+      "delta": "modified",
+      "label": "deprecation metadata",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Incidental lockfile churn: deprecation notices added to two OpenTelemetry trace packages with no version change.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dependency-resolution",
+      "title": "Resolving user-event 14.6.8",
+      "summary": "How the version bump in the console-ui manifest becomes an installed test dependency: pnpm reads the manifest, resolves the new version against the shared lockfile, and the test suite picks it up at run time.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-ui-package",
+          "label": "package.json"
+        },
+        {
+          "node": "pnpm-workspace",
+          "label": "pnpm"
+        },
+        {
+          "node": "pnpm-lock",
+          "label": "lockfile"
+        },
+        {
+          "node": "user-event",
+          "label": "user-event"
+        },
+        {
+          "node": "console-ui-app",
+          "label": "tests"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-manifest",
+          "from": "console-ui-package",
+          "to": "pnpm-workspace",
+          "label": "devDependencies: user-event 14.6.8",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "packages/console-ui/package.json",
+              "startLine": 29,
+              "endLine": 29
+            }
+          ]
+        },
+        {
+          "id": "resolve-lock",
+          "from": "pnpm-workspace",
+          "to": "pnpm-lock",
+          "label": "resolve specifier",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 108,
+              "endLine": 112
+            }
+          ]
+        },
+        {
+          "id": "lock-returns-entry",
+          "from": "pnpm-lock",
+          "to": "pnpm-workspace",
+          "label": "14.6.8 + integrity hash",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1086,
+              "endLine": 1092
+            }
+          ]
+        },
+        {
+          "id": "install-user-event",
+          "from": "pnpm-workspace",
+          "to": "user-event",
+          "label": "install 14.6.8",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "peer-check",
+          "from": "user-event",
+          "to": "user-event",
+          "label": "peer @testing-library/dom >=7.21.4 satisfied by 10.4.2",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "tests-use-user-event",
+          "from": "console-ui-app",
+          "to": "user-event",
+          "label": "userEvent.setup() in tests",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 8,
+    "deletions": 6,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Dependency bump across the workspace",
+      "lens": "architecture",
+      "summary": "The console-ui manifest is the only authored edit; the shared lockfile and its user-event entry follow, with incidental OpenTelemetry deprecation metadata.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lockfile-detail",
+      "title": "Lockfile entries touched",
+      "lens": "architecture",
+      "summary": "Inside pnpm-lock.yaml: the user-event resolution and snapshot move to 14.6.8, while two OpenTelemetry trace packages only gain deprecation notices.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "pnpm-lock",
+          "user-event-entry",
+          "otel-trace-entries",
+          "user-event"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
