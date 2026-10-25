@@ -2422,16 +2422,16 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
         }
     };
     let github = github_adapter();
-    let head_sha = match github.head_commit(&repo, pr) {
+    let pull_request = forge::PullRequestId {
+        repo: repo.clone(),
+        pr: pr.to_string(),
+    };
+    let head_sha = match forge_head(&github, &pull_request) {
         Ok(sha) => sha,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
             return false;
         }
-    };
-    let pull_request = forge::PullRequestId {
-        repo: repo.clone(),
-        pr: pr.to_string(),
     };
     match post_plan(&github, &pull_request, &plan, &head_sha) {
         Ok(forge::PostedReview {
@@ -2650,6 +2650,18 @@ fn post_plan(
         comments: plan.comments.iter().map(to_forge_comment).collect(),
     };
     forge.post_review(&request)
+}
+
+/// The head commit from the forge, or a reason it could not be read.
+fn forge_head(
+    forge: &dyn forge::Forge,
+    pull_request: &forge::PullRequestId,
+) -> Result<String, String> {
+    match forge.head_commit(pull_request) {
+        forge::ReadOutcome::Found(sha) => Ok(sha),
+        forge::ReadOutcome::Empty => Err("the forge reports no head commit".to_string()),
+        forge::ReadOutcome::Unknown(reason) => Err(reason),
+    }
 }
 
 /// Prints the dry-run preview of `plan`: the verdict it would send and the
@@ -3020,7 +3032,11 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         }
     };
     let github = github_adapter();
-    let head_sha = match github.head_commit(&args.repo, args.pr) {
+    let pull_request = forge::PullRequestId {
+        repo: args.repo.clone(),
+        pr: args.pr.to_string(),
+    };
+    let head_sha = match forge_head(&github, &pull_request) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -3031,10 +3047,6 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     if args.dry_run {
         return print_dry_run(args, &plan, &head_sha);
     }
-    let pull_request = forge::PullRequestId {
-        repo: args.repo.clone(),
-        pr: args.pr.to_string(),
-    };
     let outcome = post_plan(&github, &pull_request, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
 }
@@ -3212,6 +3224,9 @@ mod tests {
             _: &forge::PullRequestId,
         ) -> forge::ReadOutcome<forge::CheckStatus> {
             forge::ReadOutcome::Unknown("unused".to_string())
+        }
+        fn head_commit(&self, _: &forge::PullRequestId) -> forge::ReadOutcome<String> {
+            forge::ReadOutcome::Found("cafe1234".to_string())
         }
         fn capabilities(&self, _: &forge::PullRequestId) -> forge::Capabilities {
             forge::Capabilities {

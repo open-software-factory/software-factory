@@ -98,15 +98,20 @@ pub fn report_change(forge: &dyn Forge, request: &ReportRequest) -> Result<Repor
         })?;
     let capabilities = forge.capabilities(&pull_request);
     let verdict = request.review.verdict;
-    if let VerdictCapability::Known(allowed) = &capabilities.verdicts {
-        if !allowed.contains(&verdict) {
-            return Err(ReportError {
-                step: Step::CheckCapabilities,
-                error: ForgeError::Rejected(format!(
-                    "the identity may not post a {} verdict",
-                    verdict.as_event()
-                )),
-            });
+    // A comment names no verdict, so it is always allowed. A known list
+    // that omits it says which verdicts the identity may give, not whether
+    // it may speak at all.
+    if verdict != Verdict::Comment {
+        if let VerdictCapability::Known(allowed) = &capabilities.verdicts {
+            if !allowed.contains(&verdict) {
+                return Err(ReportError {
+                    step: Step::CheckCapabilities,
+                    error: ForgeError::Rejected(format!(
+                        "the identity may not post a {} verdict",
+                        verdict.as_event()
+                    )),
+                });
+            }
         }
     }
     let review = NewReview {
@@ -411,6 +416,32 @@ mod tests {
             .filter(|call| matches!(call, Call::Capabilities(_)))
             .count();
         assert_eq!(reads, 1, "the capability report is read once per run");
+    }
+
+    #[test]
+    fn a_comment_verdict_posts_even_when_the_identity_may_give_none() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = Capabilities {
+            verdicts: VerdictCapability::Known(Vec::new()),
+            check_status: ReadCapability::Readable,
+        };
+        let mut request = request();
+        request.review.verdict = Verdict::Comment;
+        let report = report_change(&forge, &request).expect("a comment always posts");
+        assert_eq!(report.review.verdict, Verdict::Comment);
+    }
+
+    #[test]
+    fn a_comment_verdict_posts_when_the_list_names_only_approve() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = Capabilities {
+            verdicts: VerdictCapability::Known(vec![Verdict::Approve]),
+            check_status: ReadCapability::Readable,
+        };
+        let mut request = request();
+        request.review.verdict = Verdict::Comment;
+        let report = report_change(&forge, &request).expect("a comment always posts");
+        assert_eq!(report.review.verdict, Verdict::Comment);
     }
 
     #[test]

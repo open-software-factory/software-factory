@@ -5,14 +5,14 @@
 //! GitHub refuses a formal review from the pull request's own author. When
 //! that happens the same findings post instead as an ordinary comment, with
 //! the verdict marked advisory, so a review is never silently lost. The
-//! part that decides what to send, and how to react to a refusal, is pure
-//! and holds no network or process call.
+//! part that decides what to send, and how to react to a refusal, is pure.
+//! The one host read left here is [`fetch_diff`], which places findings
+//! inline; every other host call goes through the forge.
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -625,36 +625,6 @@ pub fn parse_head_sha_json(text: &str) -> Result<String, String> {
         .ok_or_else(|| "the pull request has no head commit".to_string())
 }
 
-/// The head commit of a pull request's branch, the one a review anchors
-/// its comments to.
-///
-/// # Errors
-/// Returns an error if `gh` cannot run, fails, or its answer holds no
-/// head commit.
-pub fn fetch_head_sha(repo: &str, pr: u64) -> Result<String, String> {
-    let output = Command::new("gh")
-        .args([
-            "pr",
-            "view",
-            &pr.to_string(),
-            "--repo",
-            repo,
-            "--json",
-            "headRefOid",
-        ])
-        .output()
-        .map_err(|e| format!("cannot run gh: {e}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "could not read the head commit of {repo}#{pr}: {}",
-            stderr.trim()
-        ));
-    }
-    parse_head_sha_json(&String::from_utf8_lossy(&output.stdout))
-        .map_err(|e| format!("{e} ({repo}#{pr})"))
-}
-
 /// The diff of a pull request, as GitHub shows it.
 ///
 /// # Errors
@@ -672,45 +642,6 @@ pub fn fetch_diff(repo: &str, pr: u64) -> Result<DiffLines, String> {
         ));
     }
     Ok(DiffLines::parse(&String::from_utf8_lossy(&output.stdout)))
-}
-
-/// Posts one review or comment payload to a pull request. Thin: it only
-/// shells out and hands the raw result to [`classify_post_result`].
-#[must_use]
-pub fn post_via_gh(repo: &str, pr: u64, payload: &Value) -> PostAttempt {
-    let mut child = match Command::new("gh")
-        .args([
-            "api",
-            "-X",
-            "POST",
-            &format!("repos/{repo}/pulls/{pr}/reviews"),
-            "--input",
-            "-",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(e) => return PostAttempt::Error(format!("cannot run gh: {e}")),
-    };
-    if let Some(mut stdin) = child.stdin.take() {
-        if let Err(e) = stdin.write_all(payload.to_string().as_bytes()) {
-            return PostAttempt::Error(format!("cannot write to gh: {e}"));
-        }
-    }
-    let output = match child.wait_with_output() {
-        Ok(o) => o,
-        Err(e) => return PostAttempt::Error(format!("cannot run gh: {e}")),
-    };
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if output.status.success() {
-        classify_post_result(true, &stdout)
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        classify_post_result(false, &format!("{stdout}{stderr}"))
-    }
 }
 
 #[cfg(test)]

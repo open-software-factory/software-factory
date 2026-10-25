@@ -166,6 +166,19 @@ impl<C: GhClient + Send + Sync> Forge for GitHub<C> {
         ReadOutcome::Found(CheckStatus { checks })
     }
 
+    fn head_commit(&self, pr: &PullRequestId) -> ReadOutcome<String> {
+        let Ok(number) = pr.pr.parse::<u64>() else {
+            return ReadOutcome::Unknown(format!(
+                "the pull request selector '{}' is not a number",
+                pr.pr
+            ));
+        };
+        match GitHub::<C>::head_commit(self, &pr.repo, number) {
+            Ok(sha) => ReadOutcome::Found(sha),
+            Err(e) => ReadOutcome::Unknown(e),
+        }
+    }
+
     fn capabilities(&self, pr: &PullRequestId) -> Capabilities {
         let viewer = read_login(
             &self.client,

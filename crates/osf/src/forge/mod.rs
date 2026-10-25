@@ -187,6 +187,9 @@ pub trait Forge: Send + Sync {
     /// Reads the check status, telling "could not read" from "found nothing".
     fn read_check_status(&self, pr: &PullRequestId) -> ReadOutcome<CheckStatus>;
 
+    /// Reads the head commit of a pull request.
+    fn head_commit(&self, pr: &PullRequestId) -> ReadOutcome<String>;
+
     /// Reports what the current identity may do on a pull request.
     fn capabilities(&self, pr: &PullRequestId) -> Capabilities;
 }
@@ -233,6 +236,10 @@ mod tests {
 
         fn read_check_status(&self, _pr: &PullRequestId) -> ReadOutcome<CheckStatus> {
             ReadOutcome::Empty
+        }
+
+        fn head_commit(&self, _pr: &PullRequestId) -> ReadOutcome<String> {
+            ReadOutcome::Found("cafe1234".to_string())
         }
 
         fn capabilities(&self, _pr: &PullRequestId) -> Capabilities {

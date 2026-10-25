@@ -15,6 +15,7 @@ pub enum Call {
     WriteStatusBlock { pr: PullRequestId, block: String },
     PostReview(NewReview),
     ReadCheckStatus(PullRequestId),
+    HeadCommit(PullRequestId),
     Capabilities(PullRequestId),
 }
 
@@ -68,6 +69,8 @@ pub struct FakeForge {
     script_capabilities: Script<Capabilities>,
     /// The answer [`Forge::read_check_status`] returns when no script is set.
     pub check_status: ReadOutcome<CheckStatus>,
+    /// The answer [`Forge::head_commit`] returns when no script is set.
+    pub head: ReadOutcome<String>,
     /// The answer [`Forge::capabilities`] returns when no script is set.
     pub capabilities: Capabilities,
 }
@@ -86,6 +89,7 @@ impl FakeForge {
             script_check_status: Script::new(Vec::new()),
             script_capabilities: Script::new(Vec::new()),
             check_status: ReadOutcome::Empty,
+            head: ReadOutcome::Found("cafe1234".to_string()),
             capabilities: Capabilities {
                 verdicts: VerdictCapability::Known(vec![Verdict::Approve, Verdict::RequestChanges]),
                 check_status: ReadCapability::Readable,
@@ -244,6 +248,11 @@ impl Forge for FakeForge {
         self.script_check_status
             .take_next()
             .unwrap_or_else(|| self.check_status.clone())
+    }
+
+    fn head_commit(&self, pr: &PullRequestId) -> ReadOutcome<String> {
+        self.record(Call::HeadCommit(pr.clone()));
+        self.head.clone()
     }
 
     fn capabilities(&self, pr: &PullRequestId) -> Capabilities {
