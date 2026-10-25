@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e9a7b6da38014d689265c735b996aed1c28aa2ec",
+    "contentHash": "cb38365a327228fa3d855bb366e1e98f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "tracker-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a4b6e88932737d1978864bf61dea8d1d",
+      "bytes": 20813,
+      "width": 1780,
+      "height": 532,
+      "animated": false,
+      "path": "tracker-architecture-light-a4b6e88932737d1978864bf61dea8d1d.svg"
+    },
+    {
+      "id": "tracker-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "481a8799a49820ea31c30822fae108d0",
+      "bytes": 21023,
+      "width": 1780,
+      "height": 532,
+      "animated": false,
+      "path": "tracker-architecture-dark-481a8799a49820ea31c30822fae108d0.svg"
+    },
+    {
+      "id": "github-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a4d80ee6b88226048ca03728e6a2df80",
+      "bytes": 11505,
+      "width": 942,
+      "height": 532,
+      "animated": false,
+      "path": "github-adapter-internals-light-a4d80ee6b88226048ca03728e6a2df80.svg"
+    },
+    {
+      "id": "github-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d25c8f6c00f85ed12c0aef33d90d4176",
+      "bytes": 11616,
+      "width": 942,
+      "height": 532,
+      "animated": false,
+      "path": "github-adapter-internals-dark-d25c8f6c00f85ed12c0aef33d90d4176.svg"
+    }
+  ]
+}
