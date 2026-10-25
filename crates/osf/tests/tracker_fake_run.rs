@@ -68,7 +68,7 @@ fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
     assert_eq!(
         tracker.calls(),
         vec![
-            Call::ReadReady,
+            Call::ReadItems,
             Call::Capabilities,
             Call::WriteState {
                 id: chosen.clone(),
@@ -93,7 +93,7 @@ fn a_run_on_a_failed_read_writes_nothing() {
     tracker.ready = ReadOutcome::Unknown("boom".to_string());
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("unknown"), "{error}");
-    assert_eq!(tracker.calls(), vec![Call::ReadReady]);
+    assert_eq!(tracker.calls(), vec![Call::ReadItems]);
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn a_run_on_an_empty_backlog_writes_nothing_and_says_nothing_is_ready() {
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("nothing is ready"), "{error}");
     assert!(!error.contains("unknown"), "{error}");
-    assert_eq!(tracker.calls(), vec![Call::ReadReady]);
+    assert_eq!(tracker.calls(), vec![Call::ReadItems]);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn a_run_skips_an_item_with_an_open_blocker() {
     assert_eq!(chosen, ready.id);
     let names_blocked = tracker.calls().iter().any(|call| match call {
         Call::WriteState { id, .. } | Call::WriteRecap { id, .. } => *id == blocked.id,
-        Call::ReadReady | Call::Capabilities => false,
+        Call::ReadItems | Call::Capabilities => false,
     });
     assert!(!names_blocked, "no write may name the skipped item");
 }
@@ -133,7 +133,7 @@ fn a_run_skips_a_closed_ready_item_and_takes_the_next_open_one() {
     assert_eq!(chosen, ready.id);
     let names_closed = tracker.calls().iter().any(|call| match call {
         Call::WriteState { id, .. } | Call::WriteRecap { id, .. } => *id == closed.id,
-        Call::ReadReady | Call::Capabilities => false,
+        Call::ReadItems | Call::Capabilities => false,
     });
     assert!(!names_closed, "no write may name the closed item");
 }
@@ -148,7 +148,7 @@ fn a_run_with_only_a_closed_ready_item_writes_nothing() {
     tracker.ready = ReadOutcome::Found(vec![closed]);
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("none dispatchable"), "{error}");
-    assert_eq!(tracker.calls(), vec![Call::ReadReady]);
+    assert_eq!(tracker.calls(), vec![Call::ReadItems]);
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn a_run_stops_before_any_write_when_in_progress_is_unsupported() {
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("check capabilities"), "{error}");
     assert!(error.contains("in-progress"), "{error}");
-    assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
+    assert_eq!(tracker.calls(), vec![Call::ReadItems, Call::Capabilities]);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn a_run_stops_before_any_write_when_in_progress_is_unknown() {
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("check capabilities"), "{error}");
     assert!(error.contains("in-progress"), "{error}");
-    assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
+    assert_eq!(tracker.calls(), vec![Call::ReadItems, Call::Capabilities]);
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn a_run_stops_at_a_refused_in_progress_write_and_never_reviews() {
     assert_eq!(
         tracker.calls(),
         vec![
-            Call::ReadReady,
+            Call::ReadItems,
             Call::Capabilities,
             Call::WriteState {
                 id: chosen.clone(),
@@ -270,7 +270,7 @@ fn a_full_run_succeeds_when_an_unneeded_state_is_unsupported() {
     assert_eq!(
         tracker.calls(),
         vec![
-            Call::ReadReady,
+            Call::ReadItems,
             Call::Capabilities,
             Call::WriteState {
                 id: chosen.clone(),

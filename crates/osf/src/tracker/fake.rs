@@ -10,7 +10,7 @@ use std::cell::RefCell;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Call {
-    ReadReady,
+    ReadItems,
     WriteState { id: WorkItemId, state: WorkState },
     WriteRecap { id: WorkItemId, recap: String },
     Capabilities,
@@ -28,7 +28,7 @@ pub struct FakeTracker {
     calls: RefCell<Vec<Call>>,
     failures: Vec<(Operation, TrackerError)>,
     state_failures: Vec<(WorkState, TrackerError)>,
-    /// The answer [`Tracker::read_ready`] returns.
+    /// The answer [`Tracker::read_items`] returns.
     pub ready: ReadOutcome<Vec<WorkItem>>,
     /// The answer [`Tracker::capabilities`] returns.
     pub capabilities: TrackerCapabilities,
@@ -142,8 +142,8 @@ impl Default for FakeTracker {
 }
 
 impl Tracker for FakeTracker {
-    fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>> {
-        self.calls.borrow_mut().push(Call::ReadReady);
+    fn read_items(&self) -> ReadOutcome<Vec<WorkItem>> {
+        self.calls.borrow_mut().push(Call::ReadItems);
         self.ready.clone()
     }
 
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn the_double_records_every_call_in_order() {
         let tracker = FakeTracker::new();
-        let _ = tracker.read_ready();
+        let _ = tracker.read_items();
         tracker
             .write_state(&id(), &WorkState::InProgress)
             .expect("writes");
@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(
             tracker.calls(),
             vec![
-                Call::ReadReady,
+                Call::ReadItems,
                 Call::WriteState {
                     id: id(),
                     state: WorkState::InProgress,
@@ -240,7 +240,7 @@ mod tests {
     fn the_scripted_read_is_returned_unchanged() {
         let mut tracker = FakeTracker::new();
         tracker.ready = ReadOutcome::Found(vec![work_item()]);
-        assert_eq!(tracker.read_ready(), ReadOutcome::Found(vec![work_item()]));
+        assert_eq!(tracker.read_items(), ReadOutcome::Found(vec![work_item()]));
     }
 
     #[test]

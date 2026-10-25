@@ -193,7 +193,7 @@ pub trait Tracker {
     /// Reads the work items with their status.
     /// The ready rule in `dispatchable` decides which one may be dispatched.
     /// An adapter must not filter by the ready status itself.
-    fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>>;
+    fn read_items(&self) -> ReadOutcome<Vec<WorkItem>>;
 
     /// Writes the state of one work item.
     ///
@@ -230,8 +230,8 @@ mod tests {
         let fake = FakeTracker::new();
         let dynamic: &dyn Tracker = &fake;
         let boxed: Box<dyn Tracker> = Box::new(FakeTracker::new());
-        assert!(matches!(dynamic.read_ready(), ReadOutcome::Empty));
-        assert!(matches!(boxed.read_ready(), ReadOutcome::Empty));
+        assert!(matches!(dynamic.read_items(), ReadOutcome::Empty));
+        assert!(matches!(boxed.read_items(), ReadOutcome::Empty));
     }
 
     #[test]

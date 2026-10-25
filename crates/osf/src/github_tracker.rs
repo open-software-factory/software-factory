@@ -26,6 +26,12 @@ pub trait GhRunner {
     /// Returns the trimmed standard error text on a non-zero exit, or
     /// `cannot run gh: <error>` when the program cannot be run or it times out.
     fn run(&self, argv: &[String], stdin: Option<&str>) -> Result<String, String>;
+
+    /// The explicit identity this runner writes under, when it has one.
+    /// The tracker refuses a write when this is `None`.
+    fn identity(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The [`GhRunner`] over the real `gh` program.
@@ -34,6 +40,7 @@ pub trait GhRunner {
 pub struct RealGhRunner {
     program: PathBuf,
     timeout: Duration,
+    token: Option<String>,
 }
 
 impl RealGhRunner {
@@ -46,7 +53,16 @@ impl RealGhRunner {
         Self {
             program: program.into(),
             timeout: Self::DEFAULT_TIMEOUT,
+            token: None,
         }
+    }
+
+    /// A runner that writes under `token` and refuses to fall back to the
+    /// ambient `gh` login.
+    #[must_use]
+    pub fn with_token(mut self, token: impl Into<String>) -> Self {
+        self.token = Some(token.into());
+        self
     }
 
     /// A runner that waits at most `timeout` for each invocation.
@@ -79,12 +95,21 @@ impl Default for RealGhRunner {
 }
 
 impl GhRunner for RealGhRunner {
+    fn identity(&self) -> Option<&str> {
+        self.token.as_deref()
+    }
+
     fn run(&self, argv: &[String], stdin: Option<&str>) -> Result<String, String> {
-        let mut child = Command::new(&self.program)
+        let mut command = Command::new(&self.program);
+        command
             .args(argv)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(token) = &self.token {
+            command.env("GH_TOKEN", token).env_remove("GITHUB_TOKEN");
+        }
+        let mut child = command
             .spawn()
             .map_err(|error| format!("cannot run gh: {error}"))?;
         let stdout = child
@@ -218,6 +243,16 @@ impl<R: GhRunner> GitHubTracker<R> {
             .map_err(TrackerError::Failed)
     }
 
+    /// Refuses a write when the runner has no explicit identity.
+    fn require_identity(&self) -> Result<(), TrackerError> {
+        if self.runner.identity().is_none() {
+            return Err(TrackerError::Rejected(
+                "refusing a work-tracker write without an explicit builder identity; set GH_TOKEN to the builder app token".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Posts one comment on `item` in `repo`.
     fn post_comment(&self, repo: &str, item: &str, text: &str) -> Result<(), TrackerError> {
         let argv = comment_argv(repo, item);
@@ -265,26 +300,51 @@ impl<R: GhRunner> GitHubTracker<R> {
 
 impl GitHubTracker<RealGhRunner> {
     /// The adapter over the real command-line tool.
+    ///
+    /// It writes under `GH_TOKEN` when that is set. Without it, reads still
+    /// work and every write is refused, so a write never falls back to the
+    /// ambient `gh` login of whichever person happens to run the command.
     #[must_use]
     pub fn real(config: GitHubTrackerConfig) -> Self {
-        Self::new(RealGhRunner::default(), config)
+        let runner = match std::env::var("GH_TOKEN") {
+            Ok(token) if !token.trim().is_empty() => RealGhRunner::default().with_token(token),
+            _ => RealGhRunner::default(),
+        };
+        Self::new(runner, config)
     }
 }
 
 impl<R: GhRunner> Tracker for GitHubTracker<R> {
-    fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>> {
-        // One extra project query verifies the configured status field before any item page.
-        if let Err(error) = self.read_project_status() {
-            return ReadOutcome::Unknown(error.to_string());
-        }
+    fn read_items(&self) -> ReadOutcome<Vec<WorkItem>> {
+        // One extra project query verifies the configured status field and options before any item page.
+        let project = match self.read_project_status() {
+            Ok(project) => project,
+            Err(error) => return ReadOutcome::Unknown(error.to_string()),
+        };
         let ready_option = self.config.options.ready.clone();
+        if !project
+            .options
+            .iter()
+            .any(|(name, _)| name == &ready_option)
+        {
+            return ReadOutcome::Unknown(format!(
+                "the project has no Ready option named {ready_option}"
+            ));
+        }
+        if let Some(status) = &self.config.skip_status {
+            if !project.options.iter().any(|(name, _)| name == status) {
+                return ReadOutcome::Unknown(format!(
+                    "the project has no option named {status} to skip"
+                ));
+            }
+        }
         let query = self.skip_query();
         let mut cursor: Option<String> = None;
         let mut seen: Vec<String> = Vec::new();
         let mut items: Vec<WorkItem> = Vec::new();
         for _ in 0..50 {
-            let argv = read_ready_argv();
-            let payload = read_ready_payload(
+            let argv = read_items_argv();
+            let payload = read_items_payload(
                 &self.config.owner,
                 self.config.project_number,
                 &self.config.status_field,
@@ -322,6 +382,7 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
     }
 
     fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError> {
+        self.require_identity()?;
         reject_non_github(id)?;
         let option_name = match self.config.options.option_for(state) {
             Some(name) => name.to_string(),
@@ -358,7 +419,16 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
     }
 
     fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), TrackerError> {
+        self.require_identity()?;
         reject_non_github(id)?;
+        let (owner, name) = id.repo.split_once('/').ok_or_else(|| {
+            TrackerError::Rejected(format!("the work item repo {} is not owner/name", id.repo))
+        })?;
+        let number: u64 = id.item.parse().map_err(|_| {
+            TrackerError::Rejected(format!("the work item number {} is not a number", id.item))
+        })?;
+        let project = self.read_project_status()?;
+        self.read_item_id(owner, name, number, &project.project_id)?;
         self.post_comment(&id.repo, &id.item, recap)
     }
 
@@ -418,7 +488,7 @@ fn graphql_argv() -> Vec<String> {
 
 /// The argv that reads one page of ready items.
 #[must_use]
-pub fn read_ready_argv() -> Vec<String> {
+pub fn read_items_argv() -> Vec<String> {
     graphql_argv()
 }
 
@@ -520,7 +590,7 @@ pub fn skip_status_query(status: &str, field: &str) -> String {
 
 /// Builds the JSON body of one ready-items page request.
 #[must_use]
-pub fn read_ready_payload(
+pub fn read_items_payload(
     owner: &str,
     project_number: u64,
     field: &str,
@@ -635,22 +705,24 @@ fn is_issue_content(content: &Value) -> bool {
 
 /// Reads one issue's blockers.
 fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, TrackerError> {
-    let Some(blocked) = content.get("blockedBy").filter(|value| !value.is_null()) else {
-        return Ok(Vec::new());
-    };
+    let blocked = content
+        .get("blockedBy")
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy connection".to_string()))?;
     let has_next = blocked
         .get("pageInfo")
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
-        .unwrap_or(false);
+        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy page info".to_string()))?;
     if has_next {
         return Err(TrackerError::Failed(
             "the issue has more blockers than were read".to_string(),
         ));
     }
-    let Some(nodes) = blocked.get("nodes").and_then(Value::as_array) else {
-        return Ok(Vec::new());
-    };
+    let nodes = blocked
+        .get("nodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy nodes".to_string()))?;
     let mut dependencies = Vec::new();
     for node in nodes {
         if node.is_null() {
@@ -836,7 +908,7 @@ pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, Trac
         .get("pageInfo")
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
-        .unwrap_or(false);
+        .ok_or_else(|| TrackerError::Failed("the items page has no hasNextPage".to_string()))?;
     let next_cursor = if has_next {
         let cursor = items
             .get("pageInfo")
@@ -939,8 +1011,14 @@ pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerErro
         .get("pageInfo")
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
-        .unwrap_or(false);
-    if let Some(nodes) = items.get("nodes").and_then(Value::as_array) {
+        .ok_or_else(|| {
+            TrackerError::Failed("the project items page has no hasNextPage".to_string())
+        })?;
+    let nodes = items
+        .get("nodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| TrackerError::Failed("the project items page has no nodes".to_string()))?;
+    {
         for node in nodes {
             let in_project = node
                 .get("project")
@@ -1093,6 +1171,10 @@ mod tests {
     }
 
     impl GhRunner for ScriptedRunner {
+        fn identity(&self) -> Option<&str> {
+            Some("scripted-builder")
+        }
+
         fn run(&self, argv: &[String], stdin: Option<&str>) -> Result<String, String> {
             self.calls.borrow_mut().push(RunCall {
                 argv: argv.to_vec(),
@@ -1354,6 +1436,7 @@ mod tests {
             {"id": "opt-in-review", "name": "In review"},
             {"id": "opt-blocked", "name": "Blocked"},
             {"id": "opt-failed", "name": "Failed"},
+            {"id": "opt-done", "name": "Done"},
         ])
     }
 
@@ -1412,7 +1495,7 @@ mod tests {
     #[test]
     fn every_request_argv_is_exact() {
         let expected = graphql_argv_expected();
-        assert_eq!(read_ready_argv(), expected);
+        assert_eq!(read_items_argv(), expected);
         assert_eq!(project_status_argv(), expected);
         assert_eq!(item_id_argv(), expected);
         assert_eq!(mutation_argv(), expected);
@@ -1431,7 +1514,7 @@ mod tests {
 
     #[test]
     fn the_read_payload_pins_its_variables_and_cursor() {
-        let first = read_ready_payload(OWNER, 5, "Status", None, None);
+        let first = read_items_payload(OWNER, 5, "Status", None, None);
         assert_eq!(pointer(&first, "/variables/owner"), &json!(OWNER));
         assert_eq!(pointer(&first, "/variables/number"), &json!(5));
         assert_eq!(pointer(&first, "/variables/field"), &json!("Status"));
@@ -1445,10 +1528,10 @@ mod tests {
             .as_str()
             .expect("a query string")
             .contains("query: $query"));
-        let second = read_ready_payload(OWNER, 5, "Status", Some("cursor-2"), None);
+        let second = read_items_payload(OWNER, 5, "Status", Some("cursor-2"), None);
         assert_eq!(pointer(&second, "/variables/cursor"), &json!("cursor-2"));
         assert_ne!(first, second);
-        let skipped = read_ready_payload(OWNER, 5, "Status", None, Some("-status:\"Done\""));
+        let skipped = read_items_payload(OWNER, 5, "Status", None, Some("-status:\"Done\""));
         assert_eq!(
             pointer(&skipped, "/variables/query"),
             &json!("-status:\"Done\"")
@@ -1842,7 +1925,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_finds_items_over_two_pages() {
+    fn read_items_finds_items_over_two_pages() {
         let first = items_page(
             json!([ready_node(issue(
                 42,
@@ -1868,7 +1951,7 @@ mod tests {
             Ok(first),
             Ok(second),
         ]);
-        let outcome = tracker.read_ready();
+        let outcome = tracker.read_items();
         let ReadOutcome::Found(items) = outcome else {
             panic!("two pages must be found");
         };
@@ -1900,7 +1983,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_sends_a_null_query_when_no_status_is_skipped() {
+    fn read_items_sends_a_null_query_when_no_status_is_skipped() {
         let page = items_page(
             json!([ready_node(issue(
                 42,
@@ -1917,7 +2000,7 @@ mod tests {
             ScriptedRunner::new(vec![Ok(project_response(all_options())), Ok(page)]),
             config,
         );
-        assert!(matches!(tracker.read_ready(), ReadOutcome::Found(_)));
+        assert!(matches!(tracker.read_items(), ReadOutcome::Found(_)));
         let calls = tracker.runner.calls();
         assert_eq!(calls.len(), 2);
         assert_eq!(
@@ -1934,7 +2017,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_finds_items_in_another_status_with_their_status() {
+    fn read_items_finds_items_in_another_status_with_their_status() {
         let page = items_page(
             json!([{
                 "fieldValueByName": {"name": "Backlog"},
@@ -1944,7 +2027,7 @@ mod tests {
             Value::Null,
         );
         let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
-        let ReadOutcome::Found(items) = tracker.read_ready() else {
+        let ReadOutcome::Found(items) = tracker.read_items() else {
             panic!("a backlog item is still found");
         };
         assert_eq!(items.len(), 1);
@@ -1956,7 +2039,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_keeps_a_done_item_that_still_arrives() {
+    fn read_items_keeps_a_done_item_that_still_arrives() {
         let page = items_page(
             json!([{
                 "fieldValueByName": {"name": "Done"},
@@ -1966,7 +2049,7 @@ mod tests {
             Value::Null,
         );
         let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
-        let ReadOutcome::Found(items) = tracker.read_ready() else {
+        let ReadOutcome::Found(items) = tracker.read_items() else {
             panic!("a done item that still arrives is returned");
         };
         assert_eq!(items.len(), 1);
@@ -1977,7 +2060,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_keeps_a_malformed_backlog_item_while_picking_the_ready_one() {
+    fn read_items_keeps_a_malformed_backlog_item_while_picking_the_ready_one() {
         let bad = other_node(
             "Backlog",
             issue_with_state(
@@ -2001,7 +2084,7 @@ mod tests {
             Ok(project_response(all_options())),
             Ok(page),
         ]);
-        let ReadOutcome::Found(items) = tracker.read_ready() else {
+        let ReadOutcome::Found(items) = tracker.read_items() else {
             panic!("a malformed backlog item must not hide the page");
         };
         assert_eq!(items.len(), 2);
@@ -2017,15 +2100,15 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_is_empty_for_a_project_with_no_items() {
+    fn read_items_is_empty_for_a_project_with_no_items() {
         let page = items_page(json!([]), false, Value::Null);
         let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
-        assert_eq!(tracker.read_ready(), ReadOutcome::Empty);
+        assert_eq!(tracker.read_items(), ReadOutcome::Empty);
         assert_eq!(tracker.runner.calls().len(), 2);
     }
 
     #[test]
-    fn read_ready_is_unknown_when_the_second_page_fails() {
+    fn read_items_is_unknown_when_the_second_page_fails() {
         let first = items_page(
             json!([ready_node(issue(
                 42,
@@ -2041,23 +2124,23 @@ mod tests {
             Ok(first),
             Err("boom".to_string()),
         ]);
-        let outcome = tracker.read_ready();
+        let outcome = tracker.read_items();
         assert_eq!(outcome, ReadOutcome::Unknown("boom".to_string()));
         assert!(!matches!(outcome, ReadOutcome::Found(_)));
     }
 
     #[test]
-    fn read_ready_is_unknown_on_a_runner_error() {
+    fn read_items_is_unknown_on_a_runner_error() {
         let tracker = tracker(vec![Err("cannot run gh".to_string())]);
         assert_eq!(
-            tracker.read_ready(),
+            tracker.read_items(),
             ReadOutcome::Unknown("cannot run gh".to_string())
         );
         assert_eq!(tracker.runner.calls().len(), 1);
     }
 
     #[test]
-    fn read_ready_is_unknown_when_the_configured_field_is_missing() {
+    fn read_items_is_unknown_when_the_configured_field_is_missing() {
         let text = json!({
             "data": {
                 "repositoryOwner": {
@@ -2069,7 +2152,7 @@ mod tests {
         let mut config = config();
         config.status_field = "Stage".to_string();
         let tracker = GitHubTracker::new(ScriptedRunner::new(vec![Ok(text)]), config);
-        let ReadOutcome::Unknown(message) = tracker.read_ready() else {
+        let ReadOutcome::Unknown(message) = tracker.read_items() else {
             panic!("a missing status field must be unknown");
         };
         assert!(message.contains("Stage"), "{message}");
@@ -2082,7 +2165,7 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_is_unknown_on_a_repeating_cursor() {
+    fn read_items_is_unknown_on_a_repeating_cursor() {
         let page = items_page(
             json!([ready_node(issue(
                 42,
@@ -2098,7 +2181,7 @@ mod tests {
             Ok(page.clone()),
             Ok(page),
         ]);
-        assert!(matches!(tracker.read_ready(), ReadOutcome::Unknown(_)));
+        assert!(matches!(tracker.read_items(), ReadOutcome::Unknown(_)));
         assert_eq!(tracker.runner.calls().len(), 3);
     }
 
@@ -2116,6 +2199,7 @@ mod tests {
                 ("In review".to_string(), "opt-in-review".to_string()),
                 ("Blocked".to_string(), "opt-blocked".to_string()),
                 ("Failed".to_string(), "opt-failed".to_string()),
+                ("Done".to_string(), "opt-done".to_string()),
             ]
         );
     }
@@ -2376,14 +2460,40 @@ mod tests {
 
     #[test]
     fn write_recap_posts_the_exact_body() {
-        let tracker = tracker(vec![Ok(String::new())]);
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_found_response()),
+            Ok(String::new()),
+        ]);
         tracker
             .write_recap(&github_item("42"), "The recap.")
             .expect("writes");
         let calls = tracker.runner.calls();
-        assert_eq!(calls.len(), 1);
-        assert_eq!(call(&calls, 0).argv, comment_argv(REPO, "42"));
-        assert_eq!(payload(call(&calls, 0)), json!({"body": "The recap."}));
+        assert_eq!(calls.len(), 3);
+        assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
+        assert_eq!(payload(call(&calls, 2)), json!({"body": "The recap."}));
+    }
+
+    #[test]
+    fn a_recap_outside_the_project_posts_nothing() {
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_response(json!({
+                "projectItems": {
+                    "pageInfo": {"hasNextPage": false},
+                    "nodes": [{"id": "PVTI_other", "project": {"id": "PVT_OTHER"}}]
+                }
+            }))),
+        ]);
+        let error = tracker
+            .write_recap(&github_item("42"), "The recap.")
+            .expect_err("refused");
+        assert!(error.to_string().contains("not in the project"), "{error}");
+        assert!(!tracker
+            .runner
+            .calls()
+            .iter()
+            .any(|call| call.argv == comment_argv(REPO, "42")));
     }
 
     #[test]

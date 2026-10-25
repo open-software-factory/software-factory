@@ -39,7 +39,7 @@ pub fn dispatchable(item: &WorkItem) -> bool {
 /// Picks the first dispatchable item, or `NothingReady` when no item has status ready.
 #[must_use]
 pub fn pick(tracker: &dyn Tracker) -> Pick {
-    match tracker.read_ready() {
+    match tracker.read_items() {
         ReadOutcome::Empty => Pick::NothingReady,
         ReadOutcome::Unknown(text) => Pick::Unknown(text),
         ReadOutcome::Found(items) => {
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn pick_calls_only_read_ready() {
+    fn pick_calls_only_read_items() {
         let mut tracker = FakeTracker::new();
         tracker.ready = ReadOutcome::Found(vec![work_item("1", Status::Ready, Vec::new())]);
         let picked = pick(&tracker);
@@ -249,6 +249,6 @@ mod tests {
             picked,
             Pick::Item(work_item("1", Status::Ready, Vec::new()))
         );
-        assert_eq!(tracker.calls(), vec![Call::ReadReady]);
+        assert_eq!(tracker.calls(), vec![Call::ReadItems]);
     }
 }
