@@ -1210,22 +1210,33 @@ mod tests {
 
     #[test]
     fn a_reviewer_uses_its_launch_override() {
+        let agent = agents::AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| r.read_only.is_some() || r.in_container.is_some())
+            })
+            .expect("a reviewer that can run");
         let root = crate::test_support::TempDir::new("osf-reviewer-launch");
         std::fs::write(
             root.join("osf.toml"),
-            "[agents]\nreviewers = [\"codex\"]\n\n[agents.launch.codex]\ncommand = [\"my-codex\", \"--review\"]\nenv = { A = \"B\" }\n",
+            format!(
+                "[agents]\nreviewers = [\"{name}\"]\n\n[agents.launch.{name}]\ncommand = [\"my-command\", \"--review\"]\nenv = {{ A = \"B\" }}\n",
+                name = agent.name
+            ),
         )
         .expect("write osf.toml");
         let roster = roster(&root).expect("roster");
         assert_eq!(roster.len(), 1);
         let reviewer = roster.first().expect("one reviewer");
-        assert_eq!(reviewer.command, vec!["my-codex", "--review"]);
+        assert_eq!(reviewer.command, vec!["my-command", "--review"]);
         assert_eq!(reviewer.env, vec![("A".to_string(), "B".to_string())]);
     }
 
     #[test]
     fn a_launch_env_reaches_the_child_command() {
-        let mut r = reviewer("codex", vec!["x"]);
+        let mut r = reviewer("a-reviewer", vec!["x"]);
         r.env = vec![("A".to_string(), "B".to_string())];
         let (command, _home, _notes) =
             prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");

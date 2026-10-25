@@ -1110,28 +1110,40 @@ mod tests {
         assert_eq!(s.model(claude), None);
     }
 
+    fn a_runnable_reviewer() -> &'static Agent {
+        AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| r.read_only.is_some() || r.in_container.is_some())
+            })
+            .expect("a reviewer that can run")
+    }
+
     #[test]
     fn a_launch_override_replaces_the_command_and_adds_env() {
-        let mut config = cfg(None, &["codex"], &[]);
+        let agent = a_runnable_reviewer();
+        let mut config = cfg(None, &[agent.name], &[]);
         config.launch.insert(
-            "codex".to_string(),
+            agent.name.to_string(),
             LaunchTemplateConfig {
-                command: vec!["my-codex".to_string(), "--x".to_string()],
+                command: vec!["my-command".to_string(), "--x".to_string()],
                 env: BTreeMap::from([("A".to_string(), "B".to_string())]),
             },
         );
         let selection = resolve(&config).expect("resolves");
-        let codex = AGENTS.iter().find(|a| a.name == "codex").expect("codex");
-        let template = selection.launch(codex).expect("the override");
-        assert_eq!(template.command, vec!["my-codex", "--x"]);
+        let template = selection.launch(agent).expect("the override");
+        assert_eq!(template.command, vec!["my-command", "--x"]);
         assert_eq!(template.env, vec![("A".to_string(), "B".to_string())]);
     }
 
     #[test]
     fn a_launch_override_must_name_an_enabled_agent_and_a_command() {
+        let agent = a_runnable_reviewer();
         let mut config = cfg(Some(&["dsh"]), &[], &[]);
         config.launch.insert(
-            "codex".to_string(),
+            agent.name.to_string(),
             LaunchTemplateConfig {
                 command: vec!["x".to_string()],
                 ..Default::default()
@@ -1152,15 +1164,30 @@ mod tests {
         let mut config = cfg(None, &[], &[]);
         config
             .launch
-            .insert("codex".to_string(), LaunchTemplateConfig::default());
+            .insert(agent.name.to_string(), LaunchTemplateConfig::default());
         let error = resolve(&config).expect_err("empty command");
         assert!(error.contains("command is empty"), "{error}");
         let mut config = cfg(None, &[], &[]);
+        let credential_agent = AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| !r.credential_env.is_empty())
+            })
+            .expect("an agent with a credential variable");
+        let credential = credential_agent
+            .review
+            .as_ref()
+            .expect("a review")
+            .credential_env
+            .first()
+            .expect("a credential variable");
         config.launch.insert(
-            "codex".to_string(),
+            credential_agent.name.to_string(),
             LaunchTemplateConfig {
                 command: vec!["x".to_string()],
-                env: BTreeMap::from([("CODEX_API_KEY".to_string(), "secret".to_string())]),
+                env: BTreeMap::from([((*credential).to_string(), "secret".to_string())]),
             },
         );
         let error = resolve(&config).expect_err("credential in config");
