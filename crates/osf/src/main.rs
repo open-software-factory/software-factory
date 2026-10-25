@@ -138,6 +138,48 @@ enum Command {
     },
     /// Report whether this repository and machine are set up correctly. Read-only.
     Doctor(DoctorArgs),
+    /// Work with a code host through the forge interface.
+    Forge {
+        #[command(subcommand)]
+        action: ForgeAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ForgeAction {
+    /// Work with a pull request.
+    Pr {
+        #[command(subcommand)]
+        action: ForgePrAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ForgePrAction {
+    /// Open a pull request for a branch that is already pushed.
+    Open(ForgePrOpenArgs),
+}
+
+#[derive(Args)]
+struct ForgePrOpenArgs {
+    /// The repository as owner/name. Defaults to the origin remote.
+    #[arg(long)]
+    repo: Option<String>,
+    /// The branch holding the change.
+    #[arg(long)]
+    head: String,
+    /// The branch to merge into.
+    #[arg(long, default_value = "main")]
+    base: String,
+    /// The pull request title.
+    #[arg(long)]
+    title: String,
+    /// A file holding the body.
+    #[arg(long)]
+    body: PathBuf,
+    /// The work item this pull request advances. Added to the body.
+    #[arg(long)]
+    work_item: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -938,6 +980,72 @@ fn main() -> ExitCode {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
         Command::Doctor(args) => doctor_cmd(args, cli.config.as_deref()),
+        Command::Forge { action } => forge_cmd(action),
+    }
+}
+
+fn forge_cmd(action: &ForgeAction) -> ExitCode {
+    match action {
+        ForgeAction::Pr {
+            action: ForgePrAction::Open(args),
+        } => forge_pr_open_cmd(args),
+    }
+}
+
+/// The body with the work item line, when one is given.
+fn with_work_item(body: &str, work_item: Option<&str>) -> String {
+    match work_item {
+        Some(id) => format!("Work item: {id}\n\n{body}"),
+        None => body.to_string(),
+    }
+}
+
+fn forge_pr_open_cmd(args: &ForgePrOpenArgs) -> ExitCode {
+    let token = std::env::var("GH_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("GITHUB_TOKEN").ok())
+        .filter(|token| !token.trim().is_empty());
+    if token.is_none() {
+        eprintln!("osf forge pr open: set the builder app token in GH_TOKEN or GITHUB_TOKEN");
+        return ExitCode::from(2);
+    }
+    let repo = match &args.repo {
+        Some(repo) => repo.clone(),
+        None => match osf::git::remote(Path::new(".")) {
+            Ok(origin) => format!("{}/{}", origin.owner, origin.name),
+            Err(error) => {
+                eprintln!("osf forge pr open: cannot read the origin remote: {error}");
+                return ExitCode::from(2);
+            }
+        },
+    };
+    let body = match std::fs::read_to_string(&args.body) {
+        Ok(body) => body,
+        Err(error) => {
+            eprintln!(
+                "osf forge pr open: cannot read {}: {error}",
+                args.body.display()
+            );
+            return ExitCode::from(2);
+        }
+    };
+    let request = forge::NewPullRequest {
+        repo: repo.clone(),
+        head: args.head.clone(),
+        base: args.base.clone(),
+        title: args.title.clone(),
+        body: with_work_item(&body, args.work_item.as_deref()),
+    };
+    let github = github_adapter();
+    match forge::Forge::open_pull_request(&github, &request) {
+        Ok(id) => {
+            println!("opened {}#{}", id.repo, id.pr);
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("osf forge pr open: {error}");
+            ExitCode::from(1)
+        }
     }
 }
 
@@ -3396,5 +3504,17 @@ mod tests {
             findings.iter().all(|f| !f.rule.starts_with("expectation-")),
             "{findings:?}"
         );
+    }
+
+    #[test]
+    fn a_work_item_is_added_to_the_pull_request_body() {
+        assert_eq!(
+            with_work_item(
+                "Body.\n",
+                Some("github:open-software-factory/software-factory#105")
+            ),
+            "Work item: github:open-software-factory/software-factory#105\n\nBody.\n"
+        );
+        assert_eq!(with_work_item("Body.\n", None), "Body.\n");
     }
 }
