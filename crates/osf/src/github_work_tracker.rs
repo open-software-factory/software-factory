@@ -2723,7 +2723,10 @@ mod tests {
         ] {
             assert!(error.to_string().contains("builder identity"), "{error}");
         }
-        assert!(tracker.runner.calls().is_empty());
+        assert!(
+            tracker.runner.calls().is_empty(),
+            "a refused write must not call the runner"
+        );
     }
 
     #[test]
