@@ -308,7 +308,7 @@ osf work-tracker report <item> --state in-review --recap recap.md
 osf work-tracker report <item> --state blocked --cause human --recap recap.md
 ```
 
-Reads use the GitHub CLI. A write needs `GH_TOKEN` or `GITHUB_TOKEN`, and it must be the builder app's token, never a person's login. Without a token, a write is refused and a read still works. The item id is provider-qualified. In `--format json` the id is the `provider`, `repo` and `item` fields. The report command takes `github:owner/repo#N`. The develop skill uses these commands.
+Reads use the GitHub CLI. A write needs `GH_TOKEN` or `GITHUB_TOKEN`, and it must be the builder app's token, never a person's login. Without a token, a write is refused and a read still works. The app's token must also be able to read the project. A project the app cannot see makes `ready` report unknown. Grant the app access to the board before the first job. The item id is provider-qualified. In `--format json` the id is the `provider`, `repo` and `item` fields. The report command takes `github:owner/repo#N`. The develop skill uses these commands.
 
 ## Lint a file right after your agent writes it
 
