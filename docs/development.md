@@ -1199,9 +1199,17 @@ result.
 ## Builder tools
 
 One image serves both the builder and the reviewer role. Besides the
-coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `osf`,
-`moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`, and
-`bun`.
+coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `kache`,
+`osf`, `moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`,
+and `bun`.
+
+`kache` is the Rust compiler cache. Cargo uses it as its `rustc-wrapper`
+in the container, so compiler outputs are stored once and restored in
+every worktree instead of being rebuilt in each one. The cache lives in
+the developer user's home, and every worktree in the same container
+shares it. `KACHE_DISABLED=1` bypasses it for one command. The wrapper
+changes nothing about how Cargo is run: `cargo build`, `cargo test` and
+`cargo clippy` work as usual.
 
 [SkillSpector and SkillEvaluator](https://github.com/NVIDIA/skillspector)
 are two NVIDIA tools that check an agent skill, the first for safety and
