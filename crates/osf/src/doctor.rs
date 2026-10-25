@@ -166,11 +166,7 @@ fn agents_check(root: &Path) -> Check {
             let mut missing = Vec::new();
             let home = crate::reviewers::real_home();
             for agent in &selection.enabled {
-                if let Some(problem) = missing_credential(
-                    agent,
-                    &|name| std::env::var(name).is_ok_and(|value| !value.is_empty()),
-                    home.as_deref(),
-                ) {
+                if let Some(problem) = missing_credential(agent, &env_is_set, home.as_deref()) {
                     missing.push(problem);
                 }
             }
@@ -280,6 +276,14 @@ fn container_check() -> Check {
     }
 }
 
+fn env_is_set(name: &str) -> bool {
+    value_counts(std::env::var(name).ok().as_deref())
+}
+
+fn value_counts(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.is_empty())
+}
+
 /// The first missing credential for an agent, or None when one is present.
 ///
 /// `env_present` is a lookup so a test never has to set a process-wide
@@ -336,6 +340,13 @@ mod tests {
             assert_eq!(check.status, Status::Fail);
             assert_eq!(check.fix.as_deref(), Some("osf hooks install"));
         }
+    }
+
+    #[test]
+    fn an_empty_credential_value_does_not_count() {
+        assert!(!value_counts(None));
+        assert!(!value_counts(Some("")));
+        assert!(value_counts(Some("value")));
     }
 
     #[test]
