@@ -1,6 +1,6 @@
 # `skills/`
 
-This folder holds the skills this repository ships to adopters: [`show-me`](show-me/SKILL.md) and [`pr-outline`](pr-outline/SKILL.md).
+This folder holds the skills this repository ships to adopters: [`develop`](develop/SKILL.md), [`show-me`](show-me/SKILL.md) and [`pr-outline`](pr-outline/SKILL.md).
 
 ## Installing a skill
 
