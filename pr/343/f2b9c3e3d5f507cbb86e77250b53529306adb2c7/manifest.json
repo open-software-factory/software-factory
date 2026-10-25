@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f2b9c3e3d5f507cbb86e77250b53529306adb2c7",
+    "contentHash": "c201b4f4c32a43f5082a574bb178e4be"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "forge-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2e8567eb101d26d3f96501112fa189b3",
+      "bytes": 27695,
+      "width": 1897,
+      "height": 552,
+      "animated": false,
+      "path": "forge-seam-light-2e8567eb101d26d3f96501112fa189b3.svg"
+    },
+    {
+      "id": "forge-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2639153c46e6eef7ea76388aa9d142dd",
+      "bytes": 28010,
+      "width": 1897,
+      "height": 552,
+      "animated": false,
+      "path": "forge-seam-dark-2639153c46e6eef7ea76388aa9d142dd.svg"
+    },
+    {
+      "id": "report-step-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "report-step",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a4aa5577fef6be45a4bf18718c0e329e",
+      "bytes": 10242,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "report-step-light-a4aa5577fef6be45a4bf18718c0e329e.svg"
+    },
+    {
+      "id": "report-step-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "report-step",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ee1828d608fe4569e6643153397dc300",
+      "bytes": 10353,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "report-step-dark-ee1828d608fe4569e6643153397dc300.svg"
+    }
+  ]
+}
