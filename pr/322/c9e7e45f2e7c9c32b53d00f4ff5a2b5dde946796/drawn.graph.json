@@ -1,0 +1,224 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T00:08:00.098Z",
+  "title": "Bump pulldown-cmark to 0.13.5 in the osf crate",
+  "summary": "A dependency-only change: the `osf` crate pins `pulldown-cmark` from 0.13.4 to 0.13.5, and Cargo.lock records the new version and checksum. No source code changes; the Markdown parsing path inside `osf` keeps the same API surface, only the patch release of the parser moves.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "c9e7e45f2e7c9c32b53d00f4ff5a2b5dde946796",
+      "ref": "c9e7e45f2e7c9c32b53d00f4ff5a2b5dde946796"
+    },
+    "pullRequest": {
+      "number": 322,
+      "url": "https://github.com/open-software-factory/software-factory/pull/322"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Cargo workspace",
+      "subtitle": "build & dependency resolution",
+      "order": 0,
+      "summary": "The workspace manifest and lockfile that resolve and pin every crate version."
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "Rust binary/library",
+      "order": 1,
+      "summary": "The main crate whose manifest pins the Markdown parser version."
+    },
+    {
+      "id": "third-party",
+      "label": "Third-party crates",
+      "subtitle": "crates.io",
+      "order": 2,
+      "summary": "External crates pulled in by the workspace, including the Markdown parser."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "resolved dependency graph",
+      "summary": "Records the resolved version and checksum of every dependency. This change moves the `pulldown-cmark` entry from 0.13.4 to 0.13.5 with its new checksum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1090,
+          "endLine": 1100
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-manifest",
+      "label": "crates/osf/Cargo.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "osf-crate",
+      "subtitle": "osf dependency pins",
+      "summary": "The `osf` crate manifest pins `pulldown-cmark` exactly at 0.13.5 with default features disabled.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 37,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "osf-crate",
+      "subtitle": "main crate",
+      "summary": "The crate that consumes the Markdown parser. Its source is untouched; only the pinned parser version it builds against changes.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pulldown-cmark",
+      "label": "pulldown-cmark",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "third-party",
+      "subtitle": "0.13.4 → 0.13.5",
+      "summary": "The Markdown parser crate. The patch bump keeps the same API; only the crate version and checksum change.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1091,
+          "endLine": 1096
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-crate-depends-pulldown",
+      "from": "osf-crate",
+      "to": "pulldown-cmark",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.13.5",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The osf crate's dependency on the Markdown parser is re-pinned to the 0.13.5 patch release.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 40,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "osf-manifest-declares-osf",
+      "from": "osf-manifest",
+      "to": "osf-crate",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The manifest declares the osf crate's dependencies.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml"
+        }
+      ]
+    },
+    {
+      "id": "cargo-lock-pins-pulldown",
+      "from": "cargo-lock",
+      "to": "pulldown-cmark",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "version + checksum",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile pins the exact resolved version and checksum of the parser.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1091,
+          "endLine": 1096
+        }
+      ]
+    },
+    {
+      "id": "cargo-lock-resolves-osf",
+      "from": "cargo-lock",
+      "to": "osf-crate",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the resolved dependency set for the osf crate.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 3,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "Dependency bump",
+        "value": "0.13.4 → 0.13.5",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "dependency-resolution",
+      "title": "Dependency resolution",
+      "lens": "architecture",
+      "summary": "How the osf crate's manifest pin flows into the lockfile and the resolved third-party parser crate.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}

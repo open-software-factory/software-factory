@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c9e7e45f2e7c9c32b53d00f4ff5a2b5dde946796",
+    "contentHash": "dba7450ac19a3eeb2c9f7e57e1a11ec2"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.5"
+  },
+  "assets": [
+    {
+      "id": "dependency-resolution-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dependency-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f5d9ddd9791790b8e451b4b667a38f90",
+      "bytes": 9474,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "dependency-resolution-light-f5d9ddd9791790b8e451b4b667a38f90.svg"
+    },
+    {
+      "id": "dependency-resolution-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dependency-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c0744bb6b687b1c303f85f7e24c862d5",
+      "bytes": 9555,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "dependency-resolution-dark-c0744bb6b687b1c303f85f7e24c862d5.svg"
+    }
+  ]
+}
