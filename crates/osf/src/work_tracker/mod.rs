@@ -1,4 +1,4 @@
-//! Provider-neutral tracker interface: the seam between the factory and a work tracker.
+//! Provider-neutral work-tracker interface: the seam between the factory and a work-tracker.
 
 pub mod fake;
 pub mod ready;

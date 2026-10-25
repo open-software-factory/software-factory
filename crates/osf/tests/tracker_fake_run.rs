@@ -1,4 +1,4 @@
-//! A full engine-style run over the in-memory tracker double: no process, file,
+//! A full factory run over the in-memory work-tracker double: no process, file,
 //! network or clock is reached anywhere in this test.
 
 use osf::work_tracker::fake::{Call, FakeWorkTracker, Operation};
@@ -37,7 +37,7 @@ fn work_item(item: &str, blocked_by: Vec<Dependency>) -> WorkItem {
     }
 }
 
-/// The engine's whole use of the tracker seam: pick one item and report it.
+/// The factory's whole use of the work-tracker seam: pick one item and report it.
 fn run_one(tracker: &dyn WorkTracker) -> Result<WorkItemId, String> {
     let item = match pick(tracker) {
         Pick::Item(item) => item,

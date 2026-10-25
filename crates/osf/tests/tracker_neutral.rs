@@ -56,7 +56,7 @@ fn collect_files_walks_a_folder_recursively() {
     let expected = Path::new("work_tracker").join("mod.rs");
     assert!(
         files.iter().any(|path| path.ends_with(&expected)),
-        "the recursive walk must reach tracker/mod.rs"
+        "the recursive walk must reach work_tracker/mod.rs"
     );
 }
 

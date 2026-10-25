@@ -61,7 +61,9 @@ impl RealGhRunner {
     /// ambient `gh` login.
     #[must_use]
     pub fn with_token(mut self, token: impl Into<String>) -> Self {
-        self.token = Some(token.into());
+        let token = token.into();
+        let token = token.trim();
+        self.token = (!token.is_empty()).then(|| token.to_string());
         self
     }
 
@@ -300,14 +302,18 @@ impl<R: GhRunner> GitHubWorkTracker<R> {
 impl GitHubWorkTracker<RealGhRunner> {
     /// The adapter over the real command-line tool.
     ///
-    /// It writes under `GH_TOKEN` when that is set. Without it, reads still
-    /// work and every write is refused, so a write never falls back to the
-    /// ambient `gh` login of whichever person happens to run the command.
+    /// It writes under `GH_TOKEN`, or `GITHUB_TOKEN` when only that is set.
+    /// Without either, reads still work and every write is refused, so a
+    /// write never falls back to the ambient `gh` login of whichever person
+    /// happens to run the command.
     #[must_use]
     pub fn real(config: GitHubWorkTrackerConfig) -> Self {
-        let runner = match std::env::var("GH_TOKEN") {
-            Ok(token) if !token.trim().is_empty() => RealGhRunner::default().with_token(token),
-            _ => RealGhRunner::default(),
+        let token = std::env::var("GH_TOKEN")
+            .ok()
+            .or_else(|| std::env::var("GITHUB_TOKEN").ok());
+        let runner = match token.filter(|token| !token.trim().is_empty()) {
+            Some(token) => RealGhRunner::default().with_token(token),
+            None => RealGhRunner::default(),
         };
         Self::new(runner, config)
     }
@@ -1167,6 +1173,7 @@ mod tests {
     struct ScriptedRunner {
         answers: RefCell<VecDeque<Result<String, String>>>,
         calls: RefCell<Vec<RunCall>>,
+        identity: Option<String>,
     }
 
     impl ScriptedRunner {
@@ -1174,7 +1181,13 @@ mod tests {
             Self {
                 answers: RefCell::new(answers.into()),
                 calls: RefCell::new(Vec::new()),
+                identity: Some("scripted-builder".to_string()),
             }
+        }
+
+        fn without_identity(mut self) -> Self {
+            self.identity = None;
+            self
         }
 
         fn calls(&self) -> Vec<RunCall> {
@@ -1184,7 +1197,7 @@ mod tests {
 
     impl GhRunner for ScriptedRunner {
         fn identity(&self) -> Option<&str> {
-            Some("scripted-builder")
+            self.identity.as_deref()
         }
 
         fn run(&self, argv: &[String], stdin: Option<&str>) -> Result<String, String> {
@@ -2694,5 +2707,138 @@ mod tests {
         );
         let tracker = tracker(vec![Ok(project_response(all_options())), Ok(backlog_only)]);
         assert_eq!(pick(&tracker), Pick::NothingReady);
+    }
+
+    #[test]
+    fn a_tracker_without_an_identity_refuses_both_writes() {
+        let tracker =
+            GitHubWorkTracker::new(ScriptedRunner::new(Vec::new()).without_identity(), config());
+        for error in [
+            tracker
+                .write_state(&github_item("42"), &WorkState::InProgress)
+                .expect_err("refused"),
+            tracker
+                .write_recap(&github_item("42"), "The recap.")
+                .expect_err("refused"),
+        ] {
+            assert!(error.to_string().contains("builder identity"), "{error}");
+        }
+        assert!(tracker.runner.calls().is_empty());
+    }
+
+    #[test]
+    fn a_blank_token_is_not_an_identity() {
+        assert_eq!(RealGhRunner::default().with_token("   ").identity(), None);
+        assert_eq!(
+            RealGhRunner::default().with_token(" token ").identity(),
+            Some("token")
+        );
+    }
+
+    #[test]
+    fn read_items_is_unknown_when_the_ready_option_is_missing() {
+        let tracker = tracker(vec![Ok(project_response(json!([
+            {"id": "opt-done", "name": "Done"}
+        ])))]);
+        let ReadOutcome::Unknown(message) = tracker.read_items() else {
+            panic!("must be unknown");
+        };
+        assert!(message.contains("Ready"), "{message}");
+        assert_eq!(tracker.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn read_items_is_unknown_when_the_skip_option_is_missing() {
+        let tracker = tracker(vec![Ok(project_response(json!([
+            {"id": "opt-ready", "name": "Ready"},
+            {"id": "opt-in-progress", "name": "In progress"},
+            {"id": "opt-in-review", "name": "In review"},
+            {"id": "opt-blocked", "name": "Blocked"},
+            {"id": "opt-failed", "name": "Failed"},
+        ])))]);
+        let ReadOutcome::Unknown(message) = tracker.read_items() else {
+            panic!("must be unknown");
+        };
+        assert!(message.contains("Done"), "{message}");
+        assert_eq!(tracker.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn a_missing_blocked_by_connection_fails_the_read() {
+        let page = items_page(
+            json!([{
+                "fieldValueByName": {"name": "Ready"},
+                "content": {
+                    "number": 41,
+                    "title": "No blockers field",
+                    "body": "Body.",
+                    "state": "OPEN",
+                    "repository": {"nameWithOwner": REPO},
+                },
+            }]),
+            false,
+            Value::Null,
+        );
+        let error = parse_items_page(&page, "Ready").expect_err("fails");
+        assert!(error.to_string().contains("blockedBy"), "{error}");
+    }
+
+    #[test]
+    fn a_blocked_by_without_nodes_fails_the_read() {
+        let page = items_page(
+            json!([{
+                "fieldValueByName": {"name": "Ready"},
+                "content": {
+                    "number": 41,
+                    "title": "No nodes",
+                    "body": "Body.",
+                    "state": "OPEN",
+                    "repository": {"nameWithOwner": REPO},
+                    "blockedBy": {"pageInfo": {"hasNextPage": false}},
+                },
+            }]),
+            false,
+            Value::Null,
+        );
+        let error = parse_items_page(&page, "Ready").expect_err("fails");
+        assert!(error.to_string().contains("blockedBy nodes"), "{error}");
+    }
+
+    #[test]
+    fn a_blocked_by_without_paging_fails_the_read() {
+        let page = items_page(
+            json!([{
+                "fieldValueByName": {"name": "Ready"},
+                "content": {
+                    "number": 41,
+                    "title": "No paging",
+                    "body": "Body.",
+                    "state": "OPEN",
+                    "repository": {"nameWithOwner": REPO},
+                    "blockedBy": {"nodes": []},
+                },
+            }]),
+            false,
+            Value::Null,
+        );
+        let error = parse_items_page(&page, "Ready").expect_err("fails");
+        assert!(error.to_string().contains("blockedBy page info"), "{error}");
+    }
+
+    #[test]
+    fn an_items_page_without_paging_fails_the_read() {
+        let page = json!({
+            "data": {"repositoryOwner": {"projectV2": {"items": {"nodes": []}}}}
+        })
+        .to_string();
+        let error = parse_items_page(&page, "Ready").expect_err("fails");
+        assert!(error.to_string().contains("hasNextPage"), "{error}");
+    }
+
+    #[test]
+    fn a_project_items_page_without_paging_fails_the_item_lookup() {
+        let response = item_response(json!({"projectItems": {"nodes": []}}));
+        let error = parse_item_id(&response, "PVT_1").expect_err("fails");
+        assert!(error.to_string().contains("hasNextPage"), "{error}");
     }
 }
