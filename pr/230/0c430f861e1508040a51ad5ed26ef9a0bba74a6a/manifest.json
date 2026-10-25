@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "0c430f861e1508040a51ad5ed26ef9a0bba74a6a",
+    "contentHash": "3d98f230be017d4d235cc2d9806aeca9"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bbe749f5c4b19389e573956102b393b8",
+      "bytes": 23461,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-light-bbe749f5c4b19389e573956102b393b8.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b7c1f171ed1d04a8c1c70a84927208dd",
+      "bytes": 23737,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-dark-b7c1f171ed1d04a8c1c70a84927208dd.svg"
+    },
+    {
+      "id": "github-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eb322d184d8978e5c8b44129621e2398",
+      "bytes": 10838,
+      "width": 888,
+      "height": 532,
+      "animated": false,
+      "path": "github-adapter-internals-light-eb322d184d8978e5c8b44129621e2398.svg"
+    },
+    {
+      "id": "github-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9137add99eb4214e551a5dc480c8a689",
+      "bytes": 10949,
+      "width": 888,
+      "height": 532,
+      "animated": false,
+      "path": "github-adapter-internals-dark-9137add99eb4214e551a5dc480c8a689.svg"
+    },
+    {
+      "id": "seam-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "seam-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6b767436a4cf0d517b69c1ec88494449",
+      "bytes": 12968,
+      "width": 880,
+      "height": 532,
+      "animated": false,
+      "path": "seam-internals-light-6b767436a4cf0d517b69c1ec88494449.svg"
+    },
+    {
+      "id": "seam-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "seam-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "752c0f81f434ecc893b36a0705443e7a",
+      "bytes": 13112,
+      "width": 880,
+      "height": 532,
+      "animated": false,
+      "path": "seam-internals-dark-752c0f81f434ecc893b36a0705443e7a.svg"
+    },
+    {
+      "id": "data-flow-views-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "data-flow-views",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa80bf6d1d1ebdcb75c4e6b846f48c48",
+      "bytes": 26074,
+      "width": 1764,
+      "height": 958,
+      "animated": true,
+      "path": "data-flow-views-light-fa80bf6d1d1ebdcb75c4e6b846f48c48.svg"
+    },
+    {
+      "id": "data-flow-views-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "data-flow-views",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5646b37b6346705b37d8c55d4321c489",
+      "bytes": 26295,
+      "width": 1764,
+      "height": 958,
+      "animated": true,
+      "path": "data-flow-views-dark-5646b37b6346705b37d8c55d4321c489.svg"
+    },
+    {
+      "id": "flow-pick-and-finish-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-pick-and-finish",
+      "mediaType": "image/svg+xml",
+      "contentHash": "671874d0696963c16592bffa728b0610",
+      "bytes": 14674,
+      "width": 1764,
+      "height": 451,
+      "animated": true,
+      "path": "flow-pick-and-finish-light-671874d0696963c16592bffa728b0610.svg"
+    },
+    {
+      "id": "flow-pick-and-finish-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-pick-and-finish",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d0ec304ce96216455ebc66143d770ffc",
+      "bytes": 14796,
+      "width": 1764,
+      "height": 451,
+      "animated": true,
+      "path": "flow-pick-and-finish-dark-d0ec304ce96216455ebc66143d770ffc.svg"
+    },
+    {
+      "id": "flow-github-write-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-github-write",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ab22b1463b6bf143f2d18dbc0922701e",
+      "bytes": 15200,
+      "width": 1284,
+      "height": 505,
+      "animated": true,
+      "path": "flow-github-write-light-ab22b1463b6bf143f2d18dbc0922701e.svg"
+    },
+    {
+      "id": "flow-github-write-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-github-write",
+      "mediaType": "image/svg+xml",
+      "contentHash": "972e2ae4d1414649334c3fa5fab4b724",
+      "bytes": 15300,
+      "width": 1284,
+      "height": 505,
+      "animated": true,
+      "path": "flow-github-write-dark-972e2ae4d1414649334c3fa5fab4b724.svg"
+    }
+  ]
+}
