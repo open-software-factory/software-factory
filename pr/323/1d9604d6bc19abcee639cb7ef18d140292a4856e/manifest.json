@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1d9604d6bc19abcee639cb7ef18d140292a4856e",
+    "contentHash": "d5aadadc281c2801c88e159d4f42088f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.5"
+  },
+  "assets": [
+    {
+      "id": "ci-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "241cdfa49dad92e6f220ed27daa2f6be",
+      "bytes": 16240,
+      "width": 2132,
+      "height": 760,
+      "animated": false,
+      "path": "ci-architecture-light-241cdfa49dad92e6f220ed27daa2f6be.svg"
+    },
+    {
+      "id": "ci-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ab1f0391ef6a123d27e5186793ccc623",
+      "bytes": 16365,
+      "width": 2132,
+      "height": 760,
+      "animated": false,
+      "path": "ci-architecture-dark-ab1f0391ef6a123d27e5186793ccc623.svg"
+    },
+    {
+      "id": "egress-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "egress-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "400273ca9f8a20cd488be3780b35843e",
+      "bytes": 15249,
+      "width": 1698,
+      "height": 413,
+      "animated": true,
+      "path": "egress-flow-light-400273ca9f8a20cd488be3780b35843e.svg"
+    },
+    {
+      "id": "egress-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "egress-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a70cfaf97cbd557908289748a1d9282",
+      "bytes": 15384,
+      "width": 1698,
+      "height": 413,
+      "animated": true,
+      "path": "egress-flow-dark-9a70cfaf97cbd557908289748a1d9282.svg"
+    }
+  ]
+}
