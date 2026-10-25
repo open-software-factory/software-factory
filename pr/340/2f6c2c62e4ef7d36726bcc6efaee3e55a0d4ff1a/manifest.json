@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "2f6c2c62e4ef7d36726bcc6efaee3e55a0d4ff1a",
+    "contentHash": "43b1a86ab6a37e4cb93a85f26af8eac3"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "doctor-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "doctor-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e2b940e0aaaceb08ec8998b7c6b6f8d3",
+      "bytes": 37026,
+      "width": 1838,
+      "height": 988,
+      "animated": false,
+      "path": "doctor-architecture-light-e2b940e0aaaceb08ec8998b7c6b6f8d3.svg"
+    },
+    {
+      "id": "doctor-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "doctor-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8d284b2a6830a5d0f0449f9dac12461f",
+      "bytes": 37449,
+      "width": 1838,
+      "height": 988,
+      "animated": false,
+      "path": "doctor-architecture-dark-8d284b2a6830a5d0f0449f9dac12461f.svg"
+    }
+  ]
+}
