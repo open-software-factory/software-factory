@@ -140,12 +140,21 @@ enum Command {
     Doctor(DoctorArgs),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum DoctorFormat {
+    Text,
+    Json,
+}
+
 #[derive(Args)]
 struct DoctorArgs {
-    /// Print one JSON array instead of text.
-    #[arg(long)]
+    /// How to print the report.
+    #[arg(long, value_enum, default_value_t = DoctorFormat::Text)]
+    format: DoctorFormat,
+    /// Print one JSON array instead of text. Kept as an alias for --format json.
+    #[arg(long, hide = true)]
     json: bool,
-    /// Run only this check: osf, settings, agents, agent-binaries, hooks or container.
+    /// Print only this check: osf, settings, agents, agent-binaries, hooks or container.
     #[arg(long)]
     check: Option<String>,
 }
@@ -928,20 +937,22 @@ fn main() -> ExitCode {
         Command::Agents {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
-        Command::Doctor(args) => doctor_cmd(args),
+        Command::Doctor(args) => doctor_cmd(args, cli.config.as_deref()),
     }
 }
 
-fn doctor_cmd(args: &DoctorArgs) -> ExitCode {
-    let checks = match osf::doctor::keep(osf::doctor::report(Path::new(".")), args.check.as_deref())
-    {
+fn doctor_cmd(args: &DoctorArgs, config_file: Option<&Path>) -> ExitCode {
+    let root = osf::git::repo_root(Path::new(".")).unwrap_or_else(|_| Path::new(".").to_path_buf());
+    let checks = osf::doctor::report(&root, config_file);
+    let checks = match osf::doctor::keep(checks, args.check.as_deref()) {
         Ok(checks) => checks,
         Err(error) => {
             eprintln!("osf doctor: {error}");
             return ExitCode::from(2);
         }
     };
-    if args.json {
+    let json = args.json || args.format == DoctorFormat::Json;
+    if json {
         match serde_json::to_string_pretty(&checks) {
             Ok(text) => println!("{text}"),
             Err(error) => {

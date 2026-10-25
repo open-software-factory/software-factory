@@ -5,7 +5,7 @@ use crate::agents::{self, Agent};
 use crate::config;
 use crate::githooks::{self, CheckStatus};
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// How one check ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -63,10 +63,10 @@ pub const CHECK_NAMES: &[&str] = &[
 
 /// Builds the report for the repository at root.
 #[must_use]
-pub fn report(root: &Path) -> Vec<Check> {
+pub fn report(root: &Path, config_file: Option<&Path>) -> Vec<Check> {
     vec![
-        osf_check(),
-        settings_check(),
+        osf_check(root),
+        settings_check(config_file),
         agents_check(root),
         binaries_check(),
         hooks_check(root),
@@ -94,17 +94,50 @@ pub fn keep(checks: Vec<Check>, wanted: Option<&str>) -> Result<Vec<Check>, Stri
         .collect())
 }
 
-fn osf_check() -> Check {
-    Check::new(
-        "osf",
-        Status::Ok,
-        format!("osf {}", env!("CARGO_PKG_VERSION")),
-        None,
-    )
+fn osf_check(root: &Path) -> Check {
+    let pin = std::fs::read_to_string(root.join(".osf/version"))
+        .ok()
+        .map(|text| text.trim().to_string());
+    osf_from_pin(pin.as_deref(), env!("CARGO_PKG_VERSION"))
 }
 
-fn settings_check() -> Check {
-    match config::load(None, &[], &[], false) {
+/// Compares the running binary with the repository pin.
+#[must_use]
+pub fn osf_from_pin(pin: Option<&str>, running: &str) -> Check {
+    let Some(pin) = pin else {
+        return Check::new(
+            "osf",
+            Status::Warn,
+            format!("osf {running}; no .osf/version pin is present"),
+            Some("add .osf/version with a release number, or workspace for this repository"),
+        );
+    };
+    if pin == "workspace" {
+        Check::new(
+            "osf",
+            Status::Ok,
+            format!("osf {running}; the repository pins the workspace build"),
+            None,
+        )
+    } else if pin == running {
+        Check::new(
+            "osf",
+            Status::Ok,
+            format!("osf {running}; the repository pins {pin}"),
+            None,
+        )
+    } else {
+        Check::new(
+            "osf",
+            Status::Fail,
+            format!("osf {running} does not match the pin {pin}"),
+            Some("run the pinned osf, or change .osf/version"),
+        )
+    }
+}
+
+fn settings_check(config_file: Option<&Path>) -> Check {
+    match config::load(config_file, &[], &[], false) {
         Ok(loaded) => {
             let where_ = loaded.file.as_deref().map_or_else(
                 || "compiled defaults".to_string(),
@@ -131,10 +164,13 @@ fn agents_check(root: &Path) -> Check {
         Ok(selection) => {
             let enabled: Vec<&str> = selection.enabled.iter().map(|a| a.name).collect();
             let mut missing = Vec::new();
+            let home = crate::reviewers::real_home();
             for agent in &selection.enabled {
-                if let Some(problem) =
-                    missing_credential(agent, &|name| std::env::var_os(name).is_some(), &home_dir())
-                {
+                if let Some(problem) = missing_credential(
+                    agent,
+                    &|name| std::env::var(name).is_ok_and(|value| !value.is_empty()),
+                    home.as_deref(),
+                ) {
                     missing.push(problem);
                 }
             }
@@ -179,7 +215,7 @@ fn binaries_check() -> Check {
         "agent-binaries",
         Status::Unknown,
         "agent binaries and pinned versions are not checked yet; the launch templates are #108",
-        Some("implement #108, then check each enabled agent's binary and version"),
+        None,
     )
 }
 
@@ -225,11 +261,13 @@ fn hooks_from_status(status: CheckStatus) -> Check {
 }
 
 fn container_check() -> Check {
-    if Path::new("/.dockerenv").exists() {
+    if Path::new("/opt/factory").exists() {
+        Check::new("container", Status::Ok, "inside the factory image", None)
+    } else if Path::new("/.dockerenv").exists() {
         Check::new(
             "container",
-            Status::Ok,
-            "inside the development container",
+            Status::Warn,
+            "in a Docker container, but the factory image is not confirmed",
             None,
         )
     } else {
@@ -250,48 +288,64 @@ fn container_check() -> Check {
 pub fn missing_credential(
     agent: &Agent,
     env_present: &dyn Fn(&str) -> bool,
-    home: &Path,
+    home: Option<&Path>,
 ) -> Option<String> {
     let review = agent.review.as_ref()?;
     let env_ok = review.credential_env.iter().any(|name| env_present(name));
-    let login_ok = review
-        .login_paths
-        .iter()
-        .any(|path| home.join(path).is_file());
+    let login_ok = home.is_some_and(|home| {
+        review
+            .login_paths
+            .iter()
+            .any(|path| home.join(path).is_file())
+    });
     if env_ok || login_ok {
         return None;
     }
     let logins = review.login_paths.join(", ");
+    let home_text = home.map_or_else(
+        || "no home directory is set".to_string(),
+        |h| format!("under {}", h.display()),
+    );
     let need = if review.credential_env.is_empty() {
-        format!("add {logins} under {}", home.display())
+        format!("add {logins} {home_text}")
     } else {
         format!(
-            "set {} or add {logins} under {}",
-            review.credential_env.join(" or "),
-            home.display()
+            "set {} or add {logins} {home_text}",
+            review.credential_env.join(" or ")
         )
     };
     Some(format!("{} has no credential: {need}", agent.name))
-}
-
-fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map_or_else(|| PathBuf::from("."), PathBuf::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::agents::AGENTS;
+    use std::path::PathBuf;
 
     #[test]
-    fn an_installed_hook_path_is_ok_and_a_missing_one_fails() {
+    fn every_hook_status_maps_to_its_report_line() {
         let installed = hooks_from_status(CheckStatus::Installed(PathBuf::from("/tmp/githooks")));
         assert_eq!(installed.status, Status::Ok);
-        let missing = hooks_from_status(CheckStatus::NotSet);
-        assert_eq!(missing.status, Status::Fail);
-        assert_eq!(missing.fix.as_deref(), Some("osf hooks install"));
+        for status in [
+            CheckStatus::NotSet,
+            CheckStatus::RetiredTrackedHooks,
+            CheckStatus::PointsElsewhere("elsewhere".to_string()),
+        ] {
+            let check = hooks_from_status(status);
+            assert_eq!(check.status, Status::Fail);
+            assert_eq!(check.fix.as_deref(), Some("osf hooks install"));
+        }
+    }
+
+    #[test]
+    fn the_osf_check_compares_the_pin() {
+        assert_eq!(osf_from_pin(None, "1.2.3").status, Status::Warn);
+        assert_eq!(osf_from_pin(Some("workspace"), "1.2.3").status, Status::Ok);
+        assert_eq!(osf_from_pin(Some("1.2.3"), "1.2.3").status, Status::Ok);
+        let mismatch = osf_from_pin(Some("1.2.3"), "9.9.9");
+        assert_eq!(mismatch.status, Status::Fail);
+        assert!(mismatch.detail.contains("9.9.9"));
     }
 
     #[test]
@@ -304,7 +358,7 @@ mod tests {
                     .is_some_and(|r| !r.credential_env.is_empty() && !r.login_paths.is_empty())
             })
             .expect("an agent with both a variable and a login path");
-        let missing = missing_credential(agent, &|_| false, Path::new("/nonexistent-home"));
+        let missing = missing_credential(agent, &|_| false, Some(Path::new("/nonexistent-home")));
         let text = missing.expect("a missing credential is reported");
         assert!(text.contains(agent.name));
     }
@@ -327,14 +381,14 @@ mod tests {
         assert!(missing_credential(
             agent,
             &|name| name == first_env,
-            Path::new("/nonexistent-home")
+            Some(Path::new("/nonexistent-home"))
         )
         .is_none());
         let home = std::env::temp_dir().join(format!("osf-doctor-home-{}", std::process::id())); // osf: temp-dir allowed, a throwaway home for the login-file check
         let path = home.join(review.login_paths.first().expect("a login path"));
         std::fs::create_dir_all(path.parent().expect("parent")).expect("parent dir");
         std::fs::write(&path, "present").expect("login file");
-        assert!(missing_credential(agent, &|_| false, &home).is_none());
+        assert!(missing_credential(agent, &|_| false, Some(&home)).is_none());
         std::fs::remove_dir_all(&home).ok();
     }
 

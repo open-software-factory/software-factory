@@ -280,11 +280,11 @@ Run `osf doctor` in the repository. It is read-only. It prints one line per chec
 
 ```sh
 osf doctor
-osf doctor --json
+osf doctor --format json
 osf doctor --check hooks
 ```
 
-It checks the osf version, that the settings load, the enabled agents and their credentials, the git hooks, and whether you are inside the development container. It exits non-zero when a check fails.
+It checks the osf version against `.osf/version`, that the settings load, the enabled agents and their credentials, the git hooks, and whether you are inside the factory image. It exits non-zero when a check fails.
 
 Agent binaries and pinned versions are reported as unknown until the launch templates land. That is deliberate, not a pass.
 
