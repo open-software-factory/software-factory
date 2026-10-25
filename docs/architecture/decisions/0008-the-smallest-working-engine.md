@@ -20,7 +20,7 @@ Outside the boundary: deployment, containment and recovery, more than one item a
 
 Done means one ready work item in a real repository reaches in review with no person acting, the pull request carries the evidence, the journal validates and its head hash reproduces, a blocked run raises attention and stops, and every check re-runs to the same result.
 
-The design is [`../smallest-working-engine.md`](../smallest-working-engine.md).
+The design is [`../first-develop-job.md`](../first-develop-job.md).
 
 ## Consequences
 
