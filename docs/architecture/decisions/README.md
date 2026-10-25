@@ -8,7 +8,7 @@ A record may be amended in place when the decision itself holds and the wording 
 
 | Record | Status | Summary |
 |---|---|---|
-| [`0001-rust-for-the-factory-engine.md`](0001-rust-for-the-factory-engine.md) | Accepted | The Factory Engine, CLI and verifier runner are written in [Rust](https://www.rust-lang.org) (a systems programming language). |
+| [`0001-rust-for-the-factory-engine.md`](0001-rust-for-the-factory-engine.md) | Accepted | The factory core, CLI and verifier runner are written in [Rust](https://www.rust-lang.org) (a systems programming language). |
 | [`0002-provider-neutral-process-boundaries.md`](0002-provider-neutral-process-boundaries.md) | Accepted | Providers remain replaceable and preferably out of process; the sandbox and the platform it runs on are separate providers. |
 | [`0003-deterministic-verification-is-authoritative.md`](0003-deterministic-verification-is-authoritative.md) | Accepted | Deterministic checks are authoritative; verifier, reporter, policy and gate are distinct words; a read separates "could not read" from "nothing there"; green is earned. |
 | [`0004-protocol-independent-core-with-ahp-acp-edges.md`](0004-protocol-independent-core-with-ahp-acp-edges.md) | Provisional | [AHP](https://microsoft.github.io/agent-host-protocol/guide/what-is-ahp.html) (Agent Host Protocol, Microsoft's protocol for agent-session state shared across clients) and [ACP](https://agentclientprotocol.com/get-started/introduction) (Agent Client Protocol, a protocol between a client and a coding agent) are first-class edge protocols at the edge of the factory domain model. |

@@ -35,9 +35,9 @@ Possible later direction:
 
 Do not add first-iteration complexity to guarantee browser deployment. Also avoid coupling that would prevent it later.
 
-## 3. Ambient operator assistant
+## 3. Ambient person assistant
 
-The assistant should be designed as an ambient operator interface rather than a chatbot screen.
+The assistant should be designed as an ambient person interface rather than a chatbot screen.
 
 Potential modalities:
 
@@ -86,7 +86,7 @@ Desired properties:
 
 No protocol/framework is selected yet.
 
-AHP is now a first-class candidate for synchronizing shared agent-session state between a factory host/gateway and operator clients. It does not define arbitrary dynamic layouts or the factory's work/lifecycle domain, so it does not select or replace a dynamic-UI protocol. See [`../../research/ahp-acp-architecture-direction.md`](../../research/ahp-acp-architecture-direction.md).
+AHP is now a first-class candidate for synchronizing shared agent-session state between a factory host/gateway and person clients. It does not define arbitrary dynamic layouts or the factory's work/lifecycle domain, so it does not select or replace a dynamic-UI protocol. See [`../../research/ahp-acp-architecture-direction.md`](../../research/ahp-acp-architecture-direction.md).
 
 ## 5. AI / agent frameworks
 
@@ -192,8 +192,8 @@ When implementing early prototypes:
 
 ## 11. Operator persona and product vocabulary
 
-The August 2026 console prototypes showed a gap. Agents were given the vision and design principles, but not who the operator is or what words the operator uses. They filled the gap with the doctrine itself, printing phrases such as "persistent spatial backbone" as UI labels. See [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md).
+The August 2026 console prototypes showed a gap. Agents were given the vision and design principles, but not who the person is or what words the person uses. They filled the gap with the doctrine itself, printing phrases such as "persistent spatial backbone" as UI labels. See [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md).
 
-Decided on 2026-09-20 in [product decision 0002](../decisions/0002-operator-persona-and-product-vocabulary.md): who the operator is, which identifiers stay behind a details view, the in-product names for the six surfaces and for attention, evidence and blocked states, the navigation labels, and which builder phrases stay off the screen.
+Decided on 2026-09-20 in [product decision 0002](../decisions/0002-person-persona-and-product-vocabulary.md): who the person is, which identifiers stay behind a details view, the in-product names for the six surfaces and for attention, evidence and blocked states, the navigation labels, and which builder phrases stay off the screen.
 
 Still open: the initial evidence density, and the words of progressive disclosure beyond "details" and "evidence". Both are settled on the first surface built against the record.

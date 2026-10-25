@@ -81,11 +81,11 @@ Deploying, deployed, signed off, recovering, aborted, rolled back and paused sta
 
 ## Attention and recaps
 
-The operator is defined in [product decision 0002](../product/decisions/0002-operator-persona-and-product-vocabulary.md). They look at the factory whenever they choose. They are never expected to watch it. So the factory owes them two things on every arrival: what needs them, and what happened since they last looked.
+The person is defined in [product decision 0002](../product/decisions/0002-the-person-and-product-vocabulary.md). They look at the factory whenever they choose. They are never expected to watch it. So the factory owes them two things on every arrival: what needs them, and what happened since they last looked.
 
 Both are projections of the journal. The attention list is every work item in a blocked state plus every run the checks held, ordered by the cause and the age. The recap is the recorder for one work item, folded to its state changes and its findings, with a route from each line to the raw event.
 
-The factory writes the recap to the work item as a comment when the job ends, so the operator sees it in the tracker without opening anything else. The same text is what `osf work show` prints and what the console's recorder shows.
+The factory writes the recap to the work item as a comment when the job ends, so the person sees it in the tracker without opening anything else. The same text is what `osf work show` prints and what the console's recorder shows.
 
 ## The five vocabulary questions, answered on paper
 
@@ -106,7 +106,7 @@ The [draft vocabulary](draft-factory-vocabulary.md) left five questions for this
 | The boundary of the develop job, in and out, and what done means | [0008](decisions/0008-the-develop-job.md), accepted |
 | Where the journal lives and how it reaches readers | [0009](decisions/0009-journal-store-and-journal stores.md), provisional |
 | How the first tracker, sandbox and agent runner adapters are built | [0010](decisions/0010-first-tracker-sandbox-and-agent runner-adapters.md), provisional |
-| Who the operator is and which words the product uses | [product 0002](../product/decisions/0002-operator-persona-and-product-vocabulary.md), accepted |
+| Who the person is and which words the product uses | [product 0002](../product/decisions/0002-the-person-and-product-vocabulary.md), accepted |
 
 Decisions the design leaves open, each tracked as a work item: when a change may merge without a person, how many work items run at once and where, which journal store follows the local one, and when the verifier runner moves to moon.
 
