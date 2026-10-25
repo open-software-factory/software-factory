@@ -140,7 +140,7 @@ impl CommandRunner for RealCommandRunner {
             .ok_or_else(|| HarnessError::Failed("no standard error".to_string()))?;
         let stdout = Self::drain(stdout);
         let stderr = Self::drain(stderr);
-        let input = {
+        let mut input = Some({
             let mut handle = child
                 .stdin
                 .take()
@@ -150,7 +150,7 @@ impl CommandRunner for RealCommandRunner {
                 Some(text) => handle.write_all(text.as_bytes()),
                 None => Ok(()),
             })
-        };
+        });
         let limit = command
             .timeout_secs
             .map_or(self.default_timeout, Duration::from_secs);
@@ -160,15 +160,19 @@ impl CommandRunner for RealCommandRunner {
                 Ok(Some(status)) => break status,
                 Ok(None) if Instant::now() >= deadline => {
                     let _ = crate::process::kill_tree(&child);
+                    let _ = child.kill();
                     let _ = child.wait();
-                    let out = stdout.join().unwrap_or_default();
-                    let err = stderr.join().unwrap_or_default();
+                    if let Some(handle) = input.take() {
+                        let _ = handle.join();
+                    }
+                    // The tree kill closed the pipes; do not join the readers,
+                    // so a descendant that survived the kill cannot hold the wait.
                     return Ok(CommandOutput {
                         outcome: CommandOutcome::TimedOut {
                             limit_secs: limit.as_secs(),
                         },
-                        stdout: String::from_utf8_lossy(&out).into_owned(),
-                        stderr: String::from_utf8_lossy(&err).into_owned(),
+                        stdout: String::new(),
+                        stderr: String::new(),
                     });
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(10)),
@@ -177,7 +181,9 @@ impl CommandRunner for RealCommandRunner {
         };
         let out = stdout.join().unwrap_or_default();
         let err = stderr.join().unwrap_or_default();
-        let _ = input.join();
+        if let Some(handle) = input.take() {
+            let _ = handle.join();
+        }
         Ok(CommandOutput {
             outcome: CommandOutcome::Exited(status.code().unwrap_or(-1)),
             stdout: String::from_utf8_lossy(&out).into_owned(),
@@ -683,8 +689,27 @@ mod tests {
             stdin: None,
             timeout_secs: Some(1),
         };
+        let started = Instant::now();
         let output = RealCommandRunner::new().run(&command).expect("runs");
         assert_eq!(output.outcome, CommandOutcome::TimedOut { limit_secs: 1 });
+        assert!(started.elapsed() < Duration::from_secs(10));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_timeout_kills_the_descendants_too() {
+        let command = CommandSpec {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), "sleep 30 & sleep 30".to_string()],
+            workdir: None,
+            env: Vec::new(),
+            stdin: None,
+            timeout_secs: Some(1),
+        };
+        let started = Instant::now();
+        let output = RealCommandRunner::new().run(&command).expect("runs");
+        assert_eq!(output.outcome, CommandOutcome::TimedOut { limit_secs: 1 });
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 
     #[cfg(windows)]
