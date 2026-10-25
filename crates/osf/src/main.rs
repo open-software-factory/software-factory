@@ -138,6 +138,50 @@ enum Command {
     },
     /// Report whether this repository and machine are set up correctly. Read-only.
     Doctor(DoctorArgs),
+    /// Read a Ready work item, or write its state and recap.
+    WorkTracker {
+        #[command(subcommand)]
+        action: WorkTrackerAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum WorkTrackerAction {
+    /// Read the one work item the tracker marks Ready.
+    Ready(WorkTrackerReadyArgs),
+    /// Write a state and a recap to one work item.
+    Report(WorkTrackerReportArgs),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum WorkTrackerFormat {
+    Json,
+    Text,
+}
+
+#[derive(Args)]
+struct WorkTrackerReadyArgs {
+    /// How many items to read. One at a time is the rule.
+    #[arg(long, default_value_t = 1)]
+    limit: u64,
+    /// How to print the result.
+    #[arg(long, value_enum, default_value_t = WorkTrackerFormat::Json)]
+    format: WorkTrackerFormat,
+}
+
+#[derive(Args)]
+struct WorkTrackerReportArgs {
+    /// The work item id, as the ready output prints it.
+    item: String,
+    /// in-progress, in-review, failed or blocked.
+    #[arg(long)]
+    state: String,
+    /// Required for blocked: dependency, human, clarification, ambiguous or capacity.
+    #[arg(long)]
+    cause: Option<String>,
+    /// A file holding the recap.
+    #[arg(long)]
+    recap: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -938,6 +982,92 @@ fn main() -> ExitCode {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
         Command::Doctor(args) => doctor_cmd(args, cli.config.as_deref()),
+        Command::WorkTracker { action } => work_tracker_cmd(action),
+    }
+}
+
+fn work_tracker_cmd(action: &WorkTrackerAction) -> ExitCode {
+    match action {
+        WorkTrackerAction::Ready(args) => {
+            if args.limit != 1 {
+                eprintln!("osf work-tracker ready: read one item at a time; --limit must be 1");
+                return ExitCode::from(2);
+            }
+            match osf::work_tracker_command::ready(Path::new(".")) {
+                Ok(pick) => {
+                    if let osf::work_tracker::Pick::Unknown(reason) = &pick {
+                        eprintln!("osf work-tracker ready: {reason}");
+                        return ExitCode::from(1);
+                    }
+                    match args.format {
+                        WorkTrackerFormat::Json => match serde_json::to_string_pretty(&pick) {
+                            Ok(text) => println!("{text}"),
+                            Err(error) => {
+                                eprintln!("osf work-tracker ready: {error}");
+                                return ExitCode::from(2);
+                            }
+                        },
+                        WorkTrackerFormat::Text => print_pick(&pick),
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("osf work-tracker ready: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        WorkTrackerAction::Report(args) => {
+            let state =
+                match osf::work_tracker_command::parse_state(&args.state, args.cause.as_deref()) {
+                    Ok(state) => state,
+                    Err(error) => {
+                        eprintln!("osf work-tracker report: {error}");
+                        return ExitCode::from(2);
+                    }
+                };
+            let id = match osf::work_tracker_command::work_item(&args.item) {
+                Ok(id) => id,
+                Err(error) => {
+                    eprintln!("osf work-tracker report: {error}");
+                    return ExitCode::from(2);
+                }
+            };
+            let recap = match std::fs::read_to_string(&args.recap) {
+                Ok(text) => text,
+                Err(error) => {
+                    eprintln!(
+                        "osf work-tracker report: cannot read {}: {error}",
+                        args.recap.display()
+                    );
+                    return ExitCode::from(2);
+                }
+            };
+            match osf::work_tracker_command::report(Path::new("."), &id, &state, &recap) {
+                Ok(()) => {
+                    println!("reported {id}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("osf work-tracker report: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+    }
+}
+
+fn print_pick(pick: &osf::work_tracker::Pick) {
+    match pick {
+        osf::work_tracker::Pick::Item(item) => println!("ready: {} {}", item.id, item.title),
+        osf::work_tracker::Pick::NothingReady => println!("nothing ready"),
+        osf::work_tracker::Pick::NoneDispatchable(skipped) => {
+            println!(
+                "no ready item can be dispatched ({} skipped)",
+                skipped.len()
+            );
+        }
+        osf::work_tracker::Pick::Unknown(reason) => println!("unknown: {reason}"),
     }
 }
 
