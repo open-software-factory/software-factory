@@ -246,6 +246,20 @@ pub struct AgentsConfig {
     /// The model each named agent runs with, keyed by agent name. An agent
     /// left out uses its own default model.
     pub models: BTreeMap<String, String>,
+    /// Per-agent launch command overrides, keyed by agent name. An agent left
+    /// out runs the command in the one agent list.
+    pub launch: BTreeMap<String, LaunchTemplateConfig>,
+}
+
+/// One agent's launch command and extra environment, set in `[agents.launch.<name>]`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LaunchTemplateConfig {
+    /// The program and its arguments. Replaces the agent's own command.
+    pub command: Vec<String>,
+    /// Extra environment for the run. The agent's credential variables are
+    /// still taken from the one agent list, never from here.
+    pub env: BTreeMap<String, String>,
 }
 
 /// Reads the `[agents]` table of `<root>/osf.toml`, or

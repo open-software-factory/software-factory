@@ -677,6 +677,18 @@ agent, with what `osf.toml` selects.
 Decision 0016 prefers a reviewer's family to differ from the builder's own
 family.
 
+### Change an agent's launch command
+
+`[agents.launch.<name>]` replaces the agent's command and adds environment for a run:
+
+```toml
+[agents.launch.codex]
+command = ["codex", "exec", "--json", "-"]
+env = { CODEX_HOME = "/opt/codex" }
+```
+
+The name must be in the one agent list and enabled, and the command must not be empty. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
+
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
 | `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only` outside the container, and `--dangerously-bypass-approvals-and-sandbox` inside it; both from `codex exec --help` |

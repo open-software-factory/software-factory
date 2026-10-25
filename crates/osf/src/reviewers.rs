@@ -36,6 +36,8 @@ pub struct Reviewer {
     /// the path of a file holding the prompt, for an agent that reads one
     /// from a file rather than from standard input.
     pub command: Vec<String>,
+    /// Extra environment from the agent's `[agents.launch]` template.
+    pub env: Vec<(String, String)>,
     /// The documented settings that hold this agent to read-only tools.
     /// With `None` the agent has no such mode and is never started.
     pub read_only: Option<ReadOnly>,
@@ -92,7 +94,11 @@ impl Reviewer {
     /// `agent` as a reviewer running `model`, with `in_container`'s
     /// container mode when osf runs inside the factory container; `None` when
     /// `agent` never reviews.
-    fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
+    fn from_agent(
+        agent: &Agent,
+        model: Option<&str>,
+        template: Option<&agents::LaunchTemplate>,
+    ) -> Option<Self> {
         let review = agent.review.as_ref()?;
         let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
         let (family, family_error) = match agent.family_for(model) {
@@ -104,7 +110,11 @@ impl Reviewer {
             name: agent.name.to_string(),
             family,
             family_error,
-            command: owned(agent.command),
+            command: template
+                .map_or_else(|| owned(agent.command), |template| template.command.clone()),
+            env: template
+                .map(|template| template.env.clone())
+                .unwrap_or_default(),
             read_only,
             clean_copy: review.clean_copy,
             schema_flag: review.schema_flag.map(str::to_string),
@@ -236,7 +246,9 @@ pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
     Ok(selection
         .reviewers
         .iter()
-        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent)))
+        .filter_map(|agent| {
+            Reviewer::from_agent(agent, selection.model(agent), selection.launch(agent))
+        })
         .collect())
 }
 
@@ -632,6 +644,9 @@ fn prepare_command(
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
+    for (name, value) in &reviewer.env {
+        command.env(name, reviewer.fill(value));
+    }
     let read_only_env = reviewer.read_only.iter().flat_map(|mode| mode.env);
     for (name, value) in read_only_env.chain(reviewer.clean_copy.env) {
         command.env(name, reviewer.fill(value));
@@ -895,6 +910,7 @@ mod tests {
             family: "test-family".to_string(),
             family_error: None,
             command: command.into_iter().map(str::to_string).collect(),
+            env: Vec::new(),
             read_only: Some(ReadOnly {
                 args: &[],
                 env: &[],
@@ -1193,8 +1209,38 @@ mod tests {
     }
 
     #[test]
+    fn a_reviewer_uses_its_launch_override() {
+        let root = crate::test_support::TempDir::new("osf-reviewer-launch");
+        std::fs::write(
+            root.join("osf.toml"),
+            "[agents]\nreviewers = [\"codex\"]\n\n[agents.launch.codex]\ncommand = [\"my-codex\", \"--review\"]\nenv = { A = \"B\" }\n",
+        )
+        .expect("write osf.toml");
+        let roster = roster(&root).expect("roster");
+        assert_eq!(roster.len(), 1);
+        let reviewer = roster.first().expect("one reviewer");
+        assert_eq!(reviewer.command, vec!["my-codex", "--review"]);
+        assert_eq!(reviewer.env, vec![("A".to_string(), "B".to_string())]);
+    }
+
+    #[test]
+    fn a_launch_env_reaches_the_child_command() {
+        let mut r = reviewer("codex", vec!["x"]);
+        r.env = vec![("A".to_string(), "B".to_string())];
+        let (command, _home, _notes) =
+            prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");
+        let mut found = false;
+        for (name, value) in command.get_envs() {
+            if name == "A" && value == Some(std::ffi::OsStr::new("B")) {
+                found = true;
+            }
+        }
+        assert!(found, "the template env reaches the child");
+    }
+
+    #[test]
     fn the_codex_reviewer_runs_with_its_own_sandbox_off() {
-        let r = Reviewer::from_agent(agent("codex"), None).expect("codex reviews");
+        let r = Reviewer::from_agent(agent("codex"), None, None).expect("codex reviews");
         let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
         assert!(!args.contains(&"--sandbox".to_string()));

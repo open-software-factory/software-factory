@@ -548,6 +548,13 @@ pub fn project_settings() -> Vec<&'static str> {
     names
 }
 
+/// One agent's effective launch command: its own, or the `[agents.launch]` override.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LaunchTemplate {
+    pub command: Vec<String>,
+    pub env: Vec<(String, String)>,
+}
+
 /// The agents a repository selected in `osf.toml`, checked against [`AGENTS`].
 #[derive(Debug)]
 pub struct Selection {
@@ -558,6 +565,7 @@ pub struct Selection {
     /// The agents that review, in the order they run.
     pub reviewers: Vec<&'static Agent>,
     models: BTreeMap<&'static str, String>,
+    launch: BTreeMap<&'static str, LaunchTemplate>,
 }
 
 impl Selection {
@@ -565,6 +573,12 @@ impl Selection {
     #[must_use]
     pub fn model(&self, agent: &Agent) -> Option<&str> {
         self.models.get(agent.name).map(String::as_str)
+    }
+
+    /// The launch override `osf.toml` sets for `agent`, or `None` for its own command.
+    #[must_use]
+    pub fn launch(&self, agent: &Agent) -> Option<&LaunchTemplate> {
+        self.launch.get(agent.name)
     }
 }
 
@@ -636,11 +650,33 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
         }
         models.insert(agent.name, model.clone());
     }
+    let mut launch = BTreeMap::new();
+    for (name, template) in &cfg.launch {
+        let agent = find(name, "launch")?;
+        require_enabled(&enabled, agent, "launch")?;
+        if template.command.is_empty() {
+            return Err(format!(
+                "[agents] launch.{name}: command is empty; name the program and its arguments"
+            ));
+        }
+        launch.insert(
+            agent.name,
+            LaunchTemplate {
+                command: template.command.clone(),
+                env: template
+                    .env
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect(),
+            },
+        );
+    }
     Ok(Selection {
         enabled,
         builder,
         reviewers,
         models,
+        launch,
     })
 }
 
@@ -676,7 +712,7 @@ pub fn write_hooks(root: &Path, agents: &[&Agent]) -> Result<Vec<PathBuf>, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::AgentsConfig;
+    use crate::config::{AgentsConfig, LaunchTemplateConfig};
 
     #[test]
     fn the_list_is_exactly_the_five_agents_osf_drives() {
@@ -1006,6 +1042,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
                 .collect(),
+            launch: BTreeMap::new(),
         }
     }
 
@@ -1057,6 +1094,53 @@ mod tests {
         let claude = AGENTS.iter().find(|a| a.name == "claude").expect("claude");
         assert_eq!(s.model(codex), Some("o4-mini"));
         assert_eq!(s.model(claude), None);
+    }
+
+    #[test]
+    fn a_launch_override_replaces_the_command_and_adds_env() {
+        let mut config = cfg(None, &["codex"], &[]);
+        config.launch.insert(
+            "codex".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["my-codex".to_string(), "--x".to_string()],
+                env: BTreeMap::from([("A".to_string(), "B".to_string())]),
+            },
+        );
+        let selection = resolve(&config).expect("resolves");
+        let codex = AGENTS.iter().find(|a| a.name == "codex").expect("codex");
+        let template = selection.launch(codex).expect("the override");
+        assert_eq!(template.command, vec!["my-codex", "--x"]);
+        assert_eq!(template.env, vec![("A".to_string(), "B".to_string())]);
+    }
+
+    #[test]
+    fn a_launch_override_must_name_an_enabled_agent_and_a_command() {
+        let mut config = cfg(Some(&["dsh"]), &[], &[]);
+        config.launch.insert(
+            "codex".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                ..Default::default()
+            },
+        );
+        let error = resolve(&config).expect_err("disabled agent");
+        assert!(error.contains("not in the enabled agents"), "{error}");
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            "nope".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                ..Default::default()
+            },
+        );
+        let error = resolve(&config).expect_err("unknown agent");
+        assert!(error.contains("unknown agent"), "{error}");
+        let mut config = cfg(None, &[], &[]);
+        config
+            .launch
+            .insert("codex".to_string(), LaunchTemplateConfig::default());
+        let error = resolve(&config).expect_err("empty command");
+        assert!(error.contains("command is empty"), "{error}");
     }
 
     #[test]
