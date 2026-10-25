@@ -252,7 +252,6 @@ pub struct Agent {
     pub review: Option<Review>,
 }
 
-/// Every agent osf can drive, in the order this project lists them.
 /// Provider credential variables a launch template must never carry. The
 /// one agent list's `credential_env` names are added at check time; these
 /// are the aliases a provider documents, so a template cannot smuggle one
@@ -266,6 +265,7 @@ pub const KNOWN_CREDENTIAL_VARS: &[&str] = &[
     "CLAUDE_CODE_OAUTH_TOKEN",
 ];
 
+/// Every agent osf can drive, in the order this project lists them.
 pub const AGENTS: &[Agent] = &[
     // dsh keeps every conversation under a `sessions` folder in its home
     // directory. It has no session page on any host. Its headless profile
@@ -1181,6 +1181,8 @@ mod tests {
         );
         let error = resolve(&config).expect_err("unknown agent");
         assert!(error.contains("unknown agent"), "{error}");
+        assert!(error.contains("nope"), "{error}");
+        assert!(error.contains("launch"), "{error}");
         let mut config = cfg(None, &[], &[]);
         config
             .launch
