@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "82902328913e8920ded6e4e94440172ee3f19ac1",
+    "contentHash": "34fda688a9795a001e1c02eae2c257a9"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "harness-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "90dea776cb958ec5b5301bc27f126579",
+      "bytes": 24732,
+      "width": 1758,
+      "height": 676,
+      "animated": false,
+      "path": "harness-architecture-light-90dea776cb958ec5b5301bc27f126579.svg"
+    },
+    {
+      "id": "harness-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eb53b7a3563b7eae42a211a2768692b0",
+      "bytes": 25043,
+      "width": 1758,
+      "height": 676,
+      "animated": false,
+      "path": "harness-architecture-dark-eb53b7a3563b7eae42a211a2768692b0.svg"
+    },
+    {
+      "id": "dsh-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "63ea37f9b178979f02a4be3892ce7fb1",
+      "bytes": 11323,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "dsh-adapter-internals-light-63ea37f9b178979f02a4be3892ce7fb1.svg"
+    },
+    {
+      "id": "dsh-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1644b12839675f257bbfed3efff653dd",
+      "bytes": 11434,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "dsh-adapter-internals-dark-1644b12839675f257bbfed3efff653dd.svg"
+    }
+  ]
+}
