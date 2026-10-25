@@ -37,6 +37,9 @@ pub mod review_prompt;
 pub mod review_run;
 pub mod reviewers;
 pub mod scan;
+#[cfg(test)]
+#[path = "../tests/common/scratch_git.rs"]
+mod scratch_git;
 pub mod secret_values;
 pub mod section;
 pub mod symlink;

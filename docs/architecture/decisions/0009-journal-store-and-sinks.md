@@ -1,4 +1,4 @@
-# 0009: Journal store and sinks
+# 0009: The journal store
 
 Status: provisional. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md).
 
@@ -16,7 +16,7 @@ The writer validates every event against the schema before appending it and refu
 
 Readers compute projections on read. There is no second store and no database until a reader's need is measured. The meta-loop's analytical queries are the expected first such need, and an analytical engine over the same files is the expected answer.
 
-A sink copies a completed run's journal to where other readers can see it. The local sink is the state directory itself and is the first. A forge-native sink, which keeps the journal beside the pull request, follows behind the same interface. A run's journal reaches its sink before the run's work item changes state, so a reader never sees a state without the events that led to it.
+The journal store is the shared place other readers reach. The first journal store is an orphan branch on the forge; a local file is a working copy. The journal reaches its store before the work item changes state, so a reader never sees a state without the events that led to it.
 
 [Decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) adds the rest. Events on an agent's own machine go to a local buffer first, and a flush sends the buffer on push and on a timer, so a hook never waits on the network. The forge-native sink is an orphan branch on the code host (a branch that shares no history with the code) and is the default. An object store with an S3-compatible interface (the interface Amazon's object store made common) is an optional second sink, and both receive every write when both are configured. Raw harness transcripts travel the same path, keyed by run identifier.
 

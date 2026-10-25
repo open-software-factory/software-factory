@@ -8,7 +8,7 @@ Decision 0020, the decision on who can post a review result the factory trusts, 
 
 ## Problem
 
-A gate checks a change. A gate blocks or allows a merge. The review check is meant to be one gate, and it is advisory for now. A gate is only as safe as the platform that runs it.
+A gate checks a change. A gate blocks or allows a merge. The review check is one required gate. A gate is only as safe as the platform that runs it.
 
 The factory plans to support more than one execution platform over time. GitHub Actions is the first platform, and other platforms come later.
 
@@ -34,19 +34,19 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 | Scoped secrets | Only a trusted-definition job can use the keys. | An environment, limited to the main branch. | Minimum for the environment. Recommended for the branch limit. |
 | Isolation | Each job runs in a fresh environment. The change is mounted read-only. | A hosted runner, with `docker run` and a read-only mount. | Minimum (built in) |
 | Egress control | Only listed hosts are reachable from the job. | harden-runner, in block mode. | Minimum (built in) |
-| Outside approval | A person approves a run that comes from outside the project, before it can use trusted keys. | Off by default. `OSF_REVIEW_FORKS`, plus a protected fork-review environment, turn it on. | Recommended |
+| Outside approval | A person approves a run that comes from outside the project, before it can use trusted keys. | Off by default. `OSF_REVIEW_FORKS`, the same one review job uses the same repository-level credentials. | Recommended |
 | Short-lived identity | The verifier posts its result with a token that expires soon. | An app token, minted fresh for each job. | Minimum |
 | Key never exposed | The job can use a key. The job never reads the key's value. | As of 2026-09-30, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
 | Least privilege for the builder | The builder app cannot change a setting a gate later reads. | Remove `actions_variables: write` from the builder app. | Recommended |
 
 ## Adopter minimum for the review check
 
-As of 2026-10-03, the review check is advisory. It posts a check run and a review, and no branch protection requires it. It becomes a required check, and so meets the Gate property, when the key proxy and the network split land. An adopter who wants the review check needs two things:
+The review check is required once the rebuilt workflow is verified. It posts one check run and one review under the verifier app. An adopter who wants the review check needs two things:
 
 - the verifier app's ID and its key
 - one environment, named `review`, holding at least two model keys
 
-When the review check becomes required, the adopter adds one more thing: branch protection that requires the review job.
+The adopter then makes the review check a required check in branch protection.
 
 ## Future work
 

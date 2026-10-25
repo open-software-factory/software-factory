@@ -186,7 +186,10 @@ impl Timeout {
 #[derive(Debug)]
 enum Failure {
     Plain(String),
-    TimedOut(Timeout),
+    /// The harness ran and exited with an error; carries what its output says.
+    Exited(String, crate::failure::Cause),
+    /// The harness ran past its time; carries what its partial output says.
+    TimedOut(Timeout, crate::failure::Cause),
 }
 
 impl From<String> for Failure {
@@ -198,17 +201,26 @@ impl From<String> for Failure {
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Failure::Plain(reason) => f.write_str(reason),
-            Failure::TimedOut(timeout) => f.write_str(&timeout.reason()),
+            Failure::Plain(reason) | Failure::Exited(reason, _) => f.write_str(reason),
+            Failure::TimedOut(timeout, _) => f.write_str(&timeout.reason()),
         }
     }
 }
 
-impl From<Failure> for Outcome {
-    fn from(failure: Failure) -> Self {
-        match failure {
+impl Failure {
+    /// The outcome this failure ends an attempt with. Its cause, when it has
+    /// one, replaces whatever an earlier run left in `cause`.
+    fn into_outcome(self, cause: &mut Option<crate::failure::Cause>) -> Outcome {
+        match self {
             Failure::Plain(reason) => Outcome::CouldNotRun(reason),
-            Failure::TimedOut(timeout) => Outcome::TimedOut(timeout),
+            Failure::Exited(reason, found) => {
+                *cause = Some(found);
+                Outcome::CouldNotRun(reason)
+            }
+            Failure::TimedOut(timeout, found) => {
+                *cause = Some(found);
+                Outcome::TimedOut(timeout)
+            }
         }
     }
 }
@@ -442,8 +454,10 @@ pub fn run_one(
     run_one_noted(reviewer, prompt, lens, workdir, timeout).0
 }
 
-/// [`run_one`], and the run's notes: one for each of the reviewer's declared
-/// `login_paths` that was missing, so it ran without it.
+/// [`run_one`], the run's notes (one for each of the reviewer's declared
+/// `login_paths` that was missing, so it ran without it), and, when the last
+/// run of the harness failed, the [`crate::failure::Cause`] its output gives.
+/// The cause holds raw reviewer text, so the caller redacts it before saving.
 #[must_use]
 pub fn run_one_noted(
     reviewer: &Reviewer,
@@ -451,18 +465,13 @@ pub fn run_one_noted(
     lens: &Lens,
     workdir: &Path,
     timeout: Duration,
-) -> (Outcome, Vec<String>) {
+) -> (Outcome, Vec<String>, Option<crate::failure::Cause>) {
     let mut notes = Vec::new();
+    let mut cause = None;
     let outcome = run_with_retry(
-        reviewer,
-        prompt,
-        lens,
-        workdir,
-        timeout,
-        real_home().as_deref(),
-        &mut notes,
+        reviewer, prompt, lens, workdir, timeout, &mut notes, &mut cause,
     );
-    (outcome, notes)
+    (outcome, notes, cause)
 }
 
 fn run_with_retry(
@@ -471,9 +480,11 @@ fn run_with_retry(
     lens: &Lens,
     workdir: &Path,
     timeout: Duration,
-    real_home: Option<&Path>,
     notes: &mut Vec<String>,
+    cause: &mut Option<crate::failure::Cause>,
 ) -> Outcome {
+    let real_home = real_home();
+    let real_home = real_home.as_deref();
     let started = std::time::Instant::now();
     if reviewer.read_only.is_none() {
         return Outcome::CouldNotRun(format!(
@@ -505,7 +516,7 @@ fn run_with_retry(
         reviewer, prompt, &schema, workdir, remaining, real_home, notes,
     ) {
         Ok(text) => text,
-        Err(failure) => return failure.into(),
+        Err(failure) => return failure.into_outcome(cause),
     };
     match validate_stage(&raw, reviewer, lens) {
         Ok(answer) => Outcome::Answered(answer),
@@ -528,7 +539,7 @@ fn run_with_retry(
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
                 },
-                Err(failure) => failure.into(),
+                Err(failure) => failure.into_outcome(cause),
             }
         }
     }
@@ -607,11 +618,17 @@ fn prepare_command(
         .credential_env
         .iter()
         .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()));
-    let notes = if key_in_environment {
+    let mut notes = if key_in_environment {
         Vec::new()
     } else {
         home.seed_login(real_home, &reviewer.login_paths)?
     };
+    if !key_in_environment && !reviewer.credential_env.is_empty() {
+        notes.push(format!(
+            "credential variable {} is empty or not set",
+            reviewer.credential_env.join(" or ")
+        ));
+    }
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
@@ -750,13 +767,17 @@ fn run_child(
             let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
-            return Err(Failure::TimedOut(Timeout {
-                reviewer: reviewer.name.clone(),
-                waited: timeout,
-                kill_failed: killed.is_err(),
-                category: crate::failure::classify(&partial_out, &partial_err),
-                before_start: false,
-            }));
+            let cause = crate::failure::cause(&partial_out, &partial_err);
+            return Err(Failure::TimedOut(
+                Timeout {
+                    reviewer: reviewer.name.clone(),
+                    waited: timeout,
+                    kill_failed: killed.is_err(),
+                    category: crate::failure::classify(&partial_out, &partial_err),
+                    before_start: false,
+                },
+                cause,
+            ));
         }
         Err(e) => {
             cleanup();
@@ -776,19 +797,24 @@ fn run_child(
     });
     let stdout_text = joined(stdout_reader);
     // Reviewer text never reaches osf's output, the journal or a posted
-    // review: `failure::classify` reads it and returns only a category.
+    // review: `failure::classify` reads it and returns only a category. A
+    // failed attempt's `failure::cause` keeps its tail for the run artifact
+    // alone, and the caller redacts it first.
     let stderr_text = joined(stderr_reader);
     cleanup();
 
     if !status.success() {
-        return Err(exit_reason(
+        let reason = exit_reason(
             reviewer,
             status.code(),
             started.elapsed(),
             &stdout_text,
             &stderr_text,
-        )
-        .into());
+        );
+        return Err(Failure::Exited(
+            reason,
+            crate::failure::cause(&stdout_text, &stderr_text),
+        ));
     }
     Ok(stdout_text)
 }
@@ -981,6 +1007,47 @@ mod tests {
         let (_, files) = out.split_once('|').expect("home and files");
         assert_eq!(files.trim(), "");
         assert!(notes.is_empty(), "{notes:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_empty_or_unset_key_is_noted_by_name() {
+        let real = stand_in_home();
+        let mut lister = file_lister(&[]);
+        lister.credential_env = vec!["OSF_TEST_EMPTY_KEY".to_string()];
+        std::env::set_var("OSF_TEST_EMPTY_KEY", "");
+        let (_, notes, result) = run_lister(&lister, &real);
+        std::env::remove_var("OSF_TEST_EMPTY_KEY");
+        result.expect("the lister runs");
+        assert!(
+            notes
+                .iter()
+                .any(|n| n == "credential variable OSF_TEST_EMPTY_KEY is empty or not set"),
+            "{notes:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unset_key_note_does_not_claim_no_credential_when_a_login_was_seeded() {
+        let real = stand_in_home();
+        let mut lister = file_lister(&[".a-login/auth.json"]);
+        lister.credential_env = vec!["OSF_TEST_UNSET_KEY".to_string()];
+        std::env::remove_var("OSF_TEST_UNSET_KEY");
+        let (out, notes, result) = run_lister(&lister, &real);
+        result.expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "./.a-login/auth.json", "the login was seeded");
+        assert!(
+            notes
+                .iter()
+                .any(|n| n == "credential variable OSF_TEST_UNSET_KEY is empty or not set"),
+            "{notes:?}"
+        );
+        assert!(
+            notes.iter().all(|n| !n.contains("no credential")),
+            "{notes:?}"
+        );
     }
 
     #[cfg(unix)]

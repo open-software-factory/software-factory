@@ -269,11 +269,11 @@ Report runway in operational terms:
 
 > 11.4 hours autonomous runway. At current throughput the implementation pool is likely to become work-starved at 06:42. Seven items are blocked by human decisions; two could become executable with small clarifications.
 
-## 4. Ambient operator assistant
+## 4. Ambient person assistant
 
 Do not design a chat feature with a permanent chatbot home.
 
-Design an ambient operator agent that can participate throughout the interface.
+Design an ambient person agent that can participate throughout the interface.
 
 Possible interaction modes:
 
@@ -342,7 +342,7 @@ AHP may carry synchronized, display-ready agent-session state and actions. It do
 
 ### Prefer direct manipulation over navigation
 
-Where possible, let the operator:
+Where possible, let the person:
 
 - zoom,
 - pan,
