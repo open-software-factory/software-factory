@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "539cbbc6a5b5d5d1a513e2ece48425e202f3cf9c",
+    "contentHash": "323271510305172d4e01b4378a49756d"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "launch-override-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "launch-override-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5d7f640b00a776bd940967e26f3e3ad5",
+      "bytes": 17470,
+      "width": 1302,
+      "height": 988,
+      "animated": false,
+      "path": "launch-override-architecture-light-5d7f640b00a776bd940967e26f3e3ad5.svg"
+    },
+    {
+      "id": "launch-override-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "launch-override-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "57a7fd9e4fe7a331271f13f9a95f71a3",
+      "bytes": 17689,
+      "width": 1302,
+      "height": 988,
+      "animated": false,
+      "path": "launch-override-architecture-dark-57a7fd9e4fe7a331271f13f9a95f71a3.svg"
+    },
+    {
+      "id": "launch-override-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "launch-override-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2edd559c5881c90c7591910034942ef0",
+      "bytes": 19366,
+      "width": 2264,
+      "height": 451,
+      "animated": true,
+      "path": "launch-override-flow-view-light-2edd559c5881c90c7591910034942ef0.svg"
+    },
+    {
+      "id": "launch-override-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "launch-override-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "185b3d71333244fe54b12aee59884cd1",
+      "bytes": 19605,
+      "width": 2264,
+      "height": 451,
+      "animated": true,
+      "path": "launch-override-flow-view-dark-185b3d71333244fe54b12aee59884cd1.svg"
+    }
+  ]
+}
