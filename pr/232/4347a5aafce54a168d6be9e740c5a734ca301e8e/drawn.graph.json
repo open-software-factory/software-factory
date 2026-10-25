@@ -1,0 +1,413 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T11:27:06.419Z",
+  "title": "Provider-neutral agent runner + dsh adapter",
+  "summary": "Introduces a provider-neutral agent-runner seam: a `CommandRunner`/`AgentRunner` trait pair with a real process runner and in-memory fakes, plus the first concrete adapter (`dsh`) that drives a headless coding agent over stdin/stdout JSON events. The adapter brackets each run with git status/head/branch probes to reject dirty trees, detect forbidden commits or checkouts, and collect changed files, and it turns a `QUESTION:` line in the final message into a `job-blocked` journal event. A neutrality test guards the shared module against naming any agent or model vendor.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870",
+      "ref": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870"
+    },
+    "head": {
+      "sha": "4347a5aafce54a168d6be9e740c5a734ca301e8e",
+      "ref": "4347a5aafce54a168d6be9e740c5a734ca301e8e"
+    },
+    "pullRequest": {
+      "number": 232,
+      "url": "https://github.com/open-software-factory/software-factory/pull/232"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "factory",
+      "label": "Factory engine",
+      "subtitle": "osf crate",
+      "order": 0,
+      "summary": "The factory's own code: the journal it writes and the reviewer environment allow-list it shares."
+    },
+    {
+      "id": "seam",
+      "label": "Agent-runner seam",
+      "subtitle": "provider-neutral",
+      "order": 1,
+      "summary": "The trait boundary and the real process runner that every adapter is driven through."
+    },
+    {
+      "id": "adapters",
+      "label": "Adapters",
+      "subtitle": "concrete + fake",
+      "order": 2,
+      "summary": "The dsh adapter and the in-memory test doubles that implement the seam."
+    },
+    {
+      "id": "external",
+      "label": "External processes",
+      "subtitle": "dsh, git",
+      "order": 3,
+      "summary": "The child processes the runner starts: the coding agent and git."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "journal",
+      "label": "Journal",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "factory",
+      "subtitle": "Payload::JobBlocked",
+      "summary": "Append-only event log. Gains a `JobBlocked` payload carrying the job, work item, cause and the agent's question, so a clarification is a first-class recorded event.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-env",
+      "label": "Reviewer env allow-list",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "factory",
+      "subtitle": "RUN_ENV_VARS",
+      "summary": "The platform run variables a reviewer may inherit. Widened to `pub(crate)` so the dsh adapter can reuse the same allow-list when building the minimal git environment.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-runner-trait",
+      "label": "AgentRunner / CommandRunner",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "traits + plain data",
+      "summary": "The provider-neutral seam: `CommandRunner` runs one `CommandSpec`; `AgentRunner` runs one `AgentTask` through a runner and reports `AgentCapabilities`. Also holds the shared prompt rules, `build_prompt`, `question_line`, and the serializable result types.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "real-command-runner",
+      "label": "RealCommandRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "child process, bounded",
+      "summary": "Spawns the child with a cleared environment, its own process group, piped stdio and a default one-hour deadline; kills the whole tree on timeout and returns captured stdout/stderr and exit code.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-adapter",
+      "label": "DshAgentRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "dsh --profile headless --json -",
+      "summary": "The first concrete adapter. Validates the task, brackets the run with git probes, feeds the prompt on stdin, parses newline-delimited JSON events, enforces the no-commit/no-checkout rules, and maps a `QUESTION:` line to `AgentOutcome::Asked`.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-parser",
+      "label": "parse_events",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "JSONL → Parsed",
+      "summary": "Reduces the run's JSONL events to session id, final message, summed token usage and the first non-`completed` turn failure. A non-JSON line is an error naming its line number.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-probes",
+      "label": "git probe commands",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "status / head / branch",
+      "summary": "Builds the `git status --porcelain=v1 -z`, `rev-parse HEAD` and `rev-parse --abbrev-ref HEAD` commands with the minimal git environment, and parses their output into changed files, head commit and branch.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "capability-probes",
+      "label": "capability probes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "version / help / dump-config",
+      "summary": "Probes `--version`, the headless `--help` and the profile `--dump-config` to state, rather than assume, what the harness supports — including whether a stop hook checks messages.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-runners",
+      "label": "FakeRunner / FakeAgentRunner",
+      "kind": "test",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "scripted doubles",
+      "summary": "In-memory doubles that replay scripted answers and record every command and task, so the seam and the adapter can be exercised without starting a process.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/fake.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "neutrality-test",
+      "label": "neutrality test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "no agent/vendor names",
+      "summary": "Scans the provider-neutral folder for agent names, container words and model-vendor names, and proves the scanner can fail by finding them in the concrete adapter.",
+      "files": [
+        {
+          "path": "crates/osf/tests/agent_runner_neutral.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-binary",
+      "label": "dsh",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "headless coding agent",
+      "summary": "The external coding agent. Runs one task headless, prints JSONL events, and reports no model name or cost figure.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-headless-help.txt"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "repository state",
+      "summary": "The repository's own git, queried for status, head commit and branch before and after each run.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dsh-adapter-uses-trait",
+      "from": "dsh-adapter",
+      "to": "agent-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "implements",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter is written entirely against the neutral seam: it builds `CommandSpec`s and reads `CommandOutput`s, never starting a process itself.",
+      "files": []
+    },
+    {
+      "id": "dsh-adapter-runs-through-runner",
+      "from": "dsh-adapter",
+      "to": "real-command-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "runner.run(spec)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Every command the adapter issues — the agent run and each git probe — goes through the injected `CommandRunner`.",
+      "files": []
+    },
+    {
+      "id": "dsh-adapter-parses-events",
+      "from": "dsh-adapter",
+      "to": "event-parser",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter hands the agent's stdout to `parse_events` and acts on the parsed result.",
+      "files": []
+    },
+    {
+      "id": "dsh-adapter-builds-git-probes",
+      "from": "dsh-adapter",
+      "to": "git-probes",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter builds and runs the status/head/branch probes before and after the run.",
+      "files": []
+    },
+    {
+      "id": "dsh-adapter-probes-capabilities",
+      "from": "dsh-adapter",
+      "to": "capability-probes",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`capabilities()` runs the version, help and dump-config probes.",
+      "files": []
+    },
+    {
+      "id": "git-probes-use-env",
+      "from": "git-probes",
+      "to": "reviewers-env",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "RUN_ENV_VARS",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The minimal git environment is filtered from the adapter's env using the shared reviewer allow-list plus HOME and git author/committer names.",
+      "files": []
+    },
+    {
+      "id": "dsh-adapter-writes-journal",
+      "from": "dsh-adapter",
+      "to": "journal",
+      "kind": "event",
+      "delta": "added",
+      "label": "JobBlocked",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An `Asked` outcome becomes a `Payload::JobBlocked` event carrying the question.",
+      "files": []
+    },
+    {
+      "id": "real-runner-spawns-dsh",
+      "from": "real-command-runner",
+      "to": "dsh-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The real runner starts the dsh child with the prompt on stdin and captures its JSONL stdout.",
+      "files": []
+    },
+    {
+      "id": "real-runner-spawns-git",
+      "from": "real-command-runner",
+      "to": "git",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The real runner starts git for each probe command.",
+      "files": []
+    },
+    {
+      "id": "fake-runners-implement-trait",
+      "from": "fake-runners",
+      "to": "agent-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "implements",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The fakes implement both traits so tests drive the seam without a process.",
+      "files": []
+    },
+    {
+      "id": "neutrality-test-guards-trait",
+      "from": "neutrality-test",
+      "to": "agent-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "scans",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test asserts the neutral folder names no agent or model vendor.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 3980,
+    "deletions": 5,
+    "chips": [
+      {
+        "label": "New adapter",
+        "value": "dsh",
+        "tone": "added"
+      },
+      {
+        "label": "Neutral seam",
+        "value": "2 traits",
+        "tone": "added"
+      },
+      {
+        "label": "Journal event",
+        "value": "job-blocked",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Agent-runner seam and dsh adapter",
+      "lens": "architecture",
+      "summary": "The factory's journal and env allow-list, the neutral seam, the concrete and fake adapters, and the external processes they drive.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
