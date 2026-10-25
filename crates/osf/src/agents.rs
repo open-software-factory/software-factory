@@ -253,6 +253,19 @@ pub struct Agent {
 }
 
 /// Every agent osf can drive, in the order this project lists them.
+/// Provider credential variables a launch template must never carry. The
+/// one agent list's `credential_env` names are added at check time; these
+/// are the aliases a provider documents, so a template cannot smuggle one
+/// in under another name. Compared without regard to letter case.
+pub const KNOWN_CREDENTIAL_VARS: &[&str] = &[
+    "DEEPSEEK_API_KEY",
+    "OPENROUTER_API_KEY",
+    "CODEX_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+];
+
 pub const AGENTS: &[Agent] = &[
     // dsh keeps every conversation under a `sessions` folder in its home
     // directory. It has no session page on any host. Its headless profile
@@ -650,10 +663,15 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
         }
         models.insert(agent.name, model.clone());
     }
-    let credentials: std::collections::BTreeSet<&str> = AGENTS
+    let credentials: std::collections::BTreeSet<String> = KNOWN_CREDENTIAL_VARS
         .iter()
-        .filter_map(|agent| agent.review.as_ref())
-        .flat_map(|review| review.credential_env.iter().copied())
+        .chain(
+            AGENTS
+                .iter()
+                .filter_map(|agent| agent.review.as_ref())
+                .flat_map(|review| review.credential_env.iter()),
+        )
+        .map(|name| name.to_ascii_lowercase())
         .collect();
     let mut launch = BTreeMap::new();
     for (name, template) in &cfg.launch {
@@ -662,7 +680,7 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
         if let Some(key) = template
             .env
             .keys()
-            .find(|key| credentials.contains(key.as_str()))
+            .find(|key| credentials.contains(&key.to_ascii_lowercase()))
         {
             return Err(format!(
                 "[agents] launch.{name}.env: {key} is a credential variable; pass it in the environment, not in osf.toml"
@@ -1151,6 +1169,8 @@ mod tests {
         );
         let error = resolve(&config).expect_err("disabled agent");
         assert!(error.contains("not in the enabled agents"), "{error}");
+        assert!(error.contains(agent.name), "{error}");
+        assert!(error.contains("launch"), "{error}");
         let mut config = cfg(None, &[], &[]);
         config.launch.insert(
             "nope".to_string(),
@@ -1167,6 +1187,8 @@ mod tests {
             .insert(agent.name.to_string(), LaunchTemplateConfig::default());
         let error = resolve(&config).expect_err("empty command");
         assert!(error.contains("command is empty"), "{error}");
+        assert!(error.contains(agent.name), "{error}");
+        assert!(error.contains("launch."), "{error}");
         let mut config = cfg(None, &[], &[]);
         let credential_agent = AGENTS
             .iter()
@@ -1192,6 +1214,21 @@ mod tests {
         );
         let error = resolve(&config).expect_err("credential in config");
         assert!(error.contains("credential variable"), "{error}");
+        assert!(error.contains(credential_agent.name), "{error}");
+        assert!(error.contains(credential), "{error}");
+        for key in ["ANTHROPIC_API_KEY", "codex_api_key"] {
+            let mut config = cfg(None, &[], &[]);
+            config.launch.insert(
+                credential_agent.name.to_string(),
+                LaunchTemplateConfig {
+                    command: vec!["x".to_string()],
+                    env: BTreeMap::from([(key.to_string(), "secret".to_string())]),
+                },
+            );
+            let error = resolve(&config).expect_err("credential alias in config");
+            assert!(error.contains(key), "{error}");
+            assert!(error.contains("credential variable"), "{error}");
+        }
     }
 
     #[test]

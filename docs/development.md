@@ -286,7 +286,7 @@ osf doctor --check hooks
 
 It checks the osf version against `.osf/version`, that the settings load, the enabled agents and their credentials, the git hooks, and whether you are inside the factory image. It exits non-zero when a check fails.
 
-Agent binaries and pinned versions are reported as unknown until the launch templates land. That is deliberate, not a pass.
+Agent binaries and pinned versions are reported as unknown until the agent version pin lands. That is deliberate, not a pass.
 
 ## Lint a file right after your agent writes it
 
@@ -677,21 +677,6 @@ agent, with what `osf.toml` selects.
 Decision 0016 prefers a reviewer's family to differ from the builder's own
 family.
 
-### Change an agent's launch command
-
-`[agents.launch.<name>]` replaces the agent's command and adds environment for a run:
-
-```toml
-# One entry per agent, keyed by a name from `osf agents list`.
-[agents.launch."example-agent"]
-command = ["example-agent", "exec", "--json", "-"]
-env = { EXAMPLE_HOME = "/opt/example" }
-```
-
-Replace `example-agent` with a name from `osf agents list`.
-
-The name must be in the one agent list and enabled, and the command must not be empty. The environment is for non-secret settings; a credential variable is refused, because credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
-
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
 | `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only` outside the container, and `--dangerously-bypass-approvals-and-sandbox` inside it; both from `codex exec --help` |
@@ -765,6 +750,22 @@ To write each enabled agent's stop and prompt hook settings, run
 `osf hooks install --agents --root <dir>`. It writes one settings file
 per enabled agent under `<dir>`, from the same list, and replaces a file
 already there.
+### Change an agent's launch command
+
+`[agents.launch.<name>]` replaces the agent's command and adds environment for a run:
+
+```toml
+# One entry per agent, keyed by a name from `osf agents list`.
+[agents.launch."example-agent"]
+command = ["example-agent", "exec", "-"]
+env = { EXAMPLE_HOME = "/opt/example" }
+```
+
+Replace `example-agent` with a name from `osf agents list`.
+
+The name must be in the one agent list and enabled, and the command must not be empty. The command must keep the agent's output and schema contract, because the review reads the answer and validates it. The environment is for non-secret settings; a known provider credential variable, in any letter case, is refused, because credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
+
+
 ### The builder's own family is left out
 
 A reviewer from the same family as the change's own builder is not an

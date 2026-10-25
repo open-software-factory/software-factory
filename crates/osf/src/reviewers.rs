@@ -616,7 +616,9 @@ fn resolve_program(program: &str) -> std::ffi::OsString {
 }
 
 /// `program` with `rest`, started in `workdir` with the allow-listed
-/// environment and a fresh [`RunHome`], which must outlive the child.
+/// environment and a fresh [`RunHome`], which must outlive the child. The
+/// reviewer's template environment is applied first, so the fresh home and
+/// the allow-listed variables always take precedence over it.
 fn prepare_command(
     reviewer: &Reviewer,
     program: &str,
@@ -643,10 +645,12 @@ fn prepare_command(
     }
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
-    home.apply(&mut command);
+    // The template env comes first, so the fresh home below always wins:
+    // a template must never point the child at the caller's own home.
     for (name, value) in &reviewer.env {
         command.env(name, reviewer.fill(value));
     }
+    home.apply(&mut command);
     let read_only_env = reviewer.read_only.iter().flat_map(|mode| mode.env);
     for (name, value) in read_only_env.chain(reviewer.clean_copy.env) {
         command.env(name, reviewer.fill(value));
@@ -1247,6 +1251,21 @@ mod tests {
             }
         }
         assert!(found, "the template env reaches the child");
+    }
+
+    #[test]
+    fn a_launch_env_cannot_replace_the_fresh_home() {
+        let mut r = reviewer("a-reviewer", vec!["x"]);
+        r.env = vec![("HOME".to_string(), "/caller-home".to_string())];
+        let (command, home, _notes) =
+            prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");
+        let mut found = false;
+        for (name, value) in command.get_envs() {
+            if name == "HOME" {
+                found = value == Some(home.path.as_os_str());
+            }
+        }
+        assert!(found, "the fresh home wins over the template env");
     }
 
     #[test]
