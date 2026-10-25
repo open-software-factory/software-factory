@@ -1817,7 +1817,8 @@ mod tests {
             "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\n",
         )
         .expect("osf.toml writes");
-        let loaded = load(Some(&path), &[], &[], false).expect("general config loads");
+        let loaded = serial_in_dir(&dir, &[], || load(Some(&path), &[], &[], false))
+            .expect("general config loads");
         assert!(loaded.file.is_some());
     }
 

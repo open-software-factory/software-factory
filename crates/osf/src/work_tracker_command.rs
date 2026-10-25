@@ -48,6 +48,9 @@ pub fn ready(root: &Path) -> Result<Pick, String> {
 /// # Errors
 /// Returns an error when the tracker cannot be built, or a write fails.
 pub fn report(root: &Path, id: &WorkItemId, state: &WorkState, recap: &str) -> Result<(), String> {
+    if recap.trim().is_empty() {
+        return Err("the recap is empty; write what happened".to_string());
+    }
     let tracker = tracker(root)?;
     finish_run(&tracker, id, state, recap).map_err(|error| error.to_string())
 }
@@ -57,6 +60,11 @@ pub fn report(root: &Path, id: &WorkItemId, state: &WorkState, recap: &str) -> R
 /// # Errors
 /// Names the state or cause it does not know, or a blocked state without a cause.
 pub fn parse_state(state: &str, cause: Option<&str>) -> Result<WorkState, String> {
+    if !matches!(state, "in-progress" | "in-review" | "failed" | "blocked") {
+        return Err(format!(
+            "unknown state {state}: use in-progress, in-review, failed or blocked"
+        ));
+    }
     if state != "blocked" && cause.is_some() {
         return Err("--cause is only for the blocked state".to_string());
     }
@@ -131,6 +139,16 @@ mod tests {
         assert!(parse_state("blocked", Some("other")).is_err());
         assert!(parse_state("other", None).is_err());
         assert!(parse_state("in-review", Some("human")).is_err());
+        let error = parse_state("done", Some("human")).expect_err("unknown state first");
+        assert!(error.contains("unknown state done"), "{error}");
+    }
+
+    #[test]
+    fn an_empty_recap_is_refused_before_the_tracker() {
+        let root = crate::test_support::TempDir::new("osf-work-tracker-empty-recap");
+        let id = work_item("github:open-software-factory/software-factory#42").expect("parses");
+        let error = report(&root, &id, &WorkState::InReview, "  ").expect_err("empty recap");
+        assert!(error.contains("recap is empty"), "{error}");
     }
 
     #[test]

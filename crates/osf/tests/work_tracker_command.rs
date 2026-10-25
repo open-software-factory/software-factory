@@ -11,7 +11,13 @@ fn osf(args: &[&str]) -> Command {
 
 #[test]
 fn a_missing_work_tracker_table_is_named() {
-    let output = osf(&["work-tracker", "ready"]).output().expect("runs osf");
+    let dir = std::env::temp_dir().join(format!("osf-wt-no-repo-{}", std::process::id())); // osf: temp-dir allowed, a throwaway directory outside any repository
+    std::fs::create_dir_all(&dir).expect("make a directory");
+    let output = osf(&["work-tracker", "ready"])
+        .current_dir(&dir)
+        .output()
+        .expect("runs osf");
+    std::fs::remove_dir_all(&dir).ok();
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("[work_tracker]"), "{stderr}");

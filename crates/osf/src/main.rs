@@ -1008,6 +1008,9 @@ fn work_tracker_cmd(action: &WorkTrackerAction) -> ExitCode {
                         WorkTrackerFormat::Text => print_pick(&pick),
                     }
                     if unknown {
+                        eprintln!(
+                            "osf work-tracker ready: the output names the reason it could not read the tracker"
+                        );
                         ExitCode::from(1)
                     } else {
                         ExitCode::SUCCESS

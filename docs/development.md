@@ -297,10 +297,10 @@ The develop job reads one item with the 'Ready' status and writes its state and 
 owner = "open-software-factory"
 project_number = 4
 # status_field = "Status"
-# skip_status = "Done" (empty reads Done too)
+# skip_status = "Done"
 ```
 
-The Status field needs Ready, In progress, In review, Blocked, Failed and Done. `skip_status` defaults to `Done`. Set it to an empty string to read Done items too.
+The Status field needs the 'Ready' status option, plus In progress, In review, Blocked, Failed and Done. `skip_status` defaults to `Done`. Set it to an empty string to read Done items too.
 
 ```sh
 osf work-tracker ready --limit 1 --format json
