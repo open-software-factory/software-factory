@@ -1,0 +1,530 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T22:28:38.074Z",
+  "title": "osf work-tracker command group",
+  "summary": "Adds an `osf work-tracker` CLI group with two subcommands: `ready` reads the single GitHub Project item whose status is Ready, and `report` writes a state (in-progress, in-review, failed, blocked+cause) plus a recap file back to one item. A new `[work_tracker]` table in the repository's `osf.toml` (owner, project_number, optional status_field and skip_status) configures the GitHub adapter; the general config loader now strips that table so it does not trip `deny_unknown_fields`. The command layer is thin: it parses arguments, builds a real `GitHubWorkTracker` over the `gh` CLI, and delegates to the existing `work_tracker::ready` and `work_tracker::report` modules.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "1a9ccef17e5011cbffc67ac079d421ca40efa5bb",
+      "ref": "1a9ccef17e5011cbffc67ac079d421ca40efa5bb"
+    },
+    "head": {
+      "sha": "c85f08d6ffcb3d85915a1d9135a8f2d9c3aaf93f",
+      "ref": "c85f08d6ffcb3d85915a1d9135a8f2d9c3aaf93f"
+    },
+    "pullRequest": {
+      "number": 342,
+      "url": "https://github.com/open-software-factory/software-factory/pull/342"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI surface",
+      "subtitle": "osf binary, clap parsing",
+      "order": 0
+    },
+    {
+      "id": "command",
+      "label": "Command logic",
+      "subtitle": "crates/osf/src/work_tracker_command.rs",
+      "order": 1
+    },
+    {
+      "id": "tracker",
+      "label": "Work tracker core",
+      "subtitle": "existing work_tracker modules",
+      "order": 2
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "GitHub Project via gh CLI",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-main",
+      "label": "osf main",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "Command::WorkTracker dispatch",
+      "summary": "The clap command enum gains a `WorkTracker` variant with `ready` and `report` subcommands, their argument structs, and a `work_tracker_cmd` dispatcher that maps results to exit codes 0/1/2.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 138,
+          "endLine": 188
+        },
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 982,
+          "endLine": 1079
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-tracker-command",
+      "label": "work_tracker_command",
+      "kind": "module",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "ready / report / parse_state / work_item",
+      "summary": "New module that turns CLI arguments into tracker calls: builds the adapter config from `[work_tracker]`, constructs a real GitHub tracker, and exposes `ready`, `report`, `parse_state` and `work_item`.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 1,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lib-export",
+      "label": "lib.rs module export",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "command",
+      "subtitle": "pub mod work_tracker_command",
+      "summary": "Registers the new module so both the binary and integration tests can reach it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 49,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-tracker-config",
+      "label": "work_tracker_config",
+      "kind": "function",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "WorkTrackerConfig from osf.toml",
+      "summary": "Reads the `[work_tracker]` table of `<root>/osf.toml` into a `WorkTrackerConfig` with defaults `Status` and `Done`, returning `None` when the file or table is absent and refusing unknown keys.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 251,
+          "endLine": 298
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-load",
+      "label": "config::load",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "command",
+      "subtitle": "strips [work_tracker] before merge",
+      "summary": "The layered config loader now removes the `work_tracker` table alongside `review` and `agents` before merging, so the new table never trips the general struct's `deny_unknown_fields`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 692,
+          "endLine": 706
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ready-pick",
+      "label": "work_tracker::ready::pick",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "Pick<Item | NothingReady | ...>",
+      "summary": "Existing selection logic that reads the tracker and returns the one Ready item, or a reason nothing is dispatchable.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "report-finish-run",
+      "label": "work_tracker::report::finish_run",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "state then recap write",
+      "summary": "Existing write path that sets the item's state and then appends the recap.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-state",
+      "label": "WorkState / BlockedCause",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "InProgress, InReview, Failed, Blocked(cause)",
+      "summary": "The domain enum the CLI's `--state` and `--cause` strings are parsed into.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-id",
+      "label": "WorkItemId",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "github:owner/repo#N",
+      "summary": "Provider-qualified work item identifier parsed from the `report` positional argument.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-tracker",
+      "label": "GitHubWorkTracker",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "real adapter over gh",
+      "summary": "The concrete tracker the command builds from `GitHubWorkTrackerConfig::standard(owner, project_number)` with the configured status field and skip status.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_work_tracker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-cli",
+      "label": "gh CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "GH_TOKEN / GITHUB_TOKEN",
+      "summary": "The GitHub CLI the adapter shells out to; reads work without a token, writes require the builder app's token.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 288,
+          "endLine": 312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-project",
+      "label": "GitHub Project",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "Status field, Ready..Done",
+      "summary": "The project board holding the work items and their Status field values.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 288,
+          "endLine": 312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "command-tests",
+      "label": "work_tracker_command tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "integration + unit",
+      "summary": "Integration tests drive the built binary for the missing-table, usage-error and help cases; unit tests cover state/cause parsing, item id parsing and the missing table message.",
+      "files": [
+        {
+          "path": "crates/osf/tests/work_tracker_command.rs",
+          "startLine": 1,
+          "endLine": 94
+        },
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 110,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "main-to-command",
+      "from": "osf-main",
+      "to": "work-tracker-command",
+      "kind": "call",
+      "delta": "added",
+      "label": "work_tracker_cmd",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new dispatcher hands each subcommand to the command module.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 982,
+          "endLine": 1079
+        }
+      ]
+    },
+    {
+      "id": "command-to-config",
+      "from": "work-tracker-command",
+      "to": "work-tracker-config",
+      "kind": "call",
+      "delta": "added",
+      "label": "adapter_config",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Builds the adapter config from the repository's `[work_tracker]` table.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 13,
+          "endLine": 27
+        }
+      ]
+    },
+    {
+      "id": "command-to-ready",
+      "from": "work-tracker-command",
+      "to": "ready-pick",
+      "kind": "call",
+      "delta": "added",
+      "label": "ready::pick",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`ready` builds the tracker and delegates the selection.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 38,
+          "endLine": 41
+        }
+      ]
+    },
+    {
+      "id": "command-to-finish",
+      "from": "work-tracker-command",
+      "to": "report-finish-run",
+      "kind": "call",
+      "delta": "added",
+      "label": "finish_run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`report` builds the tracker and delegates the state-then-recap write.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 47,
+          "endLine": 50
+        }
+      ]
+    },
+    {
+      "id": "command-to-state",
+      "from": "work-tracker-command",
+      "to": "work-state",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "parse_state",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Maps `--state` and `--cause` strings onto the domain enum.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 56,
+          "endLine": 92
+        }
+      ]
+    },
+    {
+      "id": "command-to-item",
+      "from": "work-tracker-command",
+      "to": "work-item-id",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "work_item",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Parses the provider-qualified item id from the report argument.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 98,
+          "endLine": 100
+        }
+      ]
+    },
+    {
+      "id": "command-to-github",
+      "from": "work-tracker-command",
+      "to": "github-tracker",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "GitHubWorkTracker::real",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Constructs the real adapter from the parsed config.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 29,
+          "endLine": 35
+        }
+      ]
+    },
+    {
+      "id": "ready-to-github",
+      "from": "ready-pick",
+      "to": "github-tracker",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Selection reads through the tracker abstraction.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ]
+    },
+    {
+      "id": "finish-to-github",
+      "from": "report-finish-run",
+      "to": "github-tracker",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The write path goes through the same tracker abstraction.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker.rs"
+        }
+      ]
+    },
+    {
+      "id": "github-to-gh",
+      "from": "github-tracker",
+      "to": "gh-cli",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "gh api",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter shells out to the GitHub CLI.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_work_tracker.rs"
+        }
+      ]
+    },
+    {
+      "id": "gh-to-project",
+      "from": "gh-cli",
+      "to": "github-project",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads and writes land on the GitHub Project board.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 288,
+          "endLine": 312
+        }
+      ]
+    },
+    {
+      "id": "load-strips-table",
+      "from": "config-load",
+      "to": "work-tracker-config",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "same osf.toml table",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The general loader must drop the table that `work_tracker_config` reads separately.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 692,
+          "endLine": 706
+        }
+      ]
+    },
+    {
+      "id": "tests-to-main",
+      "from": "command-tests",
+      "to": "osf-main",
+      "kind": "other",
+      "delta": "added",
+      "label": "runs binary",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Integration tests invoke the built `osf` binary and assert exit codes and stderr.",
+      "files": [
+        {
+          "path": "crates/osf/tests/work_tracker_command.rs",
+          "startLine": 1,
+          "endLine": 94
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 512,
+    "deletions": 4,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "work-tracker-command-view",
+      "title": "work-tracker command group",
+      "lens": "architecture",
+      "summary": "The new CLI group sits between clap and the existing tracker core: it reads `[work_tracker]` from osf.toml, builds a real GitHub adapter, and delegates reads and writes to the unchanged ready/report modules.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}

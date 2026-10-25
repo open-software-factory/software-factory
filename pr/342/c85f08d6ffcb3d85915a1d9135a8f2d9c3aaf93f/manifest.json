@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c85f08d6ffcb3d85915a1d9135a8f2d9c3aaf93f",
+    "contentHash": "602393826c9e853b547c621053425887"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "work-tracker-command-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-tracker-command-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2dedcb2ee7c53ccd4cee90b0e6aac668",
+      "bytes": 21038,
+      "width": 1734,
+      "height": 874,
+      "animated": false,
+      "path": "work-tracker-command-view-light-2dedcb2ee7c53ccd4cee90b0e6aac668.svg"
+    },
+    {
+      "id": "work-tracker-command-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-tracker-command-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "98c828746bbace9df033032a144a36d8",
+      "bytes": 21251,
+      "width": 1734,
+      "height": 874,
+      "animated": false,
+      "path": "work-tracker-command-view-dark-98c828746bbace9df033032a144a36d8.svg"
+    }
+  ]
+}
