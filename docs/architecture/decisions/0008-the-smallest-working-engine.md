@@ -1,4 +1,4 @@
-# 0008: The smallest working engine takes one issue to one pull request
+# 0008: The first develop job takes one work item to pull requests
 
 Status: accepted
 
@@ -12,9 +12,9 @@ Three shapes were considered. Verifying one change and recording the evidence wo
 
 ## Decision
 
-The smallest working engine takes one ready work item and returns one pull request that is verified, reviewed and ready for a person to merge. No person acts between the start and the pull request unless the engine asks.
+The first develop job takes one ready work item and returns one or more pull requests that are verified, reviewed and ready for a person to merge. No person acts between the start and the pull requests unless the develop job asks.
 
-Inside the boundary: reading the work item from the tracker, starting the default sandbox on the local platform, running one coding agent on the item, running the repository's deterministic checks, one review round by a harness of a different model family, the pull request with its status block, the event journal with every run, check, review and finding, the policy of [decision 0003](0003-deterministic-verification-is-authoritative.md), attention when the item needs a person, and a recap written back to the work item.
+Inside the boundary: reading the work item from the work-tracker, the platform-workflow's setup step starting the sandbox on the execution platform, the builder agent running the develop skill inside it, the repository's deterministic checks, the in-sandbox review loop with its rounds, the pull requests with their status blocks, the journal with every job, check, review and finding, the checks of [decision 0003](0003-deterministic-verification-is-authoritative.md), attention when the item needs a person, and a recap written back to the work item.
 
 Outside the boundary: deployment, containment and recovery, more than one item at a time, remote platforms, merging without a person, the console's own features beyond reading the journal, cost attribution across runs, the agent-host protocol gateway, and canonical verification through moon, a build task runner the execution design adopts later.
 
