@@ -539,12 +539,14 @@ A same-repository pull request's one review job reads the
 repository-level `OSF_REVIEW_*` secrets and variables. Set up this short
 list, then the check is live.
 
-### The review check is required
+### The review check is advisory
 
 The review check posts its result as a check run and as a review under
-the verifier app. It is a required check once the rebuilt workflow is
-verified: one review job, one check. A pull request cannot merge while
-a must-fix finding is open, or while a reviewer answered could-not-run.
+the verifier app. It becomes a required check once the rebuilt workflow
+is verified: one review job, one check. Until then, no branch protection
+or ruleset requires it. A pull request cannot merge while a must-fix
+finding is open, or while a reviewer answered could-not-run, once it is
+required.
 
 ### Required setup
 
@@ -558,8 +560,9 @@ a must-fix finding is open, or while a reviewer answered could-not-run.
   reviewer container receives only the one variable its agent's
   `credential_env` entry names. `osf` itself reads a key only to remove
   its value from answers.
-- Make the one review job a required check. Require every conversation
-  resolved, so a person still looks at each finding.
+- Make the one review job a required check once the rebuilt workflow is
+  verified. Require every conversation resolved, so a person still looks
+  at each finding.
 
 A fork's pull request is reviewed only when the repository variable
 `OSF_REVIEW_FORKS` is `true`. The one review job then uses the same
