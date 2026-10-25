@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9c690caf6ed3d7ba93639beb5103af6778183c93",
+    "contentHash": "459e32eda970931371542401abb7bd95"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "tracker-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dc146fdaf97cf951a6209c7d281b4dd8",
+      "bytes": 21665,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "tracker-architecture-light-dc146fdaf97cf951a6209c7d281b4dd8.svg"
+    },
+    {
+      "id": "tracker-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ea4b8cd518142956cc3d47ba478c8353",
+      "bytes": 21897,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "tracker-architecture-dark-ea4b8cd518142956cc3d47ba478c8353.svg"
+    },
+    {
+      "id": "adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "97ecd2074cdac065d770dd2dd32ec95f",
+      "bytes": 13081,
+      "width": 888,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-internals-light-97ecd2074cdac065d770dd2dd32ec95f.svg"
+    },
+    {
+      "id": "adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "94c0c45ab278a0d51cfa71f2757eddde",
+      "bytes": 13214,
+      "width": 888,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-internals-dark-94c0c45ab278a0d51cfa71f2757eddde.svg"
+    }
+  ]
+}
