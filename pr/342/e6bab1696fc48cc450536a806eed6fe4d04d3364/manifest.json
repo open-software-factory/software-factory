@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e6bab1696fc48cc450536a806eed6fe4d04d3364",
+    "contentHash": "432d03bca32dabb622ac7aee6036fc08"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "work-tracker-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "038580d6260d6da9a80920000942b4fa",
+      "bytes": 18768,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "work-tracker-architecture-light-038580d6260d6da9a80920000942b4fa.svg"
+    },
+    {
+      "id": "work-tracker-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a37747cad901278de1c32e2da4d1c33d",
+      "bytes": 18971,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "work-tracker-architecture-dark-a37747cad901278de1c32e2da4d1c33d.svg"
+    }
+  ]
+}
