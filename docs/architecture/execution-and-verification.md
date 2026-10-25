@@ -1,27 +1,27 @@
-# OSF Execution and Verification Architecture
+# The develop job and its checks
 
 **Status:** Proposed high-level design  
 **Date:** 2026-09-18, amended 2026-09-23  
-**Decision basis:** [Moon as the OSF Execution Substrate](../research/2026-09-18-moon-as-osf-execution-substrate.md)
+**Decision basis:** [the factory model](factory-model.md) and [decision 0011 (the check is the unit)](decisions/0011-the-check-is-the-unit.md)
 
-Amended 2026-09-23 by [the verification seam](verification-seam.md) and [decision 0011 (the check is the unit)](decisions/0011-the-check-is-the-unit.md). The seam runs [moon](https://moonrepo.dev), the task runner this page builds on, at every checkpoint, and the first of them is the harness hook that fires while the agent edits. Where this page says moon runs only at lifecycle checkpoints, the seam's checkpoints replace that list. Where this page says the factory generates no moon configuration, the seam renders the factory's own moon project under `.osf/`, while the adopter's task files stay repository-owned.
+Amended 2026-09-23 by [the verification seam](verification-seam.md) and [decision 0011 (the check is the unit)](decisions/0011-the-check-is-the-unit.md). The seam runs [moon](https://moonrepo.dev), the task runner this page builds on, at every checkpoint, and the first of them is the agent hook that fires while the agent edits. Where this page says moon runs only at lifecycle checkpoints, the seam's checkpoints replace that list. Where this page says the factory generates no moon configuration, the seam renders the factory's own moon project under `.osf/`, while the adopter's task files stay repository-owned.
 
 ## Decision
 
-OSF will use moon as an external execution-orchestration dependency for canonical deterministic verification. Native ecosystem tools remain responsible for compiling, testing, linting, analysing and packaging their own projects.
+The develop job runs the repository's deterministic checks as the authoritative verification. moon is one task runner the first implementation uses, not the factory boundary. Native ecosystem tools remain responsible for compiling, testing, linting, analysing and packaging their own projects.
 
-Coding agents may use native commands directly during implementation. OSF invokes moon at every checkpoint, from the harness hook to the schedule, and treats those checkpoint results as authoritative evidence.
+Coding agents may use native commands directly during implementation. The develop job runs the checks at every checkpoint, from the agent hook to the schedule, and treats those checkpoint results as authoritative evidence.
 
-OSF will not initially provide an `osf exec` command, intercept every agent command, embed moon's Rust crates, fork moon, or implement its own task graph and cache.
+The factory will not initially provide an `osf exec` command, intercept every agent command, embed moon's Rust crates, fork moon, or implement its own task graph and cache.
 
 ## Architectural principles
 
-1. **Own the policy and leave build semantics alone.** OSF decides what evidence is required and when. It does not teach .NET, Rust, Go or JavaScript how to build.
+1. **Own the policy and leave build semantics alone.** The factory decides what evidence is required and when. It does not teach .NET, Rust, Go or JavaScript how to build.
 2. **Native tools remain native.** Canonical tasks invoke ordinary ecosystem commands rather than replacing them.
 3. **Authoritative checkpoints are explicit.** Agent feedback runs may be informal; lifecycle transitions require the canonical moon graph.
 4. **One owner for task identity.** Moon owns task inputs, outputs, dependencies, hashes and cache keys.
 5. **One owner for lifecycle evidence.** OSF correlates verification outcomes with specifications, work items, gates and releases.
-6. **Adopt through stable boundaries.** OSF depends on moon's binary, CLI, structured reports and graph exports rather than internal crates.
+6. **Adopt through stable boundaries.** The factory depends on moon's binary, CLI, structured reports and graph exports rather than internal crates.
 7. **Increase execution strength progressively.** Isolation, hermeticity and remote execution are added only where their value exceeds their adoption cost.
 8. **Prefer open protocols to backend coupling.** Future distributed execution should target REAPI rather than a particular service.
 
@@ -37,7 +37,7 @@ flowchart TB
     M -. "future REAPI" .-> R["Remote cache or execution"]
 ```
 
-The direct native-command path is the fast implementation loop. The OSF-to-moon path is the authoritative verification loop.
+The direct native-command path is the fast implementation loop. The factory-to-moon path is the authoritative verification loop.
 
 ## Responsibility allocation
 
@@ -72,7 +72,7 @@ pnpm vitest src/example.test.ts
 
 OSF does not rewrite these commands. They provide fast feedback and benefit from the ecosystem's own incremental mechanisms. Their success alone does not satisfy a factory gate.
 
-Agents may choose to run a moon target when useful, but OSF must not rely on an agent remembering to do so.
+Agents may choose to run a moon target when useful, but The factory must not rely on an agent remembering to do so.
 
 ### Canonical tasks
 
@@ -96,7 +96,7 @@ tasks:
       - security
 ```
 
-The concrete task shape remains repository-owned moon configuration. OSF does not generate or duplicate it initially.
+The concrete task shape remains repository-owned moon configuration. The factory does not generate or duplicate it initially.
 
 ### OSF checkpoints
 
@@ -119,13 +119,13 @@ verification:
     affected: false
 ```
 
-This is illustrative, and no part of it is a committed OSF schema. The important boundary is that OSF names canonical moon work while moon defines that work.
+This is illustrative, and no part of it is a committed OSF schema. The important boundary is that The factory names canonical moon work while moon defines that work.
 
 ## Checkpoint flow
 
 1. An agent reports that an implementation step is ready.
 2. OSF resolves the verification policy for the lifecycle transition.
-3. OSF invokes the pinned moon binary with the required targets or execution plan.
+3. The factory invokes the pinned moon binary with the required targets or execution plan.
 4. Moon constructs the action graph, resolves affected tasks, checks caches and executes missing actions.
 5. OSF captures process status, structured run data and relevant logs.
 6. OSF attaches the evidence to the specification and work item.
@@ -150,7 +150,7 @@ Minimum evidence:
 
 Moon's native run reports and action-graph JSON are inputs to this evidence model. OSF should retain the raw source report when practical, while exposing a stable OSF-level representation to the rest of the factory.
 
-OSF must not recompute moon's cache keys or attempt to reproduce its scheduling decisions.
+The factory must not recompute moon's cache keys or attempt to reproduce its scheduling decisions.
 
 ## Failure semantics
 
@@ -167,11 +167,11 @@ Failures belong to different owners:
 
 ## Versioning and distribution
 
-Each OSF-compatible repository should pin a supported moon version. OSF may later manage installation, but the first implementation should prefer the smallest reliable mechanism supported on Windows, macOS and Linux.
+Each OSF-compatible repository should pin a supported moon version. The factory may later manage installation, but the first implementation should prefer the smallest reliable mechanism supported on Windows, macOS and Linux.
 
-OSF should verify the moon version before a canonical checkpoint and include it in the evidence record. Version upgrades should be deliberate and validated against representative repositories.
+The factory should verify the moon version before a canonical checkpoint and include it in the evidence record. Version upgrades should be deliberate and validated against representative repositories.
 
-Moon remains a separately licensed external dependency. If OSF distributes its binary, OSF must retain moon's MIT licence notices. OSF's own source remains dual-licensed under Apache-2.0 and MIT.
+Moon remains a separately licensed external dependency. If the factory distributes its binary, OSF must retain moon's MIT licence notices. The factory's own source remains dual-licensed under Apache-2.0 and MIT.
 
 ## Caching
 
@@ -226,7 +226,7 @@ The OSF execution view should combine:
 - task logs and artifacts;
 - gate decision and escalation state.
 
-This supports the factory-floor and drill-down UX without asking OSF to become the execution engine. Moon supplies execution truth; OSF supplies product and lifecycle meaning.
+This supports the factory-floor and drill-down UX without asking the factory to become the execution engine. Moon supplies execution truth; OSF supplies product and lifecycle meaning.
 
 ## Adoption stages
 

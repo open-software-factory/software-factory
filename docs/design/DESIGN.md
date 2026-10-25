@@ -1,10 +1,10 @@
-# Software Factory operator console design system
+# Software Factory console design system
 
-Software Factory is an autonomous software engineering product. This document is design guidance for its operator console.
+Software Factory is an autonomous software engineering product. This document is design guidance for its console.
 
-Status: living draft. Product design owns this document, for the operator console.
+Status: living draft. Product design owns this document, for the console.
 
-This document is for anyone building the operator console UI and UX. A builder may be a human or an AI agent. The document states decisions and current candidates. Exploration history lives in `design-explorations.md`. Open items, next steps and review history live in `design-tracker.md`.
+This document is for anyone building the console UI and UX. A builder may be a human or an AI agent. The document states decisions and current candidates. Exploration history lives in `design-explorations.md`. Open items, next steps and review history live in `design-tracker.md`.
 
 Legend for every entry:
 
@@ -30,9 +30,9 @@ Working conventions:
 
 | Source | Role |
 |---|---|
-| `docs/product/ux/factory-ux-vision.md` | Product model, operator model, six conceptual surfaces [E] |
+| `docs/product/ux/factory-ux-vision.md` | Product model, person model, six conceptual surfaces [E] |
 | `docs/product/ux/design-principles.md` | Visual, interaction, information, factory doctrine [E] |
-| `docs/product/decisions/0001-factory-ui-is-an-operator-console.md` | Active-console decision, control requirements [E] |
+| `docs/product/decisions/0001-factory-ui-is-a-console.md` | Active-console decision, control requirements [E] |
 | `docs/vision/product-lifecycle.md` | Outer loop, human judgment scope, portfolio context [context] |
 | `docs/vision/agent-native-operating-model.md` | Two-loop model, product-engineer role, meta-loop [context] |
 | `docs/product/ux/open-questions.md` | Non-decisions and open visual/technical questions [O] |
@@ -59,7 +59,7 @@ The console supervises an autonomous software factory. This factory is an agent-
 | 6 | Direct manipulation over navigation | Zoom, pan, select, isolate, compare, overlay, scrub time, and drill. Preserve context throughout. |
 | 7 | Time is first-class | Current state without history is insufficient. Replay must be visually distinct from live. |
 | 8 | Motion encodes real state | Animate state change, causality and continuity. Never animate decorative activity. |
-| 9 | Machinery is inspectable | Default to abstraction. Never trap operators behind it. |
+| 9 | Machinery is inspectable | Default to abstraction. Never trap persons behind it. |
 | 10 | Flow, queues, constraints over counts | Starvation, congestion and parallelism limits must be visible. |
 | 11 | Anomalies and deltas over totals | "What changed?" outranks another KPI. |
 | 12 | Cost is contextualised | Show cost per useful outcome, deltas, and causal breakdowns. Never show a naked total. |
@@ -70,7 +70,7 @@ The console supervises an autonomous software factory. This factory is an agent-
 
 ### 1.3 What the console is not
 
-- Not a chat home. Conversation is one modality of the ambient operator [E].
+- Not a chat home. Conversation is one modality of the ambient person [E].
 - Not a PR page clone. The review surface is a decision-and-evidence surface, bound to intent [C].
 - Not a terminal. Mono type serves identity and raw evidence. It does not style the chrome [E].
 - Not a fixed dashboard. Factory Intelligence is an exploratory surface [E].
@@ -119,7 +119,7 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 ### 3.1 Shell decision
 
 - The shell starts as **Direction B: Live Floor**. The Factory Floor canvas is home. Other modes are peers (§3.3). **This is a starting point.** It is not a final commitment.
-- The shell must let the operator **contextually focus** on the attention queue, and on other surfaces, as the situation demands. The attention centre is a first-class focus state. It is not only a docked layer. How that focus state is entered and exited is open [O].
+- The shell must let the person **contextually focus** on the attention queue, and on other surfaces, as the situation demands. The attention centre is a first-class focus state. It is not only a docked layer. How that focus state is entered and exited is open [O].
 - Two explored alternatives are archived in `design-explorations.md`: direction A (Command Post) and direction C (Focus Console). The old rule that flipped between direction A and direction B is archived there too.
 
 ### 3.2 Shell rules
@@ -127,7 +127,7 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 - The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
 - Exactly one home for human attention [C]: the attention strip or layer. Attention never scatters across surfaces.
 - Selection is the thread. A focused entity, such as a work item, a cluster, or a gate, persists across lens and mode changes [E same-truth, C mechanism].
-- The ambient operator is a cross-cutting modality: command palette, context action, annotation, generated view. It is not a surface and not a chat tab [E]. Its transport is [O].
+- The ambient person is a cross-cutting modality: command palette, context action, annotation, generated view. It is not a surface and not a chat tab [E]. Its transport is [O].
 
 ### 3.3 Mode structure (Direction B) [C]
 
@@ -154,7 +154,7 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 
 ### 4.2 Shell geometry: starting defaults [C]
 
-These are first-render defaults. They are not fixed sizes. Every panel is resizeable and closeable. Which panels are open persists per view. A panel the operator moves into a pane stays there across views. Widths persist once, for the whole shell (§5.2). Values refine as the shell matures.
+These are first-render defaults. They are not fixed sizes. Every panel is resizeable and closeable. Which panels are open persists per view. A panel the person moves into a pane stays there across views. Widths persist once, for the whole shell (§5.2). Values refine as the shell matures.
 
 | Zone | Default size | Behaviour |
 |---|---|---|
@@ -191,19 +191,19 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 
 1. **A click must never** shove the layout. New information arrives in one of two compliant forms. An **overlay** slides or fades in over the layout. The user may then **pin** it: pinning docks the overlay, and the layout resizes smoothly to make room. Or a **panel** animates into place directly, for a surface already decided to start docked, such as one of the nav's secondary panels.
 
-   A previously pinned overlay is simply a panel, and it stays compliant. An instant reflow is never allowed. Content the operator is reading must not jump, resize, or shift under an unrelated click.
+   A previously pinned overlay is simply a panel, and it stays compliant. An instant reflow is never allowed. Content the person is reading must not jump, resize, or shift under an unrelated click.
 
-   **The form a surface takes** follows the trigger. It does not follow the surface. The operator asked for it, from the nav, the command palette, or a Move control. So a layout change is expected, and the surface may dock directly. Or the system raised the surface, or a click on content produced it, for example by selecting a node or opening evidence. So it arrives as an overlay. Transient inspection must not rearrange a workspace the operator did not ask to rearrange. Pinning is the act that promotes a transient overlay into a durable panel [C].
+   **The form a surface takes** follows the trigger. It does not follow the surface. The person asked for it, from the nav, the command palette, or a Move control. So a layout change is expected, and the surface may dock directly. Or the system raised the surface, or a click on content produced it, for example by selecting a node or opening evidence. So it arrives as an overlay. Transient inspection must not rearrange a workspace the person did not ask to rearrange. Pinning is the act that promotes a transient overlay into a durable panel [C].
 2. A full-screen change gets a smooth transition. It never gets an instant swap. This applies to the main content area, a view, or a page, for example a change from canvas to board.
 3. Dropdowns, modals, and the global search field animate in. Nothing appears "out of nowhere".
 4. Any element that fills most of the central space animates its zoom, pan, and programmatic scroll. This includes a graph, a table, or a list.
-5. Motion uses the tokens in §16.5. **Motion is always on.** No host signal turns it off: no media query, no capability check, nothing read at boot or at call time. If reducing motion is ever offered, it is an explicit operator setting and nothing else. Turning it off must announce itself on screen.
+5. Motion uses the tokens in §16.5. **Motion is always on.** No host signal turns it off: no media query, no capability check, nothing read at boot or at call time. If reducing motion is ever offered, it is an explicit person setting and nothing else. Turning it off must announce itself on screen.
 
 ### 5.2 Panels and workspace
 
 1. A panel that appears over the layout can be **pinned**. Pinning docks it. The layout then resizes smoothly to make room. Pinning is reversible.
 2. Every panel is closeable. Every side panel is resizeable.
-3. Per-view panel *presence* persists automatically. This covers which panels are open, which one is active, and whether each is pinned or floating. So the user never needs to re-open or re-pin a view to restore its layout. Region widths and navigation width are global values, set once for the whole shell. A resize states how much room the operator wants on this screen. A seam that moved on every view switch would read as the layout shoving itself (§5.1.1) [E]. This rule was amended on 12 September 2026. Widths used to be set per view. This rule was amended on 25 September 2026. A surface the operator moves into a pane stays there across every view. It stays until the operator closes it or moves it again. Per-view memory covers the panels opened during work.
+3. Per-view panel *presence* persists automatically. This covers which panels are open, which one is active, and whether each is pinned or floating. So the user never needs to re-open or re-pin a view to restore its layout. Region widths and navigation width are global values, set once for the whole shell. A resize states how much room the person wants on this screen. A seam that moved on every view switch would read as the layout shoving itself (§5.1.1) [E]. This rule was amended on 12 September 2026. Widths used to be set per view. This rule was amended on 25 September 2026. A surface the person moves into a pane stays there across every view. It stays until the person closes it or moves it again. Per-view memory covers the panels opened during work.
 4. Pinned panels grow into a **workspace** [C]: left and right panes, and potentially a bottom pane, around a tabbed central content area. Panels can host tabs, be rearranged, and **pop out** into separate windows.
 5. **Focus mode** [C]. One action collapses every pane. The central content fills the shell, with only subtle affordances to bring panes back. Leaving focus mode restores the exact prior layout.
 
@@ -263,8 +263,8 @@ One canonical term applies per concept. Synonyms are banned from the UI. Domain 
 |---|---|---|
 | work item | unit of factory work | task, ticket, job, card |
 | run | one execution attempt | build, session |
-| agent | subordinate AI worker | bot. "Assistant" is reserved for the operator-facing assistant. |
-| operator | the human | user, admin |
+| agent | subordinate AI worker | bot. "Assistant" is reserved for the person-facing assistant. |
+| person | the human | user, admin |
 | gate | automated check that must pass | check, guard |
 | evidence | recorded proof of what happened | "logs" as an umbrella term. Logs are one evidence kind. |
 | lens | a way of drawing the same model | view, mode |
@@ -273,7 +273,7 @@ One canonical term applies per concept. Synonyms are banned from the UI. Domain 
 
 Health states in UI copy are Healthy, Attention, Blocked, Failure, and Emergency, though internal ids may differ.
 
-**Labels name the thing.** They never name the widget it sits in. Panel, pane, view, tab, sidebar and region are words for how the shell is built. An operator is looking for *what* something is, and *which one*. A label may use one of those words only where the thing has no name of its own.
+**Labels name the thing.** They never name the widget it sits in. Panel, pane, view, tab, sidebar and region are words for how the shell is built. An person is looking for *what* something is, and *which one*. A label may use one of those words only where the thing has no name of its own.
 
 | Instead of | Write |
 |---|---|
@@ -308,9 +308,9 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 
 | Channel | Carries | Lifetime | Severity |
 |---|---|---|---|
-| Toast | Confirmation of the operator's own action. Carries undo (§8). | Auto-dismiss ~4 s. Stacking policy is open [O]. Several toasts at once may be allowed; this will be decided after the component survey. Each toast is dismissible individually, and the whole group is dismissible together. | info |
+| Toast | Confirmation of the person's own action. Carries undo (§8). | Auto-dismiss ~4 s. Stacking policy is open [O]. Several toasts at once may be allowed; this will be decided after the component survey. Each toast is dismissible individually, and the whole group is dismissible together. | info |
 | Badge / count pill | Passive counts that route to a list | while count > 0 | info to P2 |
-| Attention item | Anything needing operator judgement | until resolved; ranked (§11.3) | P2 to P1 |
+| Attention item | Anything needing person judgement | until resolved; ranked (§11.3) | P2 to P1 |
 | Banner | Factory-level condition affecting the whole session | while the condition holds; one at a time, highest wins | P1 |
 | Dialog (P0 interruption) | The factory cannot proceed safely without a decision | until decided | P0 |
 | History / inbox | Append-only record of every other item in this table | permanent | all |
@@ -320,7 +320,7 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 - Nothing renders blank while loading. A skeleton mirrors the final layout. It appears only after 150 ms, so there is no flash on fast loads. It animates subtly, under the motion policy in §5.1.5.
 - A known duration gets a determinate bar. An unknown duration gets an activity indicator, plus elapsed time once it passes 5 s.
 - Streaming happens through StreamSurface. Parts render as they arrive. Skeletons stand in only for parts not yet arrived. Arrived parts never re-layout (§5.1).
-- Optimistic updates apply immediately, for near-certain operator actions. Mark the update as syncing. On failure, roll back visibly through an attention item. Never roll back silently.
+- Optimistic updates apply immediately, for near-certain person actions. Mark the update as syncing. On failure, roll back visibly through an attention item. Never roll back silently.
 
 ---
 
@@ -330,8 +330,8 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 2. Judgement verbs, such as approve, request-changes, or clarify, take one click with no confirmation. Each is undoable until a downstream agent or gate consumes the decision. After consumption, the correction is a new action, such as request-changes. It is not undo.
 3. Operation verbs, such as redirect or stop, take one confirmation. That confirmation states the consequence in one sentence, for example "Stops the run. Work so far is preserved as evidence." `stop` is not undoable. That is exactly why it confirms.
 4. Undo lives in the action's toast (§7.1). It remains available in the item's inspector while the window lasts.
-5. Every action, operator or agent, lands in the recorder. A failed or rolled-back action produces an attention item with evidence. It is never a silent revert.
-6. No operator action ever destroys evidence. Truly destructive actions do not exist in the console, by design.
+5. Every action, person or agent, lands in the recorder. A failed or rolled-back action produces an attention item with evidence. It is never a silent revert.
+6. No person action ever destroys evidence. Truly destructive actions do not exist in the console, by design.
 7. For form validation, validate on submit or on leaving a field. Never validate on the first keystroke. Error text follows §6.3, placed at the field. Focus moves to the first error.
 
 ---
@@ -341,7 +341,7 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 ### 9.1 Time
 
 - Under 24 hours, use a relative time, such as "4 m ago". Update it per minute. Never update it every second. Beyond 24 hours, use the absolute date and time.
-- The full absolute timestamp with UTC offset is always one hover or tap away. A view never mixes timezones. The display zone is the operator's local zone.
+- The full absolute timestamp with UTC offset is always one hover or tap away. A view never mixes timezones. The display zone is the person's local zone.
 - Durations use at most two units, such as "1 h 20 m". Seconds appear only under a minute.
 - In replay (§16.7), every time on screen anchors to the replayed moment, and the UI says so.
 
@@ -408,7 +408,7 @@ Glyph characters below are Unicode approximations, so the shape language is visi
 | Isolate | Everything but the selected subgraph recedes. |
 | Compare (Lab) | Two contexts appear side by side. |
 | Critical path | The path gets a distinct overlay stroke. |
-| Blocked clusters | A "why" affordance dims others and highlights the common dependency. The ambient operator does the same thing [E vision example]. |
+| Blocked clusters | A "why" affordance dims others and highlights the common dependency. The ambient person does the same thing [E vision example]. |
 
 ### 10.6 Zoom ladder [E progressive abstraction, C representation]
 
@@ -523,7 +523,7 @@ Deployment states: `QUEUED`, `BUILDING`, `CANARY`, `PROMOTING`, `LIVE`, `ROLLING
 
 ### 11.7 Agent and execution-resource semantics [E + C]
 
-Agent states are subordinate. They are never a roster. The states are: `IDLE`, `EXECUTING`, `WAITING`, `TOOL_RUN`, `ERROR`. Dimensions that matter for the operator are: provider, model, skill or prompt version, and runner capacity. Capacity is only surfaced as *capacity versus ready-work supply*, in Stand. It is never surfaced as a count of agents [E show-work-before-agents].
+Agent states are subordinate. They are never a roster. The states are: `IDLE`, `EXECUTING`, `WAITING`, `TOOL_RUN`, `ERROR`. Dimensions that matter for the person are: provider, model, skill or prompt version, and runner capacity. Capacity is only surfaced as *capacity versus ready-work supply*, in Stand. It is never surfaced as a count of agents [E show-work-before-agents].
 
 **Render on work.** Actors appear only as a lens [C]. An agent is always identifiable on the work item it serves. This uses an `AgentPin` bound to the node. It is never a standalone row. So the floor never reads as an agent-status grid.
 
@@ -751,7 +751,7 @@ Current candidate, to refine: 2 px accent ring, 1 px offset, on every focusable 
 
 | Shortcut | Action |
 |---|---|
-| `⌘/Ctrl K` | Ambient operator palette (also command nav) |
+| `⌘/Ctrl K` | Ambient person palette (also command nav) |
 | `Alt 1/2/3` | Floor / Stand / Lab |
 | `L` | Cycle lens (Floor) |
 | `⌘/Ctrl F` | Focus search (entities, ids, hashes) |
@@ -793,7 +793,7 @@ Single focus entity at a time. Multi-select happens only inside Lab comparisons.
 
 ### 16.6 Attention emphasis and reduced motion [E + C]
 
-Attention reveal is a short pulse + steady halo, then stillness [C]. Motion currently follows §5.1.5. It stays always on, with no host-preference gate. If an explicit operator-controlled reduced-motion setting is introduced later, its treatment disables non-opacity motion and continues to convey changes by colour/border/glyph. Replay scrubs jump. This is a proposed future treatment, awaiting implementation.
+Attention reveal is a short pulse + steady halo, then stillness [C]. Motion currently follows §5.1.5. It stays always on, with no host-preference gate. If an explicit person-controlled reduced-motion setting is introduced later, its treatment disables non-opacity motion and continues to convey changes by colour/border/glyph. Replay scrubs jump. This is a proposed future treatment, awaiting implementation.
 
 ### 16.7 Replay vs live [C]
 
@@ -812,7 +812,7 @@ Non-negotiable checklist [E]:
 - State never conveyed by colour alone: glyph + text + (where sensible) position.
 - Follow the explicit motion policy in §5.1.5. No host preference silently disables motion. Any future reduced-motion control must remain visible and reversible.
 - Target sizes ≥ 44 px for isolated actions. Dense-row controls may be 28 px minimum, with adequate spacing [C].
-- Screen-reader alternative for graphs and timelines [C]: a per-node text summary, plus an accessible "what changed" change-log table. The table covers time, entity, transition, and cause, the same content the operator reads at 10 cm, serialised.
+- Screen-reader alternative for graphs and timelines [C]: a per-node text summary, plus an accessible "what changed" change-log table. The table covers time, entity, transition, and cause, the same content the person reads at 10 cm, serialised.
 - Live regions announce attention arrival: severity, class, and entity, without stealing focus [C].
 
 ---

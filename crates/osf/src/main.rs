@@ -141,6 +141,27 @@ enum Command {
         #[command(subcommand)]
         action: AgentsAction,
     },
+    /// Report whether this repository and machine are set up correctly. Read-only.
+    Doctor(DoctorArgs),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum DoctorFormat {
+    Text,
+    Json,
+}
+
+#[derive(Args)]
+struct DoctorArgs {
+    /// How to print the report.
+    #[arg(long, value_enum, default_value_t = DoctorFormat::Text)]
+    format: DoctorFormat,
+    /// Print one JSON array instead of text. Kept as an alias for --format json.
+    #[arg(long, hide = true)]
+    json: bool,
+    /// Print only this check: osf, settings, agents, agent-binaries, hooks or container.
+    #[arg(long)]
+    check: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -922,6 +943,49 @@ fn main() -> ExitCode {
         Command::Agents {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
+        Command::Doctor(args) => doctor_cmd(args, cli.config.as_deref()),
+    }
+}
+
+fn doctor_cmd(args: &DoctorArgs, config_file: Option<&Path>) -> ExitCode {
+    let root = osf::git::repo_root(Path::new(".")).unwrap_or_else(|_| Path::new(".").to_path_buf());
+    let checks = osf::doctor::report(&root, config_file);
+    let checks = match osf::doctor::keep(checks, args.check.as_deref()) {
+        Ok(checks) => checks,
+        Err(error) => {
+            eprintln!("osf doctor: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let json = args.json || args.format == DoctorFormat::Json;
+    if json {
+        match serde_json::to_string_pretty(&checks) {
+            Ok(text) => println!("{text}"),
+            Err(error) => {
+                eprintln!("osf doctor: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        for check in &checks {
+            println!(
+                "{}: {} - {}",
+                check.status.as_str(),
+                check.name,
+                check.detail
+            );
+            if let Some(fix) = &check.fix {
+                println!("  fix: {fix}");
+            }
+        }
+    }
+    if checks
+        .iter()
+        .any(|check| check.status == osf::doctor::Status::Fail)
+    {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 

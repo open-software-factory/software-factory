@@ -2,7 +2,7 @@
 
 Status: accepted design, written from the owner's answers in a questioning session on 2026-09-21 and a design session on 2026-09-22. The decision records listed at the end carry the options weighed and the choice each one made.
 
-Date: 2026-09-22, amended 2026-09-25 with the review check, several tools per slot and gap checks, from a second design session. Amended 2026-10-03, on the owner's direct decisions, with the review prompt file, reviewers that receive metadata and read with read-only tools, a CI job for each reviewer, and the roster from the agent list in `crates/osf/src/agents.rs`. Amended 2026-10-05, on the owner's decision: the codex reviewer runs inside the review container with its own sandbox off, because the container is the wall. Amended again 2026-10-05, on a review of this page: the codex version comes with the review image, which is pinned by digest, and the codex job checks it with `codex --version`, so the workflow has no codex download, no sha256 and no extraction. The bypass applies only inside the factory's container.
+Date: 2026-09-22, amended 2026-09-25 with the review check, several tools per slot and gap checks, from a second design session. Amended 2026-10-03, on the owner's direct decisions, with the review prompt file, reviewers that receive metadata and read with read-only tools, one review job, and the roster from the agent list in `crates/osf/src/agents.rs`. Amended 2026-10-05, on the owner's decision: the codex reviewer runs inside the review container with its own sandbox off, because the container is the wall. Amended again 2026-10-05, on a review of this page: the codex version comes with the review image, which is pinned by digest, and the codex job checks it with `codex --version`, so the workflow has no codex download, no sha256 and no extraction. The bypass applies only inside the factory's container.
 
 The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged [moon](https://moonrepo.dev) tasks and one configuration file. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). This design also serves [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
 
@@ -10,7 +10,7 @@ The issue for this design is [open-software-factory/software-factory#26 (verify 
 
 One seam runs the same checks at every checkpoint. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check passes and every review thread is resolved. The aggregation itself reads each adopter job's conclusion. A run's journal survives the machine as of its last flush.
 
-The seam serves the engineer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is [.NET](https://dotnet.microsoft.com/) (Microsoft's application platform), and Java, TypeScript, Python and Go follow, one at a time.
+The seam serves the factoryer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is [.NET](https://dotnet.microsoft.com/) (Microsoft's application platform), and Java, TypeScript, Python and Go follow, one at a time.
 
 ## Vocabulary
 
@@ -19,7 +19,7 @@ Each term below has one job in this document.
 | Term | Meaning |
 | --- | --- |
 | Check | One unit of verification. A check is a moon task with tags. |
-| Checkpoint | A point where checks run: the harness hook, pre-commit, pre-push, the pull request and the schedule. |
+| Checkpoint | A point where checks run: the agent hook, pre-commit, pre-push, the pull request and the schedule. |
 | Slot | A named kind of check the factory expects, such as lint, format, unit tests or architecture tests. A slot is filled by a factory default, by the adopter's own task or job, or by a slot attestation. |
 | Check recogniser | The part of the tool that reads an adopter's workflow and project files and judges whether the adopter's own check is at least as strong as the factory's for that slot. |
 | Slot attestation | The adopter's written statement, in the configuration file, that a slot is filled, with a reason and a date. It is used for a slot no check recogniser covers. |
@@ -38,21 +38,21 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Unit | A check is a moon task. Its tags name its checkpoints and its slot. Moon runs under every factory check and ships in the factory's image. |
 | Name | The points where checks run are called checkpoints. |
 | Cost | There is no fixed time budget per checkpoint. Declared inputs and moon's cache make an untouched check free. A repository may set a ceiling per checkpoint in its configuration. |
-| Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host, a branch that shares no history with the code, is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
-| Required checks | Branch protection requires the aggregation check and every review conversation resolved. The review check is advisory for now, and [decision 0020 (who can post a review result)](decisions/0020-who-can-post-a-review-result.md) says when it becomes a required check. The aggregation reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
+| Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host, a branch that shares no history with the code, is the default journal store. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second journal store. When both are configured, both receive every write. |
+| Required checks | Branch protection requires the aggregation check and every review conversation resolved. The review check is required once the rebuilt workflow is verified. The aggregation reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
 | Slots | A slot counts as filled by the adopter's own check only when the check recogniser reads that it is at least as strong as the factory's. Where no recogniser exists, a slot attestation fills it and is reported as such. A periodic audit compares attestations with completed runs. |
 | Empty slots | The factory fills an empty slot with its own default when it has one. A slot with no tool, or one only the adopter can fill such as architecture tests, runs a gap check at warning, tracked by an issue in the adopter's own tracker, reached through the tracker adapter, until a tool or the adopter fills it. |
 | Several tools per slot | Every task tagged for a slot fills it, and the slot passes only when all of them pass. [Decision 0017](decisions/0017-native-default-checks-and-gap-checks.md) sets this out with the native default tools. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
-| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016 (the review check)](decisions/0016-the-review-check.md) sets how it runs: review lenses, a prompt file, reviewers from the agent list that receive metadata and read the change with read-only tools, each in a CI job of its own with only its own key, a JSON Schema for every answer, and a deterministic reducer. |
+| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016 (the review check)](decisions/0016-the-review-check.md) sets how it runs: review lenses, a prompt file, reviewers from the agent list that receive metadata and read the change with read-only tools, one review job with the repository-level OSF_REVIEW_ credentials, a JSON Schema for every answer, and a deterministic reducer. |
 | Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. Rust and .NET ship together. The scheduled checks are an open list that grows. |
 | Suppressions | Both the factory's own marker and each ecosystem's native markers. The factory marker carries a reason and an expiry. Native markers keep working for their tools and the factory reads them. |
 | Configuration | One table per slot in `osf.toml`. |
 | Defaults | One TOML data file per ecosystem inside the tool, holding the task shape, the slot, the checkpoints and the recogniser rules. TOML is the configuration format the tool uses. |
 | Deployment | The factory renders the files it owns into the adopter's repository. Customisation lives in `osf.toml` and in tags on the adopter's own tasks. A drift gate refuses hand edits to a generated file. |
 | Aggregation output | One check run whose summary is the slot table, rendered from one journal event. |
-| Scheduled work | Scheduled checks are checks. Model-driven upkeep becomes issues that the engine works through its normal loop. |
-| Transcripts | Raw harness transcripts share the journal's buffer, flush and sinks, keyed by run identifier. |
+| Scheduled work | Scheduled checks are checks. Model-driven upkeep becomes issues that the factory works through its normal loop. |
+| Transcripts | Raw agent transcripts share the journal's buffer, flush and journal stores, keyed by run identifier. |
 
 ## The shape of the seam
 
@@ -95,11 +95,11 @@ The pre-commit checkpoint runs the tasks tagged `osf-pre-commit` on the affected
 
 The pull-request checkpoint has one more piece. The adopter's existing CI jobs fill slots without becoming moon tasks. The check recogniser reads their workflow and project files and judges each slot. The aggregation runs after every workflow on the commit finishes. It reads each job's conclusion and result files, adds the moon results, and posts the one required check for the slots.
 
-The schedule checkpoint runs the tasks tagged for it at their cadence. Their findings become issues, and the engine's loop works those issues as ordinary changes.
+The schedule checkpoint runs the tasks tagged for it at their cadence. Their findings become issues, and the factory's loop works those issues as ordinary changes.
 
 Every event reaches the local journal first. A buffer flushes on push and on a timer to the orphan branch, and to the object store when one is configured.
 
-### The harness hook checkpoint
+### The agent hook checkpoint
 
 The hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. At this checkpoint every check reads a touched file as it is on disk, because the hook checks what the agent just wrote, and every other checkpoint keeps its own current source. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
 
@@ -114,7 +114,7 @@ The event to refuse a tool call, such as a commit that skips hooks, is a separat
 | [OpenCode](https://opencode.ai), an open-source coding agent | a plugin on the after-execute event | a plugin | a plugin on the before-execute event | a short plugin |
 | [omp](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent), the oh-my-pi coding agent | a hook under its hooks directory | a hook | a hook | a short hook |
 
-A harness with no end-of-turn event still gets the after-write event, and the pre-commit checkpoint catches the rest.
+An agent with no end-of-turn event still gets the after-write event, and the pre-commit checkpoint catches the rest.
 
 ## Components
 
@@ -127,9 +127,9 @@ Each component has one job and is testable alone.
 | Check recogniser | Reads the adopter's workflow and project files against the recogniser rules and reports each slot as filled, attested or empty. | The aggregation. | The defaults, `osf.toml`. |
 | Aggregation | Reads check conclusions and result files on a commit, adds the moon results and the recogniser's slot states, applies levels and suppressions, posts one check with the slot table. | The pull-request workflow. | The code host adapter, the result-file readers, the journal writer. |
 | Result-file readers | Detect a result file by content and return counts and findings. One reader per format. | The aggregation. | Nothing else. |
-| Journal writer and sinks | Validates and appends events, hash-chained. Buffers locally. Flushes to the branch, and to the store when configured. | Every component that emits an event. | The state directory, git, an object-store client when configured. |
+| Journal writer and journal stores | Validates and appends events, hash-chained. Buffers locally. Flushes to the branch, and to the store when configured. | Every component that emits an event. | The state directory, git, an object-store client when configured. |
 | Suppression reader | Parses factory markers and native markers, checks reason and expiry, counts them. | The checkpoint runner, the aggregation. | Nothing else. |
-| Hook adapters | One small shim per harness that calls the checkpoint runner on the right event. | The harness. | The checkpoint runner. |
+| Hook adapters | One small shim per agent that calls the checkpoint runner on the right event. | The agent. | The checkpoint runner. |
 | Git hooks | Pre-commit and pre-push scripts that call the checkpoint runner. | git. | The checkpoint runner. |
 
 The existing `osf verify` command becomes the checkpoint runner's entry point, with the checkpoint as its argument. A sync command renders. The shapes of the runner, the recogniser rules and the result readers get their detail in the implementation plan.
@@ -138,13 +138,13 @@ The existing `osf verify` command becomes the checkpoint runner's entry point, w
 
 One change, followed from the first edit to the merged pull request.
 
-1. **The agent writes a file.** The harness fires its after-write event. The hook adapter calls the runner with the changed path. The runner selects the tasks tagged for the hook checkpoint. Moon's affected filter drops every task whose inputs the path does not touch. What remains runs. Findings return to the agent in the hook's reply. Each task's verification event lands in the local buffer.
+1. **The agent writes a file.** The agent fires its after-write event. The hook adapter calls the runner with the changed path. The runner selects the tasks tagged for the hook checkpoint. Moon's affected filter drops every task whose inputs the path does not touch. What remains runs. Findings return to the agent in the hook's reply. Each task's verification event lands in the local buffer.
 2. **The agent commits.** The pre-commit git hook runs the pre-commit checkpoint on the staged files. A failing error-level task refuses the commit. The commit message passes the writing lint.
 3. **The agent pushes.** The pre-push checkpoint runs on the whole branch diff. Then the buffer flushes to the orphan branch, and to the object store when one is configured.
 4. **The pull request opens.** The adopter's own workflows and the generated factory workflow start together. The factory workflow runs the tasks tagged for the pull-request checkpoint. Each job uploads its result files as artifacts.
 5. **A workflow finishes.** The aggregation workflow starts. It lists the check runs on the commit. If one is still running, it stops and waits for the next finish. When every check is done it reads each conclusion and downloads the artifacts. It hands each file to the reader that recognises its content. The check recogniser reports the state of each slot. Levels and suppressions apply. The aggregation writes the checkpoint-complete event with the slot table, posts the one required check for the slots, and flushes the journal.
-6. **Merge.** The aggregation check and the resolved review threads gate the merge. The review check is advisory for now. The aggregation itself reads each adopter job's conclusion as part of that check.
-7. **On the schedule.** The scheduled workflow runs the tasks tagged for that cadence. Each finding becomes an issue with the native fields set, and the engine's loop takes it from there.
+6. **Merge.** The aggregation check and the resolved review threads gate the merge. The review check is required once the rebuilt workflow is verified. The aggregation itself reads each adopter job's conclusion as part of that check.
+7. **On the schedule.** The scheduled workflow runs the tasks tagged for that cadence. Each finding becomes an issue with the native fields set, and the factory's loop takes it from there.
 8. **On a factory release.** The daily sync task sees the new version and renders the generated files. It opens a pull request under the builder identity. That pull request goes through the pull-request checkpoint like any other.
 
 ### The records
@@ -153,7 +153,7 @@ A verification event carries the check name, the slot, the checkpoint, the resul
 
 ### Raw transcripts
 
-Raw harness transcripts share the journal's buffer, flush and sinks, keyed by run identifier. The run-started event records the transcript's location, and the run-complete event records its hash. Files are stored as written, and scrubbed of secrets before the flush. The collection cadence, the scrub rules, the per-harness readers and the query dataset need a design of their own.
+Raw agent transcripts share the journal's buffer, flush and journal stores, keyed by run identifier. The run-started event records the transcript's location, and the run-complete event records its hash. Files are stored as written, and scrubbed of secrets before the flush. The collection cadence, the scrub rules, the per-agent readers and the query dataset need a design of their own.
 
 ## Configuration
 
@@ -243,7 +243,7 @@ The tool renders a small set of files from the TOML defaults and the repository'
 
 Each generated file carries a header naming the version that produced it. Rendering is a pure function of the version and `osf.toml`, so running it twice changes nothing. An adopter customises only in tags on their own moon tasks, which fill slots, and in keys in `osf.toml`, which set levels, jobs, attestations and suppressions. The drift gate fails when a generated file differs from what the pinned version renders. Its message names the key or the tag where the edit belongs instead.
 
-The hook wiring for each harness is rendered into the sandbox's managed harness settings, because the harness reads it from there. The sync command reports which harnesses are wired.
+The hook wiring for each agent is rendered into the sandbox's managed agent settings, because the agent reads it from there. The sync command reports which agents are wired.
 
 ## The aggregation
 
@@ -283,7 +283,7 @@ osf runs each reviewer through a coding-agent command-line tool. The roster is t
 
 The frame of the prompt a reviewer receives, which holds its role, its rules and how to answer, is a default prompt file that osf ships, built into its one static binary. A repository overrides it with the file its settings name or with `.osf/review-prompt.md`. Only the answer format osf parses stays fixed in code. A reviewer receives metadata in place of a pasted excerpt. The metadata holds the pull request number, title and body, the base and head commits, the changed files, the path of one file that holds the commit log and the diff, the work item, the linked decision records and the lens questions. It reads whatever else it needs with read-only tools over a checkout of the change. osf sets no cap on how much it reads. The one cut is on the work item, whose issue body is cut at 60,000 characters.
 
-The reviewer sandbox is the review container. Claude Code, opencode and omp have read-only tools only, with no write tools and no shell beyond read-only use. Codex runs with its own sandbox and approvals bypass switched on. An agent inside the factory's container runs with its own sandbox off, and the container is the wall. The wall is the network allow-list, the read-only checkout, no runtime socket, and only the provider key in the environment. osf runs codex with `--dangerously-bypass-approvals-and-sandbox` only on Linux or macOS, and only when `/opt/factory/bin/osf` is a regular file owned by root with no write bit for group or others, and `/.dockerenv` exists. Anywhere else, including Windows, codex keeps `--sandbox read-only`, and the sandbox check runs. The network is limited by the job's allow-list, which holds the reviewer's model provider and the GitHub hosts the job needs: `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `ghcr.io` and `pkg-containers.githubusercontent.com`. The codex job's list is those six hosts and `api.openai.com`. The opencode job adds `models.opencode.ai`. The build job holds no secret, and its list adds `index.crates.io`, `static.crates.io` and `crates.io` for the osf build. [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) narrows the list to the provider alone. In CI, each reviewer runs in a job of its own with only its own provider's key, and only the final job, which combines the answers and posts the result, mints the verifier's write token. Every job also has the automatic `GITHUB_TOKEN`. The codex job runs in the container, with `contents: read` and `packages: read`, and the second entry is for the registry login. The review image is pinned by digest and carries codex 0.161.0, and the codex job fails unless `codex --version` in the image prints `codex-cli 0.161.0`. The workflow has no download, no sha256 and no extraction of a codex release. The review check is advisory for now. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. [open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. The workflow is updated there to run the codex reviewer in the container. Main has only `osf review post`, and the `osf.toml` on main has no `[agents]` section, until that pull request merges.
+The reviewer sandbox is the review container. Claude Code, opencode and omp have read-only tools only, with no write tools and no shell beyond read-only use. Codex runs with its own sandbox and approvals bypass switched on. An agent inside the factory's container runs with its own sandbox off, and the container is the wall. The wall is the network allow-list, the read-only checkout, no runtime socket, and only the provider key in the environment. osf runs codex with `--dangerously-bypass-approvals-and-sandbox` only on Linux or macOS, and only when `/opt/factory/bin/osf` is a regular file owned by root with no write bit for group or others, and `/.dockerenv` exists. Anywhere else, including Windows, codex keeps `--sandbox read-only`, and the sandbox check runs. The network is limited by the job's allow-list, which holds the reviewer's model provider and the GitHub hosts the job needs: `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `ghcr.io` and `pkg-containers.githubusercontent.com`. The codex job's list is those six hosts and `api.openai.com`. The opencode job adds `models.opencode.ai`. The build job holds no secret, and its list adds `index.crates.io`, `static.crates.io` and `crates.io` for the osf build. [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) narrows the list to the provider alone. In CI, each reviewer runs in a job of its own with only its own provider's key, and only the final job, which combines the answers and posts the result, mints the verifier's write token. Every job also has the automatic `GITHUB_TOKEN`. The codex job runs in the container, with `contents: read` and `packages: read`, and the second entry is for the registry login. The review image is pinned by digest and carries codex 0.161.0, and the codex job fails unless `codex --version` in the image prints `codex-cli 0.161.0`. The workflow has no download, no sha256 and no extraction of a codex release. The review check is required once the rebuilt workflow is verified. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. [open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. The workflow is updated there to run the codex reviewer in the container. Main has only `osf review post`, and the `osf.toml` on main has no `[agents]` section, until that pull request merges.
 
 Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families, both different from the builder's. A family counts only with at least two answered rounds. When only one family has two answered rounds, the lens runs one extra critical round with that family, as an interim policy, and that round must answer too. A finding with a blocker severity or a must-fix action vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding fails the final job at the pull request, and it is a warning only at pre-push.
 
@@ -291,7 +291,7 @@ Every answer must match a JSON Schema shipped with osf. Deterministic code keeps
 
 ## The scheduled checkpoint
 
-A scheduled check is a moon task tagged for the scheduled checkpoint, with a cadence tag such as daily or weekly. It runs in the generated scheduled workflow, writes its verification event, and its findings become issues with the native fields set. The engine's own loop, one issue to one pull request, picks those issues up under the selection policy. So a documentation-drift check finds the drift and raises the issue, and the engine fixes it as ordinary work. Checks stay deterministic and every model-driven change goes through the same pull-request checkpoint as any other change.
+A scheduled check is a moon task tagged for the scheduled checkpoint, with a cadence tag such as daily or weekly. It runs in the generated scheduled workflow, writes its verification event, and its findings become issues with the native fields set. The factory's own loop, one issue to one pull request, picks those issues up under the selection policy. So a documentation-drift check finds the drift and raises the issue, and the factory fixes it as ordinary work. Checks stay deterministic and every model-driven change goes through the same pull-request checkpoint as any other change.
 
 These kinds of check belong here first. The audit that compares slot attestations with completed runs. Dependency and vulnerability checks whose inputs change without a commit. Trend checks over the journal, such as test-count shrink and check duration growth. The list is open. Candidates are mutation testing, file-size growth, duplicate-code detection against a committed baseline, stale-branch cleanup and post-deploy smoke tests. Each enters as a data entry in the shipped defaults.
 
@@ -328,7 +328,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | Rendering would overwrite a file the adopter has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
 | The flush cannot reach the branch or the store | Locally the buffer keeps the events and the next flush retries. In the pull-request checkpoint the aggregation fails, because evidence must be durable before the state changes. | Locally, a gap event at the next successful flush. In CI, the failed aggregation. |
 | Two aggregation runs start on the same commit | A concurrency group per commit lets one run at a time, and the later one supersedes. | One checkpoint-complete event per commit. |
-| The harness sends no text in its hook reply, as the dsh bridge does as of 2026-09-22 | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
+| The agent sends no text in its hook reply, as the dsh bridge does as of 2026-09-22 | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
 
 ## Testing
 
@@ -342,8 +342,8 @@ Every component has its own tests, and this repository proves the whole by runni
 | Result-file readers | A corpus of real result files per format, stored without extensions. | Each file is detected by content and its counts match the known values. |
 | Aggregation | Recorded code-host responses for each row of the failure table. All pass. A cancelled job. A path-filtered job. A missing artifact. A run that starts while another is running. | The slot table as data matches the expected table, and the rendered summary matches its snapshot. |
 | Suppression reader | Markers in every comment syntax the ecosystems use. An expired marker. A marker with no reason. A native marker added in a change. | Each is read, and the expired marker, the marker with no reason and the added native marker become findings. |
-| Journal and sinks | Replay a run. Cut the network during a flush. Complete a run with a transcript. | The replay reproduces the replay digest, while its chain head differs. The buffer keeps its events and the next flush writes a gap event. The run-complete event carries the transcript hash. |
-| Hook adapters | In each harness's container, write a file, end a turn, and commit with the skip flag. | The runner is called on the file write and the end of turn, and the commit with the skip flag is refused. The bridge that sends no text still yields journal events. |
+| Journal and journal stores | Replay a run. Cut the network during a flush. Complete a run with a transcript. | The replay reproduces the head hash. The buffer keeps its events and the next flush writes a gap event. The run-complete event carries the transcript hash. |
+| Hook adapters | In each agent's container, write a file, end a turn, and commit with the skip flag. | The runner is called on the file write and the end of turn, and the commit with the skip flag is refused. The bridge that sends no text still yields journal events. |
 | Drift gate and sync | Edit a generated file by hand. Tag a new factory release. | The gate fails and names where the edit belongs. The sync pull request opens unaided under the builder identity. |
 | The seam on itself | This repository runs every checkpoint on its own changes, from the first pull request that lands the seam. | Its own pull requests carry the slot table. |
 | The second ecosystem | A fixture repository in .NET with existing jobs that fill slots. | Its slot table shows the lint, unit-test and integration-test slots filled by its own jobs, the architecture slot running its tracked gap check, and a deliberate writing-lint failure refused at pre-commit. |
@@ -352,7 +352,7 @@ Every component has its own tests, and this repository proves the whole by runni
 
 - [The execution and verification architecture](execution-and-verification.md) says the factory invokes moon only at lifecycle checkpoints. The hook checkpoint changes that, and the page is amended.
 - [Decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) gains the word checkpoint in its vocabulary.
-- [Decision 0009 (journal store and sinks)](decisions/0009-journal-store-and-sinks.md) is provisional. It gains the local buffer, the flush, the orphan branch as the default sink and the object store as the optional one.
+- [Decision 0009 (journal store and journal stores)](decisions/0009-journal-store-and-journal stores.md) is provisional. It gains the local buffer, the flush, the orphan branch as the default journal store and the object store as the optional one.
 - [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is updated to point at this design.
 
 ## The decision records
@@ -364,7 +364,7 @@ Each one records the options weighed and the option taken.
 | [The check is the unit](decisions/0011-the-check-is-the-unit.md) | Tagged moon tasks, the checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
 | [Slots, check recognisers and slot attestations](decisions/0012-slots-check-recognisers-and-slot-attestations.md) | At least as strong, the level of an empty slot, the slot tables in `osf.toml`. |
 | [The aggregation check](decisions/0013-the-aggregation-check.md) | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
-| [The journal at every checkpoint](decisions/0014-the-journal-at-every-checkpoint.md) | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
+| [The journal at every checkpoint](decisions/0014-the-journal-at-every-checkpoint.md) | Local buffer, flush on push and on a timer, orphan branch and object store as journal stores, transcripts on the same path. |
 | [Suppressions](decisions/0015-suppressions.md) | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
 | [The review check](decisions/0016-the-review-check.md) | Review lenses, the must-run set, adopter lenses, the reviewer roster, the prompt file, what a reviewer receives, the sandbox, the answer schema and the reducer. |
 | [Native default checks and gap checks](decisions/0017-native-default-checks-and-gap-checks.md) | Native tools per slot, several tasks per slot, candidates and a default pick, gap checks tracked by an issue, qlty as a candidate. |
@@ -372,8 +372,8 @@ Each one records the options weighed and the option taken.
 
 ## Not covered by this design
 
-- The object store sink, which is built after the orphan branch sink.
+- The object store journal store, which is built after the orphan branch journal store.
 - The ecosystems after .NET, one at a time, each driven by a real repository.
 - The raw transcript archive's internals.
-- The selection policy that chooses which issue the engine works next.
+- The selection policy that chooses which issue the factory works next.
 - The confidence model over check results, once the journal holds enough runs to measure one.
