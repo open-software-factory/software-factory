@@ -687,7 +687,7 @@ command = ["codex", "exec", "--json", "-"]
 env = { CODEX_HOME = "/opt/codex" }
 ```
 
-The name must be in the one agent list and enabled, and the command must not be empty. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
+The name must be in the one agent list and enabled, and the command must not be empty. The environment is for non-secret settings; a credential variable is refused, because credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
 
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|

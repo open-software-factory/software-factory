@@ -650,10 +650,24 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
         }
         models.insert(agent.name, model.clone());
     }
+    let credentials: std::collections::BTreeSet<&str> = AGENTS
+        .iter()
+        .filter_map(|agent| agent.review.as_ref())
+        .flat_map(|review| review.credential_env.iter().copied())
+        .collect();
     let mut launch = BTreeMap::new();
     for (name, template) in &cfg.launch {
         let agent = find(name, "launch")?;
         require_enabled(&enabled, agent, "launch")?;
+        if let Some(key) = template
+            .env
+            .keys()
+            .find(|key| credentials.contains(key.as_str()))
+        {
+            return Err(format!(
+                "[agents] launch.{name}.env: {key} is a credential variable; pass it in the environment, not in osf.toml"
+            ));
+        }
         if template.command.is_empty() {
             return Err(format!(
                 "[agents] launch.{name}: command is empty; name the program and its arguments"
@@ -1141,6 +1155,16 @@ mod tests {
             .insert("codex".to_string(), LaunchTemplateConfig::default());
         let error = resolve(&config).expect_err("empty command");
         assert!(error.contains("command is empty"), "{error}");
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            "codex".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                env: BTreeMap::from([("CODEX_API_KEY".to_string(), "secret".to_string())]),
+            },
+        );
+        let error = resolve(&config).expect_err("credential in config");
+        assert!(error.contains("credential variable"), "{error}");
     }
 
     #[test]
