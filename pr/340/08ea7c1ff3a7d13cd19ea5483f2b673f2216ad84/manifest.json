@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "08ea7c1ff3a7d13cd19ea5483f2b673f2216ad84",
+    "contentHash": "9673006920727b19b31de232f9c06e3a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "doctor-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "doctor-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "32804e336d06c860468cb914976dfea5",
+      "bytes": 29178,
+      "width": 1778,
+      "height": 894,
+      "animated": false,
+      "path": "doctor-architecture-light-32804e336d06c860468cb914976dfea5.svg"
+    },
+    {
+      "id": "doctor-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "doctor-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "674dca74d407a939f4ced2b29a6f26b3",
+      "bytes": 29544,
+      "width": 1778,
+      "height": 894,
+      "animated": false,
+      "path": "doctor-architecture-dark-674dca74d407a939f4ced2b29a6f26b3.svg"
+    },
+    {
+      "id": "doctor-checks-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "doctor-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0ed08b836637113d6e94c51624bdaa5b",
+      "bytes": 16810,
+      "width": 888,
+      "height": 646,
+      "animated": false,
+      "path": "doctor-checks-light-0ed08b836637113d6e94c51624bdaa5b.svg"
+    },
+    {
+      "id": "doctor-checks-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "doctor-checks",
+      "mediaType": "image/svg+xml",
+      "contentHash": "354a8110dd19c2ae29e738602ff04142",
+      "bytes": 17043,
+      "width": 888,
+      "height": 646,
+      "animated": false,
+      "path": "doctor-checks-dark-354a8110dd19c2ae29e738602ff04142.svg"
+    }
+  ]
+}
