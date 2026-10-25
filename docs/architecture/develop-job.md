@@ -1,8 +1,8 @@
-# The first develop job
+# The develop job
 
-Status: design. The boundary is [decision 0008](decisions/0008-the-smallest-working-factory.md). Date: 2026-09-20, amended 2026-10-05: verifying is a step and no longer a state.
+Status: design. The boundary is [decision 0008](decisions/0008-the-develop-job.md). Date: 2026-09-20, amended 2026-10-05: verifying is a step and no longer a state.
 
-The first develop job is the smallest version of the factory that does one useful job from end to end. This document says what that job is, what stays outside it, which components do it, what passes between them, and which decisions it settles. The work items that build it live in the tracker.
+The develop job is the smallest version of the factory that does one useful job from end to end. This document says what that job is, what stays outside it, which components do it, what passes between them, and which decisions it settles. The work items that build it live in the tracker.
 
 ## The job
 
@@ -103,7 +103,7 @@ The [draft vocabulary](draft-factory-vocabulary.md) left five questions for this
 
 | Decision | Record |
 |---|---|
-| The boundary of the first develop job, in and out, and what done means | [0008](decisions/0008-the-smallest-working-factory.md), accepted |
+| The boundary of the develop job, in and out, and what done means | [0008](decisions/0008-the-develop-job.md), accepted |
 | Where the journal lives and how it reaches readers | [0009](decisions/0009-journal-store-and-journal stores.md), provisional |
 | How the first tracker, sandbox and agent runner adapters are built | [0010](decisions/0010-first-tracker-sandbox-and-agent runner-adapters.md), provisional |
 | Who the operator is and which words the product uses | [product 0002](../product/decisions/0002-operator-persona-and-product-vocabulary.md), accepted |

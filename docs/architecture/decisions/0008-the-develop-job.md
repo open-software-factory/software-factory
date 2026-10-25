@@ -1,4 +1,4 @@
-# 0008: The first develop job takes one work item to pull requests
+# 0008: The develop job takes one work item to pull requests
 
 Status: accepted
 
@@ -12,7 +12,7 @@ Three shapes were considered. Verifying one change and recording the evidence wo
 
 ## Decision
 
-The first develop job takes one ready work item and returns one or more pull requests that are verified, reviewed and ready for a person to merge. No person acts between the start and the pull requests unless the develop job asks.
+The develop job takes one ready work item and returns one or more pull requests that are verified, reviewed and ready for a person to merge. No person acts between the start and the pull requests unless the develop job asks.
 
 Inside the boundary: reading the work item from the work-tracker, the platform-workflow's setup step starting the sandbox on the execution platform, the builder agent running the develop skill inside it, the repository's deterministic checks, the in-sandbox review loop with its rounds, the pull requests with their status blocks, the journal with every job, check, review and finding, the checks of [decision 0003](0003-deterministic-verification-is-authoritative.md), attention when the item needs a person, and a recap written back to the work item.
 
@@ -20,7 +20,7 @@ Outside the boundary: deployment, containment and recovery, more than one item a
 
 Done means one ready work item in a real repository reaches in review with no person acting, the pull request carries the evidence, the journal validates and its head hash reproduces, a blocked run raises attention and stops, and every check re-runs to the same result.
 
-The design is [`../first-develop-job.md`](../first-develop-job.md).
+The design is [`../develop-job.md`](../develop-job.md).
 
 ## Consequences
 

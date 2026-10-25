@@ -97,7 +97,7 @@ A trigger starts a develop job. The platform-workflow's setup step mints the bui
 
 ## The develop job
 
-A person starts the first develop job by naming one work item. Events and schedules are later triggers for the same github-workflow. The job runs on a runner-machine inside a container made from a factory image; that container is the first sandbox type.
+A person starts the develop job by naming one work item. Events and schedules are later triggers for the same github-workflow. The job runs on a runner-machine inside a container made from a factory image; that container is the first sandbox type.
 
 The builder agent follows one develop skill. The skill has an optional planning phase. When a plan already exists in the work item, the planning phase becomes a check that the plan still holds at implementation time. The builder implements in logical slices, may backtrack and replan, and chooses the pull request boundaries at the end from coherent, tested commits. A work item may be an epic that stands for a group; the develop job takes the epic and its sub-items and produces a logical series of pull requests. The line and file count is a soft signal for each pull request, never a gate on the implementation.
 
