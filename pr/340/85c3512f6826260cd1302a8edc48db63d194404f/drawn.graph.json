@@ -1,0 +1,735 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T13:21:14.411Z",
+  "title": "osf doctor: read-only setup report",
+  "summary": "Adds a new `osf doctor` subcommand that runs a fixed list of read-only setup checks (osf version, settings load, enabled agents and their credentials, git hooks, container detection) and prints them as text or JSON, exiting non-zero when any check fails. The new `doctor` module in the osf crate orchestrates the checks, reusing the existing `config`, `agents` and `githooks` modules; `main.rs` wires the CLI surface (`--json`, `--check`) and maps results to exit codes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "601bd416c8d927275a5d296ad0d802e8bb5cb3fe",
+      "ref": "601bd416c8d927275a5d296ad0d802e8bb5cb3fe"
+    },
+    "head": {
+      "sha": "85c3512f6826260cd1302a8edc48db63d194404f",
+      "ref": "85c3512f6826260cd1302a8edc48db63d194404f"
+    },
+    "pullRequest": {
+      "number": 340,
+      "url": "https://github.com/open-software-factory/software-factory/pull/340"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI surface",
+      "subtitle": "crates/osf/src/main.rs",
+      "order": 0
+    },
+    {
+      "id": "doctor",
+      "label": "Doctor module",
+      "subtitle": "crates/osf/src/doctor.rs",
+      "order": 1
+    },
+    {
+      "id": "existing",
+      "label": "Existing osf modules",
+      "subtitle": "config · agents · githooks",
+      "order": 2
+    },
+    {
+      "id": "environment",
+      "label": "Machine & repository",
+      "subtitle": "env vars, home dir, git config, container",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "clap Command enum",
+      "summary": "The osf binary's argument parser gains a `Doctor(DoctorArgs)` variant with `--json` and `--check` flags, and dispatches to `doctor_cmd`.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 136,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "doctor-cmd",
+      "label": "doctor_cmd",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "fn doctor_cmd(&DoctorArgs) -> ExitCode",
+      "summary": "Calls `doctor::report` then `doctor::keep`, serialises to pretty JSON or prints `status: name - detail` lines with an optional `fix:` line, and returns exit 1 on any Fail, 2 on usage/serialisation error, 0 otherwise.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 931,
+          "endLine": 974
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "doctor-report",
+      "label": "doctor::report",
+      "kind": "function",
+      "delta": "added",
+      "lane": "doctor",
+      "subtitle": "fn report(root: &Path) -> Vec<Check>",
+      "summary": "Builds the ordered list of six checks: osf, settings, agents, agent-binaries, hooks, container.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 66,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "doctor-keep",
+      "label": "doctor::keep",
+      "kind": "function",
+      "delta": "added",
+      "lane": "doctor",
+      "subtitle": "fn keep(Vec<Check>, Option<&str>)",
+      "summary": "Filters the report down to a single named check, or errors naming the valid choices when the name is not in CHECK_NAMES.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 78,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-types",
+      "label": "Check / Status",
+      "kind": "module",
+      "delta": "added",
+      "lane": "doctor",
+      "subtitle": "struct Check, enum Status",
+      "summary": "The report's data model: a name, a kebab-case status (ok/warn/fail/unknown), a detail string and an optional fix hint. Serialises to JSON for `--json`.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 10,
+          "endLine": 58
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "missing-credential",
+      "label": "missing_credential",
+      "kind": "function",
+      "delta": "added",
+      "lane": "doctor",
+      "subtitle": "fn missing_credential(&Agent, env_present, home)",
+      "summary": "Pure helper deciding whether an agent's review credential is satisfied by an env var or a login file under home; injected lookups keep it testable without touching process env.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 252,
+          "endLine": 288
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-load",
+      "label": "config::load",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "existing",
+      "subtitle": "crates/osf/src/config.rs",
+      "summary": "Existing settings loader; doctor calls it with no overrides to prove the config parses.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-selection",
+      "label": "agents::selection",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "existing",
+      "subtitle": "crates/osf/src/agents.rs",
+      "summary": "Existing resolver for enabled agents, builder and reviewers; doctor reuses it to know which agents to check credentials for.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "githooks-check",
+      "label": "githooks::check",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "existing",
+      "subtitle": "crates/osf/src/githooks.rs",
+      "summary": "Existing core.hooksPath inspector returning Installed / NotSet / RetiredTrackedHooks / PointsElsewhere; doctor maps each to a status and fix.",
+      "files": [
+        {
+          "path": "crates/osf/src/githooks.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "process-env",
+      "label": "Process env & HOME",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "environment",
+      "subtitle": "OSF_CONFIG, credential vars, HOME",
+      "summary": "Environment variables and the home directory the credential and settings checks read.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 290,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-root",
+      "label": "Repository root",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "environment",
+      "subtitle": "Path::new(\".\")",
+      "summary": "The working directory doctor inspects: git config for hooks, osf.toml for settings and agents.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 932
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "container-marker",
+      "label": "/.dockerenv",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "environment",
+      "subtitle": "container detection",
+      "summary": "Presence of this file decides whether the container check reports ok or warn.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 232,
+          "endLine": 248
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "doctor-tests",
+      "label": "doctor integration tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "crates/osf/tests/doctor.rs",
+      "summary": "Spawns the built binary to assert exit code 2 with a named-choices message for an unknown check, and exit 0 for `--check osf`.",
+      "files": [
+        {
+          "path": "crates/osf/tests/doctor.rs",
+          "startLine": 1,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-docs",
+      "label": "docs/development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "Check your setup",
+      "summary": "Documents the three invocations, the checks performed, the non-zero exit on failure, and that agent binaries are deliberately unknown until #108.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 277,
+          "endLine": 290
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-doctor-cmd",
+      "from": "osf-cli",
+      "to": "doctor-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "Doctor(args)",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 931
+        }
+      ]
+    },
+    {
+      "id": "doctor-cmd-to-report",
+      "from": "doctor-cmd",
+      "to": "doctor-report",
+      "kind": "call",
+      "delta": "added",
+      "label": "report(\".\")",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 932
+        }
+      ]
+    },
+    {
+      "id": "doctor-cmd-to-keep",
+      "from": "doctor-cmd",
+      "to": "doctor-keep",
+      "kind": "call",
+      "delta": "added",
+      "label": "keep(checks, --check)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 932
+        }
+      ]
+    },
+    {
+      "id": "report-to-check-types",
+      "from": "doctor-report",
+      "to": "check-types",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "Vec<Check>",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "report-to-config",
+      "from": "doctor-report",
+      "to": "config-load",
+      "kind": "call",
+      "delta": "added",
+      "label": "settings check",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 110
+        }
+      ]
+    },
+    {
+      "id": "report-to-agents",
+      "from": "doctor-report",
+      "to": "agents-selection",
+      "kind": "call",
+      "delta": "added",
+      "label": "agents check",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 140
+        }
+      ]
+    },
+    {
+      "id": "report-to-hooks",
+      "from": "doctor-report",
+      "to": "githooks-check",
+      "kind": "call",
+      "delta": "added",
+      "label": "hooks check",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 196
+        }
+      ]
+    },
+    {
+      "id": "agents-to-missing-credential",
+      "from": "agents-selection",
+      "to": "missing-credential",
+      "kind": "call",
+      "delta": "added",
+      "label": "per enabled agent",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 148
+        }
+      ]
+    },
+    {
+      "id": "missing-credential-to-env",
+      "from": "missing-credential",
+      "to": "process-env",
+      "kind": "data",
+      "delta": "added",
+      "label": "credential_env / login_paths",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 262
+        }
+      ]
+    },
+    {
+      "id": "config-to-env",
+      "from": "config-load",
+      "to": "process-env",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "OSF_CONFIG",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "hooks-to-repo",
+      "from": "githooks-check",
+      "to": "repo-root",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "core.hooksPath",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "report-to-container",
+      "from": "doctor-report",
+      "to": "container-marker",
+      "kind": "data",
+      "delta": "added",
+      "label": "exists()",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 233
+        }
+      ]
+    },
+    {
+      "id": "tests-to-cli",
+      "from": "doctor-tests",
+      "to": "osf-cli",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "spawns binary",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "docs-to-cli",
+      "from": "dev-docs",
+      "to": "osf-cli",
+      "kind": "other",
+      "delta": "added",
+      "label": "documents",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "doctor-run",
+      "title": "osf doctor run",
+      "summary": "One invocation of the command: parse args, build the report, optionally narrow it, print, and choose an exit code.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-cli"
+        },
+        {
+          "node": "doctor-cmd"
+        },
+        {
+          "node": "doctor-report"
+        },
+        {
+          "node": "doctor-keep"
+        },
+        {
+          "node": "config-load"
+        },
+        {
+          "node": "agents-selection"
+        },
+        {
+          "node": "githooks-check"
+        }
+      ],
+      "messages": [
+        {
+          "id": "parse-args",
+          "from": "osf-cli",
+          "to": "doctor-cmd",
+          "label": "DoctorArgs { json, check }",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 931
+            }
+          ]
+        },
+        {
+          "id": "build-report",
+          "from": "doctor-cmd",
+          "to": "doctor-report",
+          "label": "report(Path::new(\".\"))",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 932
+            }
+          ]
+        },
+        {
+          "id": "settings-step",
+          "from": "doctor-report",
+          "to": "config-load",
+          "label": "load(None, [], [], false)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/doctor.rs",
+              "startLine": 110
+            }
+          ]
+        },
+        {
+          "id": "settings-return",
+          "from": "config-load",
+          "to": "doctor-report",
+          "label": "Ok(loaded) | Err(error)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "agents-step",
+          "from": "doctor-report",
+          "to": "agents-selection",
+          "label": "selection(root)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/doctor.rs",
+              "startLine": 140
+            }
+          ]
+        },
+        {
+          "id": "agents-return",
+          "from": "agents-selection",
+          "to": "doctor-report",
+          "label": "enabled, builder, reviewers",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "hooks-step",
+          "from": "doctor-report",
+          "to": "githooks-check",
+          "label": "check(root)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/doctor.rs",
+              "startLine": 196
+            }
+          ]
+        },
+        {
+          "id": "hooks-return",
+          "from": "githooks-check",
+          "to": "doctor-report",
+          "label": "CheckStatus",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-return",
+          "from": "doctor-report",
+          "to": "doctor-cmd",
+          "label": "Vec<Check> (6)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "filter-step",
+          "from": "doctor-cmd",
+          "to": "doctor-keep",
+          "label": "keep(checks, --check)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 932
+            }
+          ]
+        },
+        {
+          "id": "filter-return",
+          "from": "doctor-keep",
+          "to": "doctor-cmd",
+          "label": "Ok(Vec<Check>) | Err(name)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "print",
+          "from": "doctor-cmd",
+          "to": "doctor-cmd",
+          "label": "print text or JSON; exit 0/1/2",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 940
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 5,
+    "additions": 440,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New checks",
+        "value": "6",
+        "tone": "added"
+      },
+      {
+        "label": "Exit codes",
+        "value": "0 / 1 / 2",
+        "tone": "neutral"
+      },
+      {
+        "label": "Checks still unknown",
+        "value": "1 (#108)",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "doctor-architecture",
+      "title": "Doctor wiring in the osf crate",
+      "lens": "architecture",
+      "summary": "The new doctor module sits between the CLI and the existing config, agents and githooks modules, reading the machine environment and repository root.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "doctor-flow-view",
+      "title": "One doctor run",
+      "lens": "data-flow",
+      "summary": "The ordered sequence of a single `osf doctor` invocation.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "doctor-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
