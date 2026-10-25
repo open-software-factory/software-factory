@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const TRACKER_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tracker");
-const PROVIDER_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/github_tracker.rs");
+const TRACKER_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/work_tracker");
+const PROVIDER_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/github_work_tracker.rs");
 const SRC_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
 
 const BANNED: &[&str] = &["github", "gh", "gitlab", "bitbucket", "gitea"];
@@ -13,9 +13,9 @@ const BANNED: &[&str] = &["github", "gh", "gitlab", "bitbucket", "gitea"];
 #[test]
 fn banned_words_in_reports_every_provider_spelling() {
     let cases = [
-        ("GitHubTracker", "github"),
+        ("GitHubWorkTracker", "github"),
         ("GHRunner", "gh"),
-        ("github_tracker", "github"),
+        ("github_work_tracker", "github"),
         ("GitHub", "github"),
         ("use GITHUB;", "github"),
         ("ghRunner", "gh"),
@@ -38,7 +38,7 @@ fn banned_words_in_ignores_whole_segments_and_lookalikes() {
         "highlight",
         "Ghana",
         "light",
-        "Tracker",
+        "WorkTracker",
         "through",
     ];
     for text in cases {
@@ -53,7 +53,7 @@ fn banned_words_in_ignores_whole_segments_and_lookalikes() {
 #[test]
 fn collect_files_walks_a_folder_recursively() {
     let files = collect_files(Path::new(SRC_DIR));
-    let expected = Path::new("tracker").join("mod.rs");
+    let expected = Path::new("work_tracker").join("mod.rs");
     assert!(
         files.iter().any(|path| path.ends_with(&expected)),
         "the recursive walk must reach tracker/mod.rs"

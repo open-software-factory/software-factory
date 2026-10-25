@@ -1,6 +1,6 @@
-//! The ready rule: which read items the engine may dispatch, kept out of every adapter.
+//! The 'Ready' status rule: which read items the develop job may dispatch, kept out of every adapter.
 
-use crate::tracker::{ReadOutcome, Status, Tracker, WorkItem, WorkItemId};
+use crate::work_tracker::{ReadOutcome, Status, WorkItem, WorkItemId, WorkTracker};
 
 /// Why the ready rule skipped an item.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -38,7 +38,7 @@ pub fn dispatchable(item: &WorkItem) -> bool {
 
 /// Picks the first dispatchable item, or `NothingReady` when no item has status ready.
 #[must_use]
-pub fn pick(tracker: &dyn Tracker) -> Pick {
+pub fn pick(tracker: &dyn WorkTracker) -> Pick {
     match tracker.read_items() {
         ReadOutcome::Empty => Pick::NothingReady,
         ReadOutcome::Unknown(text) => Pick::Unknown(text),
@@ -56,6 +56,7 @@ pub fn pick(tracker: &dyn Tracker) -> Pick {
             }
             let skipped = items
                 .iter()
+                .filter(|item| matches!(&item.status, Status::Ready))
                 .map(|item| Skipped {
                     id: item.id.clone(),
                     reason: reason(item),
@@ -85,9 +86,9 @@ fn reason(item: &WorkItem) -> NotDispatchable {
 
 #[cfg(test)]
 mod tests {
-    use crate::tracker::fake::{Call, FakeTracker};
-    use crate::tracker::ready::{dispatchable, pick, NotDispatchable, Pick, Skipped};
-    use crate::tracker::{Dependency, ReadOutcome, Status, WorkItem, WorkItemId};
+    use crate::work_tracker::fake::{Call, FakeWorkTracker};
+    use crate::work_tracker::ready::{dispatchable, pick, NotDispatchable, Pick, Skipped};
+    use crate::work_tracker::{Dependency, ReadOutcome, Status, WorkItem, WorkItemId};
 
     fn id(item: &str) -> WorkItemId {
         WorkItemId {
@@ -151,7 +152,7 @@ mod tests {
 
     #[test]
     fn pick_returns_the_first_dispatchable_item_and_skips_ahead() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         let skipped = work_item("1", Status::Other("Paused".to_string()), Vec::new());
         let chosen = work_item("2", Status::Ready, Vec::new());
         tracker.ready = ReadOutcome::Found(vec![skipped, chosen.clone()]);
@@ -160,7 +161,7 @@ mod tests {
 
     #[test]
     fn pick_skips_a_closed_ready_item_and_takes_the_next_open_one() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         let closed = closed_work_item("1", Vec::new());
         let open = work_item("2", Status::Ready, Vec::new());
         tracker.ready = ReadOutcome::Found(vec![closed, open.clone()]);
@@ -169,7 +170,7 @@ mod tests {
 
     #[test]
     fn pick_lists_a_closed_ready_item_as_closed() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.ready = ReadOutcome::Found(vec![closed_work_item("1", Vec::new())]);
         assert_eq!(
             pick(&tracker),
@@ -182,13 +183,13 @@ mod tests {
 
     #[test]
     fn pick_of_empty_is_nothing_ready() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         assert_eq!(pick(&tracker), Pick::NothingReady);
     }
 
     #[test]
     fn pick_of_unknown_is_unknown_and_not_nothing_ready() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.ready = ReadOutcome::Unknown("x".to_string());
         let picked = pick(&tracker);
         assert_eq!(picked, Pick::Unknown("x".to_string()));
@@ -197,14 +198,14 @@ mod tests {
 
     #[test]
     fn pick_of_an_empty_found_list_is_nothing_ready() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.ready = ReadOutcome::Found(Vec::new());
         assert_eq!(pick(&tracker), Pick::NothingReady);
     }
 
     #[test]
     fn pick_of_only_non_ready_items_is_nothing_ready() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         let paused = work_item("1", Status::Other("Paused".to_string()), Vec::new());
         let backlog = work_item("2", Status::Other("Backlog".to_string()), Vec::new());
         tracker.ready = ReadOutcome::Found(vec![paused, backlog]);
@@ -212,8 +213,8 @@ mod tests {
     }
 
     #[test]
-    fn pick_lists_each_skipped_item_with_its_typed_reason() {
-        let mut tracker = FakeTracker::new();
+    fn pick_lists_only_the_ready_items_that_block_it() {
+        let mut tracker = FakeWorkTracker::new();
         let paused = work_item("1", Status::Other("Paused".to_string()), Vec::new());
         let blocked = work_item(
             "2",
@@ -227,22 +228,16 @@ mod tests {
         tracker.ready = ReadOutcome::Found(vec![paused.clone(), blocked.clone()]);
         assert_eq!(
             pick(&tracker),
-            Pick::NoneDispatchable(vec![
-                Skipped {
-                    id: id("1"),
-                    reason: NotDispatchable::StatusNotReady("Paused".to_string()),
-                },
-                Skipped {
-                    id: id("2"),
-                    reason: NotDispatchable::OpenBlockers(vec![id("4"), id("5")]),
-                },
-            ])
+            Pick::NoneDispatchable(vec![Skipped {
+                id: id("2"),
+                reason: NotDispatchable::OpenBlockers(vec![id("4"), id("5")]),
+            }])
         );
     }
 
     #[test]
     fn pick_calls_only_read_items() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.ready = ReadOutcome::Found(vec![work_item("1", Status::Ready, Vec::new())]);
         let picked = pick(&tracker);
         assert_eq!(

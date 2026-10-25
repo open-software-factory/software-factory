@@ -1,10 +1,10 @@
 //! A full engine-style run over the in-memory tracker double: no process, file,
 //! network or clock is reached anywhere in this test.
 
-use osf::tracker::fake::{Call, FakeTracker, Operation};
-use osf::tracker::{
+use osf::work_tracker::fake::{Call, FakeWorkTracker, Operation};
+use osf::work_tracker::{
     finish_run, pick, require_capabilities, BlockedCause, Capability, Dependency, Pick,
-    ReadOutcome, Status, Step, Tracker, TrackerError, WorkItem, WorkItemId, WorkState,
+    ReadOutcome, Status, Step, WorkItem, WorkItemId, WorkState, WorkTracker, WorkTrackerError,
 };
 
 const REPO: &str = "open-software-factory/demo";
@@ -38,7 +38,7 @@ fn work_item(item: &str, blocked_by: Vec<Dependency>) -> WorkItem {
 }
 
 /// The engine's whole use of the tracker seam: pick one item and report it.
-fn run_one(tracker: &dyn Tracker) -> Result<WorkItemId, String> {
+fn run_one(tracker: &dyn WorkTracker) -> Result<WorkItemId, String> {
     let item = match pick(tracker) {
         Pick::Item(item) => item,
         Pick::NothingReady => return Err("nothing is ready".to_string()),
@@ -60,7 +60,7 @@ fn run_one(tracker: &dyn Tracker) -> Result<WorkItemId, String> {
 
 #[test]
 fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     let item = work_item("1", vec![dependency("2", true)]);
     tracker.ready = ReadOutcome::Found(vec![item.clone()]);
     let chosen = run_one(&tracker).expect("runs");
@@ -89,7 +89,7 @@ fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
 
 #[test]
 fn a_run_on_a_failed_read_writes_nothing() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     tracker.ready = ReadOutcome::Unknown("boom".to_string());
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("unknown"), "{error}");
@@ -98,7 +98,7 @@ fn a_run_on_a_failed_read_writes_nothing() {
 
 #[test]
 fn a_run_on_an_empty_backlog_writes_nothing_and_says_nothing_is_ready() {
-    let tracker = FakeTracker::new();
+    let tracker = FakeWorkTracker::new();
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("nothing is ready"), "{error}");
     assert!(!error.contains("unknown"), "{error}");
@@ -107,7 +107,7 @@ fn a_run_on_an_empty_backlog_writes_nothing_and_says_nothing_is_ready() {
 
 #[test]
 fn a_run_skips_an_item_with_an_open_blocker() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     let blocked = work_item("1", vec![dependency("3", false)]);
     let ready = work_item("2", Vec::new());
     tracker.ready = ReadOutcome::Found(vec![blocked.clone(), ready.clone()]);
@@ -122,7 +122,7 @@ fn a_run_skips_an_item_with_an_open_blocker() {
 
 #[test]
 fn a_run_skips_a_closed_ready_item_and_takes_the_next_open_one() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     let closed = WorkItem {
         closed: true,
         ..work_item("1", Vec::new())
@@ -140,7 +140,7 @@ fn a_run_skips_a_closed_ready_item_and_takes_the_next_open_one() {
 
 #[test]
 fn a_run_with_only_a_closed_ready_item_writes_nothing() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     let closed = WorkItem {
         closed: true,
         ..work_item("1", Vec::new())
@@ -153,7 +153,7 @@ fn a_run_with_only_a_closed_ready_item_writes_nothing() {
 
 #[test]
 fn a_blocked_item_run_finishes_with_its_cause() {
-    let tracker = FakeTracker::new();
+    let tracker = FakeWorkTracker::new();
     let item = id("1");
     finish_run(
         &tracker,
@@ -180,9 +180,9 @@ fn a_blocked_item_run_finishes_with_its_cause() {
 
 #[test]
 fn a_failed_state_write_stops_the_run_with_its_step_named() {
-    let tracker = FakeTracker::new().fail(
+    let tracker = FakeWorkTracker::new().fail(
         Operation::WriteState,
-        TrackerError::Failed("refused".to_string()),
+        WorkTrackerError::Failed("refused".to_string()),
     );
     let item = id("1");
     let error = finish_run(&tracker, &item, &WorkState::InReview, RECAP).expect_err("fails");
@@ -202,7 +202,7 @@ fn a_failed_state_write_stops_the_run_with_its_step_named() {
 
 #[test]
 fn a_run_stops_before_any_write_when_in_progress_is_unsupported() {
-    let mut tracker = FakeTracker::new().unsupported(&WorkState::InProgress, "no in-progress");
+    let mut tracker = FakeWorkTracker::new().unsupported(&WorkState::InProgress, "no in-progress");
     tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("check capabilities"), "{error}");
@@ -212,7 +212,7 @@ fn a_run_stops_before_any_write_when_in_progress_is_unsupported() {
 
 #[test]
 fn a_run_stops_before_any_write_when_in_progress_is_unknown() {
-    let mut tracker = FakeTracker::new();
+    let mut tracker = FakeWorkTracker::new();
     let entry = tracker
         .capabilities
         .state_writes
@@ -229,9 +229,9 @@ fn a_run_stops_before_any_write_when_in_progress_is_unknown() {
 
 #[test]
 fn a_run_stops_at_a_refused_in_progress_write_and_never_reviews() {
-    let mut tracker = FakeTracker::new().fail_state(
+    let mut tracker = FakeWorkTracker::new().fail_state(
         WorkState::InProgress,
-        TrackerError::Failed("refused".to_string()),
+        WorkTrackerError::Failed("refused".to_string()),
     );
     tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
     let error = run_one(&tracker).expect_err("fails");
@@ -262,7 +262,7 @@ fn a_run_stops_at_a_refused_in_progress_write_and_never_reviews() {
 
 #[test]
 fn a_full_run_succeeds_when_an_unneeded_state_is_unsupported() {
-    let mut tracker = FakeTracker::new().unsupported(&WorkState::Failed, "no failed");
+    let mut tracker = FakeWorkTracker::new().unsupported(&WorkState::Failed, "no failed");
     let item = work_item("1", Vec::new());
     tracker.ready = ReadOutcome::Found(vec![item.clone()]);
     let chosen = run_one(&tracker).expect("runs");

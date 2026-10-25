@@ -1,6 +1,6 @@
 //! The run's finishing writes: write the state, then the recap, stopping at the first failure.
 
-use crate::tracker::{Capability, Tracker, TrackerError, WorkItemId, WorkState};
+use crate::work_tracker::{Capability, WorkItemId, WorkState, WorkTracker, WorkTrackerError};
 use std::fmt;
 
 /// One write the run makes when it finishes.
@@ -26,7 +26,7 @@ impl fmt::Display for Step {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinishError {
     pub step: Step,
-    pub error: TrackerError,
+    pub error: WorkTrackerError,
 }
 
 impl fmt::Display for FinishError {
@@ -55,11 +55,11 @@ fn require_capability(capability: &Capability, label: &str) -> Result<(), Finish
         Capability::Supported => Ok(()),
         Capability::Unsupported(reason) => Err(FinishError {
             step: Step::CheckCapabilities,
-            error: TrackerError::Rejected(format!("{label} is unsupported: {reason}")),
+            error: WorkTrackerError::Rejected(format!("{label} is unsupported: {reason}")),
         }),
         Capability::Unknown(reason) => Err(FinishError {
             step: Step::CheckCapabilities,
-            error: TrackerError::Failed(format!("{label} is unknown: {reason}")),
+            error: WorkTrackerError::Failed(format!("{label} is unknown: {reason}")),
         }),
     }
 }
@@ -69,7 +69,7 @@ fn require_capability(capability: &Capability, label: &str) -> Result<(), Finish
 /// # Errors
 /// Returns a [`FinishError`] naming `check capabilities` when a needed state or the recap is not supported.
 pub fn require_capabilities(
-    tracker: &dyn Tracker,
+    tracker: &dyn WorkTracker,
     states: &[WorkState],
     needs_recap: bool,
 ) -> Result<(), FinishError> {
@@ -83,7 +83,10 @@ pub fn require_capabilities(
             None => {
                 return Err(FinishError {
                     step: Step::CheckCapabilities,
-                    error: TrackerError::Rejected(format!("{} is not reported", state_name(state))),
+                    error: WorkTrackerError::Rejected(format!(
+                        "{} is not reported",
+                        state_name(state)
+                    )),
                 });
             }
             Some(write) => require_capability(&write.capability, &state_name(state))?,
@@ -100,7 +103,7 @@ pub fn require_capabilities(
 /// # Errors
 /// Returns a [`FinishError`] naming the first step that fails, and stops there.
 pub fn finish_run(
-    tracker: &dyn Tracker,
+    tracker: &dyn WorkTracker,
     id: &WorkItemId,
     state: &WorkState,
     recap: &str,
@@ -120,9 +123,9 @@ pub fn finish_run(
 
 #[cfg(test)]
 mod tests {
-    use crate::tracker::fake::{Call, FakeTracker, Operation};
-    use crate::tracker::report::{finish_run, require_capabilities, FinishError, Step};
-    use crate::tracker::{BlockedCause, Capability, TrackerError, WorkItemId, WorkState};
+    use crate::work_tracker::fake::{Call, FakeWorkTracker, Operation};
+    use crate::work_tracker::report::{finish_run, require_capabilities, FinishError, Step};
+    use crate::work_tracker::{BlockedCause, Capability, WorkItemId, WorkState, WorkTrackerError};
 
     fn id() -> WorkItemId {
         WorkItemId {
@@ -132,7 +135,7 @@ mod tests {
         }
     }
 
-    fn set_capability(tracker: &mut FakeTracker, state: &WorkState, capability: Capability) {
+    fn set_capability(tracker: &mut FakeWorkTracker, state: &WorkState, capability: Capability) {
         let entry = tracker
             .capabilities
             .state_writes
@@ -144,7 +147,7 @@ mod tests {
 
     #[test]
     fn finish_run_writes_the_state_then_the_recap() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         finish_run(&tracker, &id(), &WorkState::InReview, "done").expect("finishes");
         assert_eq!(
             tracker.calls(),
@@ -164,16 +167,16 @@ mod tests {
 
     #[test]
     fn a_failed_state_write_stops_before_the_recap() {
-        let tracker = FakeTracker::new().fail(
+        let tracker = FakeWorkTracker::new().fail(
             Operation::WriteState,
-            TrackerError::Rejected("no".to_string()),
+            WorkTrackerError::Rejected("no".to_string()),
         );
         let error = finish_run(&tracker, &id(), &WorkState::InReview, "done").expect_err("fails");
         assert_eq!(
             error,
             FinishError {
                 step: Step::WriteState,
-                error: TrackerError::Rejected("no".to_string()),
+                error: WorkTrackerError::Rejected("no".to_string()),
             }
         );
         assert_eq!(
@@ -190,16 +193,16 @@ mod tests {
 
     #[test]
     fn a_failed_recap_write_names_the_recap_step() {
-        let tracker = FakeTracker::new().fail(
+        let tracker = FakeWorkTracker::new().fail(
             Operation::WriteRecap,
-            TrackerError::Failed("dropped".to_string()),
+            WorkTrackerError::Failed("dropped".to_string()),
         );
         let error = finish_run(&tracker, &id(), &WorkState::Failed, "done").expect_err("fails");
         assert_eq!(
             error,
             FinishError {
                 step: Step::WriteRecap,
-                error: TrackerError::Failed("dropped".to_string()),
+                error: WorkTrackerError::Failed("dropped".to_string()),
             }
         );
         assert_eq!(
@@ -220,13 +223,15 @@ mod tests {
 
     #[test]
     fn finish_run_stops_before_any_write_when_a_state_is_unsupported() {
-        let tracker = FakeTracker::new().unsupported(&WorkState::InReview, "no in-review");
+        let tracker = FakeWorkTracker::new().unsupported(&WorkState::InReview, "no in-review");
         let error = finish_run(&tracker, &id(), &WorkState::InReview, "done").expect_err("fails");
         assert_eq!(
             error,
             FinishError {
                 step: Step::CheckCapabilities,
-                error: TrackerError::Rejected("in-review is unsupported: no in-review".to_string()),
+                error: WorkTrackerError::Rejected(
+                    "in-review is unsupported: no in-review".to_string()
+                ),
             }
         );
         assert_eq!(tracker.calls(), vec![Call::Capabilities]);
@@ -234,7 +239,7 @@ mod tests {
 
     #[test]
     fn finish_run_stops_before_any_write_when_a_state_is_unknown() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         set_capability(
             &mut tracker,
             &WorkState::InReview,
@@ -245,7 +250,7 @@ mod tests {
             error,
             FinishError {
                 step: Step::CheckCapabilities,
-                error: TrackerError::Failed("in-review is unknown: maybe".to_string()),
+                error: WorkTrackerError::Failed("in-review is unknown: maybe".to_string()),
             }
         );
         assert_eq!(tracker.calls(), vec![Call::Capabilities]);
@@ -253,14 +258,14 @@ mod tests {
 
     #[test]
     fn finish_run_stops_before_any_write_when_the_recap_is_unsupported() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.capabilities.recap = Capability::Unsupported("no recap".to_string());
         let error = finish_run(&tracker, &id(), &WorkState::InReview, "done").expect_err("fails");
         assert_eq!(
             error,
             FinishError {
                 step: Step::CheckCapabilities,
-                error: TrackerError::Rejected("recap is unsupported: no recap".to_string()),
+                error: WorkTrackerError::Rejected("recap is unsupported: no recap".to_string()),
             }
         );
         assert_eq!(tracker.calls(), vec![Call::Capabilities]);
@@ -268,7 +273,7 @@ mod tests {
 
     #[test]
     fn finish_run_writes_a_supported_blocked_human_state() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         finish_run(
             &tracker,
             &id(),
@@ -294,7 +299,7 @@ mod tests {
 
     #[test]
     fn finish_run_refuses_a_state_missing_from_the_list() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker
             .capabilities
             .state_writes
@@ -304,7 +309,7 @@ mod tests {
             error,
             FinishError {
                 step: Step::CheckCapabilities,
-                error: TrackerError::Rejected("in-review is not reported".to_string()),
+                error: WorkTrackerError::Rejected("in-review is not reported".to_string()),
             }
         );
         assert_eq!(tracker.calls(), vec![Call::Capabilities]);
@@ -312,7 +317,7 @@ mod tests {
 
     #[test]
     fn require_capabilities_reads_the_tracker_once_for_several_states() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         require_capabilities(
             &tracker,
             &[WorkState::InProgress, WorkState::InReview],
@@ -345,7 +350,7 @@ mod tests {
     fn a_finish_error_displays_the_step_then_the_error() {
         let error = FinishError {
             step: Step::WriteRecap,
-            error: TrackerError::Failed("dropped".to_string()),
+            error: WorkTrackerError::Failed("dropped".to_string()),
         };
         assert_eq!(error.to_string(), "write recap: dropped");
     }

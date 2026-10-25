@@ -18,7 +18,7 @@ pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
 pub mod failure;
 pub mod githooks;
-pub mod github_tracker;
+pub mod github_work_tracker;
 pub mod hook;
 pub mod journal;
 pub mod lenses;
@@ -45,6 +45,6 @@ pub mod section;
 pub mod symlink;
 #[cfg(test)]
 mod test_support;
-pub mod tracker;
 pub mod verify;
 pub mod work_item;
+pub mod work_tracker;

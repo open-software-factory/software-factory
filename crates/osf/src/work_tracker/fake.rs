@@ -1,8 +1,8 @@
-//! An in-memory [`Tracker`] test double: it records every call as plain data and does no I/O.
+//! An in-memory [`WorkTracker`] test double: it records every call as plain data and does no I/O.
 
-use crate::tracker::{
-    BlockedCause, Capability, ReadOutcome, StateWrite, Tracker, TrackerCapabilities, TrackerError,
-    WorkItem, WorkItemId, WorkState,
+use crate::work_tracker::{
+    BlockedCause, Capability, ReadOutcome, StateWrite, WorkItem, WorkItemId, WorkState,
+    WorkTracker, WorkTrackerCapabilities, WorkTrackerError,
 };
 use std::cell::RefCell;
 
@@ -23,18 +23,18 @@ pub enum Operation {
     WriteRecap,
 }
 
-/// A [`Tracker`] that answers from memory and records every call.
-pub struct FakeTracker {
+/// A [`WorkTracker`] that answers from memory and records every call.
+pub struct FakeWorkTracker {
     calls: RefCell<Vec<Call>>,
-    failures: Vec<(Operation, TrackerError)>,
-    state_failures: Vec<(WorkState, TrackerError)>,
-    /// The answer [`Tracker::read_items`] returns.
+    failures: Vec<(Operation, WorkTrackerError)>,
+    state_failures: Vec<(WorkState, WorkTrackerError)>,
+    /// The answer [`WorkTracker::read_items`] returns.
     pub ready: ReadOutcome<Vec<WorkItem>>,
-    /// The answer [`Tracker::capabilities`] returns.
-    pub capabilities: TrackerCapabilities,
+    /// The answer [`WorkTracker::capabilities`] returns.
+    pub capabilities: WorkTrackerCapabilities,
 }
 
-impl FakeTracker {
+impl FakeWorkTracker {
     /// A double with the documented defaults and no scripted failure.
     #[must_use]
     pub fn new() -> Self {
@@ -43,7 +43,7 @@ impl FakeTracker {
             failures: Vec::new(),
             state_failures: Vec::new(),
             ready: ReadOutcome::Empty,
-            capabilities: TrackerCapabilities {
+            capabilities: WorkTrackerCapabilities {
                 title: Capability::Supported,
                 body: Capability::Supported,
                 repository: Capability::Supported,
@@ -90,7 +90,7 @@ impl FakeTracker {
 
     /// Makes `operation` fail with `error` after still recording its call.
     #[must_use]
-    pub fn fail(mut self, operation: Operation, error: TrackerError) -> Self {
+    pub fn fail(mut self, operation: Operation, error: WorkTrackerError) -> Self {
         self.failures.push((operation, error));
         self
     }
@@ -115,7 +115,7 @@ impl FakeTracker {
 
     /// Makes `write_state` fail with `error` for exactly `state`, after recording the call.
     #[must_use]
-    pub fn fail_state(mut self, state: WorkState, error: TrackerError) -> Self {
+    pub fn fail_state(mut self, state: WorkState, error: WorkTrackerError) -> Self {
         self.state_failures.push((state, error));
         self
     }
@@ -127,7 +127,7 @@ impl FakeTracker {
     }
 
     /// The scripted failure for `operation`, if any.
-    fn failure(&self, operation: Operation) -> Option<TrackerError> {
+    fn failure(&self, operation: Operation) -> Option<WorkTrackerError> {
         self.failures
             .iter()
             .find(|(failed, _)| *failed == operation)
@@ -135,19 +135,19 @@ impl FakeTracker {
     }
 }
 
-impl Default for FakeTracker {
+impl Default for FakeWorkTracker {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Tracker for FakeTracker {
+impl WorkTracker for FakeWorkTracker {
     fn read_items(&self) -> ReadOutcome<Vec<WorkItem>> {
         self.calls.borrow_mut().push(Call::ReadItems);
         self.ready.clone()
     }
 
-    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError> {
+    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), WorkTrackerError> {
         self.calls.borrow_mut().push(Call::WriteState {
             id: id.clone(),
             state: state.clone(),
@@ -165,7 +165,7 @@ impl Tracker for FakeTracker {
         Ok(())
     }
 
-    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), TrackerError> {
+    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), WorkTrackerError> {
         self.calls.borrow_mut().push(Call::WriteRecap {
             id: id.clone(),
             recap: recap.to_string(),
@@ -176,7 +176,7 @@ impl Tracker for FakeTracker {
         Ok(())
     }
 
-    fn capabilities(&self) -> TrackerCapabilities {
+    fn capabilities(&self) -> WorkTrackerCapabilities {
         self.calls.borrow_mut().push(Call::Capabilities);
         self.capabilities.clone()
     }
@@ -184,10 +184,10 @@ impl Tracker for FakeTracker {
 
 #[cfg(test)]
 mod tests {
-    use crate::tracker::fake::{Call, FakeTracker, Operation};
-    use crate::tracker::{
-        BlockedCause, Capability, ReadOutcome, Status, Tracker, TrackerCapabilities, TrackerError,
-        WorkItem, WorkItemId, WorkState,
+    use crate::work_tracker::fake::{Call, FakeWorkTracker, Operation};
+    use crate::work_tracker::{
+        BlockedCause, Capability, ReadOutcome, Status, WorkItem, WorkItemId, WorkState,
+        WorkTracker, WorkTrackerCapabilities, WorkTrackerError,
     };
 
     fn id() -> WorkItemId {
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn the_double_records_every_call_in_order() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         let _ = tracker.read_items();
         tracker
             .write_state(&id(), &WorkState::InProgress)
@@ -238,15 +238,15 @@ mod tests {
 
     #[test]
     fn the_scripted_read_is_returned_unchanged() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.ready = ReadOutcome::Found(vec![work_item()]);
         assert_eq!(tracker.read_items(), ReadOutcome::Found(vec![work_item()]));
     }
 
     #[test]
     fn the_scripted_capabilities_are_returned_unchanged() {
-        let mut tracker = FakeTracker::new();
-        let capabilities = TrackerCapabilities {
+        let mut tracker = FakeWorkTracker::new();
+        let capabilities = WorkTrackerCapabilities {
             title: Capability::Unsupported("no title".to_string()),
             body: Capability::Unknown("n/a".to_string()),
             repository: Capability::Supported,
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn the_default_capabilities_support_every_state() {
-        let tracker = FakeTracker::new();
+        let tracker = FakeWorkTracker::new();
         let capabilities = tracker.capabilities();
         assert_eq!(capabilities.title, Capability::Supported);
         assert_eq!(capabilities.body, Capability::Supported);
@@ -295,14 +295,14 @@ mod tests {
 
     #[test]
     fn a_failed_state_write_is_returned_after_the_call_is_recorded() {
-        let tracker = FakeTracker::new().fail(
+        let tracker = FakeWorkTracker::new().fail(
             Operation::WriteState,
-            TrackerError::Rejected("no".to_string()),
+            WorkTrackerError::Rejected("no".to_string()),
         );
         let error = tracker
             .write_state(&id(), &WorkState::Failed)
             .expect_err("fails");
-        assert_eq!(error, TrackerError::Rejected("no".to_string()));
+        assert_eq!(error, WorkTrackerError::Rejected("no".to_string()));
         assert_eq!(
             tracker.calls(),
             vec![Call::WriteState {
@@ -314,12 +314,12 @@ mod tests {
 
     #[test]
     fn a_failed_recap_write_is_returned_after_the_call_is_recorded() {
-        let tracker = FakeTracker::new().fail(
+        let tracker = FakeWorkTracker::new().fail(
             Operation::WriteRecap,
-            TrackerError::Failed("dropped".to_string()),
+            WorkTrackerError::Failed("dropped".to_string()),
         );
         let error = tracker.write_recap(&id(), "done").expect_err("fails");
-        assert_eq!(error, TrackerError::Failed("dropped".to_string()));
+        assert_eq!(error, WorkTrackerError::Failed("dropped".to_string()));
         assert_eq!(
             tracker.calls(),
             vec![Call::WriteRecap {
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn unsupported_marks_only_the_named_state() {
-        let tracker = FakeTracker::new().unsupported(&WorkState::InReview, "no in-review");
+        let tracker = FakeWorkTracker::new().unsupported(&WorkState::InReview, "no in-review");
         let capabilities = tracker.capabilities();
         let in_review = capabilities
             .state_writes
@@ -352,16 +352,16 @@ mod tests {
     #[test]
     #[should_panic(expected = "lists no")]
     fn unsupported_panics_for_a_state_that_is_not_listed() {
-        let mut tracker = FakeTracker::new();
+        let mut tracker = FakeWorkTracker::new();
         tracker.capabilities.state_writes.clear();
         let _ = tracker.unsupported(&WorkState::InReview, "no in-review");
     }
 
     #[test]
     fn fail_state_fails_only_the_named_state_after_recording_it() {
-        let tracker = FakeTracker::new().fail_state(
+        let tracker = FakeWorkTracker::new().fail_state(
             WorkState::InReview,
-            TrackerError::Failed("refused".to_string()),
+            WorkTrackerError::Failed("refused".to_string()),
         );
         let item = id();
         tracker
@@ -370,7 +370,7 @@ mod tests {
         let error = tracker
             .write_state(&item, &WorkState::InReview)
             .expect_err("fails");
-        assert_eq!(error, TrackerError::Failed("refused".to_string()));
+        assert_eq!(error, WorkTrackerError::Failed("refused".to_string()));
         tracker.write_recap(&item, "done").expect("writes");
         assert_eq!(
             tracker.calls(),

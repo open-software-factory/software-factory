@@ -1,13 +1,13 @@
-//! The first [`Tracker`] adapter: GitHub Issues and Projects v2, driven
+//! The first [`WorkTracker`] adapter: GitHub Issues and Projects v2, driven
 //! through the installed `gh` command-line tool.
 //!
 //! Every request is one `gh` invocation. The argv and the JSON payload are
 //! built by pure functions, and every response is read by a pure parser, so
 //! the adapter is a thin loop over [`GhRunner`].
 
-use crate::tracker::{
-    BlockedCause, Capability, Dependency, ReadOutcome, StateWrite, Status, Tracker,
-    TrackerCapabilities, TrackerError, WorkItem, WorkItemId, WorkState,
+use crate::work_tracker::{
+    BlockedCause, Capability, Dependency, ReadOutcome, StateWrite, Status, WorkItem, WorkItemId,
+    WorkState, WorkTracker, WorkTrackerCapabilities, WorkTrackerError,
 };
 use serde_json::{json, Value};
 use std::io::{Read, Write as _};
@@ -153,10 +153,9 @@ impl GhRunner for RealGhRunner {
         if !status.success() {
             return Err(String::from_utf8_lossy(&stderr_bytes).trim().to_string());
         }
-        write
-            .join()
-            .unwrap_or(Ok(()))
-            .map_err(|error| format!("cannot run gh: {error}"))?;
+        // A stdin error after a zero exit is not a failed write. The child
+        // exited successfully, so a retry could post the same comment twice.
+        let _ = write.join();
         Ok(String::from_utf8_lossy(&stdout_bytes).into_owned())
     }
 }
@@ -200,7 +199,7 @@ impl StateOptions {
 
 /// What the adapter needs to find the project and its status field.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitHubTrackerConfig {
+pub struct GitHubWorkTrackerConfig {
     pub owner: String,
     pub project_number: u64,
     pub status_field: String,
@@ -209,7 +208,7 @@ pub struct GitHubTrackerConfig {
     pub options: StateOptions,
 }
 
-impl GitHubTrackerConfig {
+impl GitHubWorkTrackerConfig {
     /// A config with the `Status` field and the standard options.
     #[must_use]
     pub fn standard(owner: impl Into<String>, project_number: u64) -> Self {
@@ -223,30 +222,30 @@ impl GitHubTrackerConfig {
     }
 }
 
-/// A [`Tracker`] over GitHub Issues and Projects v2, driven by `R`.
-pub struct GitHubTracker<R: GhRunner> {
+/// A [`WorkTracker`] over GitHub Issues and Projects v2, driven by `R`.
+pub struct GitHubWorkTracker<R: GhRunner> {
     runner: R,
-    config: GitHubTrackerConfig,
+    config: GitHubWorkTrackerConfig,
 }
 
-impl<R: GhRunner> GitHubTracker<R> {
+impl<R: GhRunner> GitHubWorkTracker<R> {
     /// A tracker that runs every request through `runner`.
     #[must_use]
-    pub fn new(runner: R, config: GitHubTrackerConfig) -> Self {
+    pub fn new(runner: R, config: GitHubWorkTrackerConfig) -> Self {
         Self { runner, config }
     }
 
     /// Runs one GraphQL request and returns its standard output.
-    fn run_graphql(&self, argv: &[String], payload: &Value) -> Result<String, TrackerError> {
+    fn run_graphql(&self, argv: &[String], payload: &Value) -> Result<String, WorkTrackerError> {
         self.runner
             .run(argv, Some(&payload.to_string()))
-            .map_err(TrackerError::Failed)
+            .map_err(WorkTrackerError::Failed)
     }
 
     /// Refuses a write when the runner has no explicit identity.
-    fn require_identity(&self) -> Result<(), TrackerError> {
+    fn require_identity(&self) -> Result<(), WorkTrackerError> {
         if self.runner.identity().is_none() {
-            return Err(TrackerError::Rejected(
+            return Err(WorkTrackerError::Rejected(
                 "refusing a work-tracker write without an explicit builder identity; set GH_TOKEN to the builder app token".to_string(),
             ));
         }
@@ -254,17 +253,17 @@ impl<R: GhRunner> GitHubTracker<R> {
     }
 
     /// Posts one comment on `item` in `repo`.
-    fn post_comment(&self, repo: &str, item: &str, text: &str) -> Result<(), TrackerError> {
+    fn post_comment(&self, repo: &str, item: &str, text: &str) -> Result<(), WorkTrackerError> {
         let argv = comment_argv(repo, item);
         let payload = comment_payload(text);
         self.runner
             .run(&argv, Some(&payload.to_string()))
             .map(|_| ())
-            .map_err(TrackerError::Failed)
+            .map_err(WorkTrackerError::Failed)
     }
 
     /// Reads the project's id, status field and options.
-    fn read_project_status(&self) -> Result<ProjectStatus, TrackerError> {
+    fn read_project_status(&self) -> Result<ProjectStatus, WorkTrackerError> {
         let argv = project_status_argv();
         let payload = project_status_payload(
             &self.config.owner,
@@ -282,7 +281,7 @@ impl<R: GhRunner> GitHubTracker<R> {
         name: &str,
         number: u64,
         project_id: &str,
-    ) -> Result<String, TrackerError> {
+    ) -> Result<String, WorkTrackerError> {
         let argv = item_id_argv();
         let payload = item_id_payload(owner, name, number);
         let text = self.run_graphql(&argv, &payload)?;
@@ -298,14 +297,14 @@ impl<R: GhRunner> GitHubTracker<R> {
     }
 }
 
-impl GitHubTracker<RealGhRunner> {
+impl GitHubWorkTracker<RealGhRunner> {
     /// The adapter over the real command-line tool.
     ///
     /// It writes under `GH_TOKEN` when that is set. Without it, reads still
     /// work and every write is refused, so a write never falls back to the
     /// ambient `gh` login of whichever person happens to run the command.
     #[must_use]
-    pub fn real(config: GitHubTrackerConfig) -> Self {
+    pub fn real(config: GitHubWorkTrackerConfig) -> Self {
         let runner = match std::env::var("GH_TOKEN") {
             Ok(token) if !token.trim().is_empty() => RealGhRunner::default().with_token(token),
             _ => RealGhRunner::default(),
@@ -314,7 +313,7 @@ impl GitHubTracker<RealGhRunner> {
     }
 }
 
-impl<R: GhRunner> Tracker for GitHubTracker<R> {
+impl<R: GhRunner> WorkTracker for GitHubWorkTracker<R> {
     fn read_items(&self) -> ReadOutcome<Vec<WorkItem>> {
         // One extra project query verifies the configured status field and options before any item page.
         let project = match self.read_project_status() {
@@ -381,13 +380,13 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
         ReadOutcome::Unknown("the tracker returned too many pages".to_string())
     }
 
-    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError> {
+    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), WorkTrackerError> {
         self.require_identity()?;
         reject_non_github(id)?;
         let option_name = match self.config.options.option_for(state) {
             Some(name) => name.to_string(),
             None => {
-                return Err(TrackerError::Rejected(format!(
+                return Err(WorkTrackerError::Rejected(format!(
                     "this project has no option for {}",
                     state_name(state)
                 )))
@@ -399,13 +398,13 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
             .iter()
             .find(|(name, _)| name == &option_name)
         else {
-            return Err(TrackerError::Rejected(format!(
+            return Err(WorkTrackerError::Rejected(format!(
                 "the project has no option named {option_name}"
             )));
         };
         let (owner, name) = split_repo(&id.repo)?;
         let number: u64 = id.item.parse().map_err(|_| {
-            TrackerError::Rejected(format!("the item is not a number: {}", id.item))
+            WorkTrackerError::Rejected(format!("the item is not a number: {}", id.item))
         })?;
         let item_id = self.read_item_id(owner, name, number, &project.project_id)?;
         if let WorkState::Blocked(cause) = state {
@@ -418,21 +417,21 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
         Ok(())
     }
 
-    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), TrackerError> {
+    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), WorkTrackerError> {
         self.require_identity()?;
         reject_non_github(id)?;
         let (owner, name) = id.repo.split_once('/').ok_or_else(|| {
-            TrackerError::Rejected(format!("the work item repo {} is not owner/name", id.repo))
+            WorkTrackerError::Rejected(format!("the work item repo {} is not owner/name", id.repo))
         })?;
         let number: u64 = id.item.parse().map_err(|_| {
-            TrackerError::Rejected(format!("the work item number {} is not a number", id.item))
+            WorkTrackerError::Rejected(format!("the work item number {} is not a number", id.item))
         })?;
         let project = self.read_project_status()?;
         self.read_item_id(owner, name, number, &project.project_id)?;
         self.post_comment(&id.repo, &id.item, recap)
     }
 
-    fn capabilities(&self) -> TrackerCapabilities {
+    fn capabilities(&self) -> WorkTrackerCapabilities {
         let argv = project_status_argv();
         let payload = project_status_payload(
             &self.config.owner,
@@ -442,10 +441,10 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
         let read = self
             .runner
             .run(&argv, Some(&payload.to_string()))
-            .map_err(TrackerError::Failed)
+            .map_err(WorkTrackerError::Failed)
             .and_then(|text| parse_project_status(&text, &self.config.status_field));
         match read {
-            Ok(project) => TrackerCapabilities {
+            Ok(project) => WorkTrackerCapabilities {
                 title: Capability::Supported,
                 body: Capability::Supported,
                 repository: Capability::Supported,
@@ -456,7 +455,7 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
             },
             Err(error) => {
                 let reason = error.to_string();
-                TrackerCapabilities {
+                WorkTrackerCapabilities {
                     title: Capability::Unknown(reason.clone()),
                     body: Capability::Unknown(reason.clone()),
                     repository: Capability::Unknown(reason.clone()),
@@ -671,20 +670,20 @@ pub struct ProjectStatus {
 }
 
 /// A top-level `errors` key in a GraphQL response, if it holds one.
-fn graphql_error(value: &Value) -> Option<TrackerError> {
+fn graphql_error(value: &Value) -> Option<WorkTrackerError> {
     value
         .get("errors")
-        .map(|errors| TrackerError::Failed(format!("the tracker returned errors: {errors}")))
+        .map(|errors| WorkTrackerError::Failed(format!("the tracker returned errors: {errors}")))
 }
 
 /// The project object in a GraphQL response, or `project not found`.
-fn project_of(value: &Value) -> Result<&Value, TrackerError> {
+fn project_of(value: &Value) -> Result<&Value, WorkTrackerError> {
     value
         .get("data")
         .and_then(|data| data.get("repositoryOwner"))
         .and_then(|owner| owner.get("projectV2"))
         .filter(|project| !project.is_null())
-        .ok_or_else(|| TrackerError::Failed("project not found".to_string()))
+        .ok_or_else(|| WorkTrackerError::Failed("project not found".to_string()))
 }
 
 /// Whether `content` holds at least one Issue field.
@@ -704,48 +703,52 @@ fn is_issue_content(content: &Value) -> bool {
 }
 
 /// Reads one issue's blockers.
-fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, TrackerError> {
+fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, WorkTrackerError> {
     let blocked = content
         .get("blockedBy")
         .filter(|value| !value.is_null())
-        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy connection".to_string()))?;
+        .ok_or_else(|| {
+            WorkTrackerError::Failed("the issue has no blockedBy connection".to_string())
+        })?;
     let has_next = blocked
         .get("pageInfo")
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
-        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy page info".to_string()))?;
+        .ok_or_else(|| {
+            WorkTrackerError::Failed("the issue has no blockedBy page info".to_string())
+        })?;
     if has_next {
-        return Err(TrackerError::Failed(
+        return Err(WorkTrackerError::Failed(
             "the issue has more blockers than were read".to_string(),
         ));
     }
     let nodes = blocked
         .get("nodes")
         .and_then(Value::as_array)
-        .ok_or_else(|| TrackerError::Failed("the issue has no blockedBy nodes".to_string()))?;
+        .ok_or_else(|| WorkTrackerError::Failed("the issue has no blockedBy nodes".to_string()))?;
     let mut dependencies = Vec::new();
     for node in nodes {
         if node.is_null() {
-            return Err(TrackerError::Failed("a blocker is null".to_string()));
+            return Err(WorkTrackerError::Failed("a blocker is null".to_string()));
         }
         let number = node
             .get("number")
             .and_then(Value::as_u64)
-            .ok_or_else(|| TrackerError::Failed("a blocker has no number".to_string()))?;
+            .ok_or_else(|| WorkTrackerError::Failed("a blocker has no number".to_string()))?;
         let repo = node
             .get("repository")
             .and_then(|repository| repository.get("nameWithOwner"))
             .and_then(Value::as_str)
-            .ok_or_else(|| TrackerError::Failed("a blocker has no repository".to_string()))?;
+            .ok_or_else(|| WorkTrackerError::Failed("a blocker has no repository".to_string()))?;
         let state = node
             .get("state")
             .and_then(Value::as_str)
-            .ok_or_else(|| TrackerError::Failed("a blocker has no state".to_string()))?;
+            .ok_or_else(|| WorkTrackerError::Failed("a blocker has no state".to_string()))?;
         let closed = match state {
             "CLOSED" => true,
             "OPEN" => false,
             other => {
-                return Err(TrackerError::Failed(format!(
+                return Err(WorkTrackerError::Failed(format!(
                     "the blocker state '{other}' is neither OPEN nor CLOSED"
                 )))
             }
@@ -769,24 +772,24 @@ fn parse_issue_item(
     number: Option<u64>,
     repository: Option<&str>,
     status: &Status,
-) -> Result<WorkItem, TrackerError> {
+) -> Result<WorkItem, WorkTrackerError> {
     let number =
-        number.ok_or_else(|| TrackerError::Failed("the issue has no number".to_string()))?;
+        number.ok_or_else(|| WorkTrackerError::Failed("the issue has no number".to_string()))?;
     let title = content
         .get("title")
         .and_then(Value::as_str)
-        .ok_or_else(|| TrackerError::Failed("the issue has no title".to_string()))?;
+        .ok_or_else(|| WorkTrackerError::Failed("the issue has no title".to_string()))?;
     let repository = repository
-        .ok_or_else(|| TrackerError::Failed("the issue has no repository".to_string()))?;
+        .ok_or_else(|| WorkTrackerError::Failed("the issue has no repository".to_string()))?;
     let state = content
         .get("state")
         .and_then(Value::as_str)
-        .ok_or_else(|| TrackerError::Failed("the issue has no state".to_string()))?;
+        .ok_or_else(|| WorkTrackerError::Failed("the issue has no state".to_string()))?;
     let closed = match state {
         "OPEN" => false,
         "CLOSED" => true,
         other => {
-            return Err(TrackerError::Failed(format!(
+            return Err(WorkTrackerError::Failed(format!(
                 "the issue state '{other}' is neither OPEN nor CLOSED"
             )))
         }
@@ -813,7 +816,7 @@ fn parse_issue_item(
 
 /// Builds the placeholder for a malformed item that is not in the ready status.
 fn unreadable_item(
-    reason: &TrackerError,
+    reason: &WorkTrackerError,
     status: &Status,
     number: Option<u64>,
     repository: Option<&str>,
@@ -849,7 +852,7 @@ fn unreadable_item(
 ///
 /// # Errors
 /// Returns an error only when an item in the ready status is malformed.
-fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>, TrackerError> {
+fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>, WorkTrackerError> {
     let Some(content) = node.get("content").filter(|value| !value.is_null()) else {
         return Ok(None);
     };
@@ -886,21 +889,21 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its item list is missing, when a page
 /// says it has a next one with no cursor, or when a ready item is malformed.
-pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, TrackerError> {
+pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, WorkTrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
-        TrackerError::Failed(format!("cannot read the items response: {error}"))
+        WorkTrackerError::Failed(format!("cannot read the items response: {error}"))
     })?;
     if let Some(error) = graphql_error(&value) {
         return Err(error);
     }
     let project = project_of(&value)?;
     let Some(items) = project.get("items").filter(|value| !value.is_null()) else {
-        return Err(TrackerError::Failed(
+        return Err(WorkTrackerError::Failed(
             "the response has no items list".to_string(),
         ));
     };
     let Some(nodes) = items.get("nodes").and_then(Value::as_array) else {
-        return Err(TrackerError::Failed(
+        return Err(WorkTrackerError::Failed(
             "the response has no items list".to_string(),
         ));
     };
@@ -908,14 +911,14 @@ pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, Trac
         .get("pageInfo")
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
-        .ok_or_else(|| TrackerError::Failed("the items page has no hasNextPage".to_string()))?;
+        .ok_or_else(|| WorkTrackerError::Failed("the items page has no hasNextPage".to_string()))?;
     let next_cursor = if has_next {
         let cursor = items
             .get("pageInfo")
             .and_then(|page| page.get("endCursor"))
             .and_then(Value::as_str)
             .ok_or_else(|| {
-                TrackerError::Failed(
+                WorkTrackerError::Failed(
                     "the response says there is a next page but has no cursor".to_string(),
                 )
             })?;
@@ -941,9 +944,9 @@ pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, Trac
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its status field is missing, or when an
 /// id is missing.
-pub fn parse_project_status(text: &str, field: &str) -> Result<ProjectStatus, TrackerError> {
+pub fn parse_project_status(text: &str, field: &str) -> Result<ProjectStatus, WorkTrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
-        TrackerError::Failed(format!("cannot read the project response: {error}"))
+        WorkTrackerError::Failed(format!("cannot read the project response: {error}"))
     })?;
     if let Some(error) = graphql_error(&value) {
         return Err(error);
@@ -952,17 +955,17 @@ pub fn parse_project_status(text: &str, field: &str) -> Result<ProjectStatus, Tr
     let project_id = project
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| TrackerError::Failed("the project has no id".to_string()))?
+        .ok_or_else(|| WorkTrackerError::Failed("the project has no id".to_string()))?
         .to_string();
     let Some(status_field) = project.get("field").filter(|value| !value.is_null()) else {
-        return Err(TrackerError::Failed(format!(
+        return Err(WorkTrackerError::Failed(format!(
             "the project has no field named '{field}'"
         )));
     };
     let field_id = status_field
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| TrackerError::Failed("the status field has no id".to_string()))?
+        .ok_or_else(|| WorkTrackerError::Failed("the status field has no id".to_string()))?
         .to_string();
     let options = match status_field.get("options").and_then(Value::as_array) {
         Some(options) => options
@@ -988,9 +991,10 @@ pub fn parse_project_status(text: &str, field: &str) -> Result<ProjectStatus, Tr
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the issue is missing, when it is not in the project,
 /// or when there are more project items to read and it was not found.
-pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerError> {
-    let value: Value = serde_json::from_str(text)
-        .map_err(|error| TrackerError::Failed(format!("cannot read the item response: {error}")))?;
+pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, WorkTrackerError> {
+    let value: Value = serde_json::from_str(text).map_err(|error| {
+        WorkTrackerError::Failed(format!("cannot read the item response: {error}"))
+    })?;
     if let Some(error) = graphql_error(&value) {
         return Err(error);
     }
@@ -1000,10 +1004,12 @@ pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerErro
         .and_then(|repository| repository.get("issue"))
         .filter(|value| !value.is_null())
     else {
-        return Err(TrackerError::Failed("the issue was not found".to_string()));
+        return Err(WorkTrackerError::Failed(
+            "the issue was not found".to_string(),
+        ));
     };
     let Some(items) = issue.get("projectItems").filter(|value| !value.is_null()) else {
-        return Err(TrackerError::Failed(
+        return Err(WorkTrackerError::Failed(
             "the issue has no project items".to_string(),
         ));
     };
@@ -1012,12 +1018,14 @@ pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerErro
         .and_then(|page| page.get("hasNextPage"))
         .and_then(Value::as_bool)
         .ok_or_else(|| {
-            TrackerError::Failed("the project items page has no hasNextPage".to_string())
+            WorkTrackerError::Failed("the project items page has no hasNextPage".to_string())
         })?;
     let nodes = items
         .get("nodes")
         .and_then(Value::as_array)
-        .ok_or_else(|| TrackerError::Failed("the project items page has no nodes".to_string()))?;
+        .ok_or_else(|| {
+            WorkTrackerError::Failed("the project items page has no nodes".to_string())
+        })?;
     {
         for node in nodes {
             let in_project = node
@@ -1027,18 +1035,18 @@ pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerErro
                 == Some(project_id);
             if in_project {
                 let id = node.get("id").and_then(Value::as_str).ok_or_else(|| {
-                    TrackerError::Failed("the project item has no id".to_string())
+                    WorkTrackerError::Failed("the project item has no id".to_string())
                 })?;
                 return Ok(id.to_string());
             }
         }
     }
     if has_next {
-        Err(TrackerError::Failed(
+        Err(WorkTrackerError::Failed(
             "the issue is not in the project and there are more items to read".to_string(),
         ))
     } else {
-        Err(TrackerError::Failed(
+        Err(WorkTrackerError::Failed(
             "the issue is not in the project".to_string(),
         ))
     }
@@ -1049,9 +1057,9 @@ pub fn parse_item_id(text: &str, project_id: &str) -> Result<String, TrackerErro
 /// # Errors
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, or when the written project item has no id.
-pub fn parse_write_result(text: &str) -> Result<(), TrackerError> {
+pub fn parse_write_result(text: &str) -> Result<(), WorkTrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
-        TrackerError::Failed(format!("cannot read the write response: {error}"))
+        WorkTrackerError::Failed(format!("cannot read the write response: {error}"))
     })?;
     if let Some(error) = graphql_error(&value) {
         return Err(error);
@@ -1064,7 +1072,7 @@ pub fn parse_write_result(text: &str) -> Result<(), TrackerError> {
         .and_then(Value::as_str);
     match id {
         Some(_) => Ok(()),
-        None => Err(TrackerError::Failed(
+        None => Err(WorkTrackerError::Failed(
             "the write response has no project item".to_string(),
         )),
     }
@@ -1121,25 +1129,29 @@ fn state_name(state: &WorkState) -> &'static str {
 }
 
 /// Rejects an id that is not a GitHub item.
-fn reject_non_github(id: &WorkItemId) -> Result<(), TrackerError> {
+fn reject_non_github(id: &WorkItemId) -> Result<(), WorkTrackerError> {
     if id.provider == "github" {
         Ok(())
     } else {
-        Err(TrackerError::Rejected(format!("not a github item: {id}")))
+        Err(WorkTrackerError::Rejected(format!(
+            "not a github item: {id}"
+        )))
     }
 }
 
 /// Splits `owner/name` into its two halves.
-fn split_repo(repo: &str) -> Result<(&str, &str), TrackerError> {
+fn split_repo(repo: &str) -> Result<(&str, &str), WorkTrackerError> {
     repo.split_once('/')
         .filter(|(owner, name)| !owner.is_empty() && !name.is_empty())
-        .ok_or_else(|| TrackerError::Rejected(format!("the repository is not owner/name: {repo}")))
+        .ok_or_else(|| {
+            WorkTrackerError::Rejected(format!("the repository is not owner/name: {repo}"))
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tracker::ready::{pick, Pick};
+    use crate::work_tracker::ready::{pick, Pick};
     use std::cell::RefCell;
     use std::collections::VecDeque;
 
@@ -1187,12 +1199,12 @@ mod tests {
         }
     }
 
-    fn config() -> GitHubTrackerConfig {
-        GitHubTrackerConfig::standard(OWNER, 5)
+    fn config() -> GitHubWorkTrackerConfig {
+        GitHubWorkTrackerConfig::standard(OWNER, 5)
     }
 
-    fn tracker(answers: Vec<Result<String, String>>) -> GitHubTracker<ScriptedRunner> {
-        GitHubTracker::new(ScriptedRunner::new(answers), config())
+    fn tracker(answers: Vec<Result<String, String>>) -> GitHubWorkTracker<ScriptedRunner> {
+        GitHubWorkTracker::new(ScriptedRunner::new(answers), config())
     }
 
     fn github_item(item: &str) -> WorkItemId {
@@ -1996,7 +2008,7 @@ mod tests {
         );
         let mut config = config();
         config.skip_status = None;
-        let tracker = GitHubTracker::new(
+        let tracker = GitHubWorkTracker::new(
             ScriptedRunner::new(vec![Ok(project_response(all_options())), Ok(page)]),
             config,
         );
@@ -2151,7 +2163,7 @@ mod tests {
         .to_string();
         let mut config = config();
         config.status_field = "Stage".to_string();
-        let tracker = GitHubTracker::new(ScriptedRunner::new(vec![Ok(text)]), config);
+        let tracker = GitHubWorkTracker::new(ScriptedRunner::new(vec![Ok(text)]), config);
         let ReadOutcome::Unknown(message) = tracker.read_items() else {
             panic!("a missing status field must be unknown");
         };
@@ -2305,7 +2317,7 @@ mod tests {
             .expect_err("rejected");
         assert_eq!(
             error,
-            TrackerError::Rejected("the project has no option named In progress".to_string())
+            WorkTrackerError::Rejected("the project has no option named In progress".to_string())
         );
         let calls = tracker.runner.calls();
         assert_eq!(calls.len(), 1);
@@ -2323,7 +2335,7 @@ mod tests {
             first
                 .write_state(&github_item("42"), &WorkState::InProgress)
                 .expect_err("fails"),
-            TrackerError::Failed("project boom".to_string())
+            WorkTrackerError::Failed("project boom".to_string())
         );
 
         let second = tracker(vec![
@@ -2334,7 +2346,7 @@ mod tests {
             second
                 .write_state(&github_item("42"), &WorkState::InProgress)
                 .expect_err("fails"),
-            TrackerError::Failed("item boom".to_string())
+            WorkTrackerError::Failed("item boom".to_string())
         );
 
         let third = tracker(vec![
@@ -2346,7 +2358,7 @@ mod tests {
             third
                 .write_state(&github_item("42"), &WorkState::InProgress)
                 .expect_err("fails"),
-            TrackerError::Failed("mutation boom".to_string())
+            WorkTrackerError::Failed("mutation boom".to_string())
         );
     }
 
@@ -2410,7 +2422,7 @@ mod tests {
         let error = tracker
             .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
             .expect_err("fails");
-        assert_eq!(error, TrackerError::Failed("comment boom".to_string()));
+        assert_eq!(error, WorkTrackerError::Failed("comment boom".to_string()));
         let calls = tracker.runner.calls();
         assert_eq!(calls.len(), 3);
         assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
@@ -2433,7 +2445,7 @@ mod tests {
         let error = tracker
             .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
             .expect_err("fails");
-        assert_eq!(error, TrackerError::Failed("mutation boom".to_string()));
+        assert_eq!(error, WorkTrackerError::Failed("mutation boom".to_string()));
         let calls = tracker.runner.calls();
         assert_eq!(calls.len(), 4);
         assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
@@ -2508,13 +2520,13 @@ mod tests {
             tracker
                 .write_state(&other, &WorkState::InProgress)
                 .expect_err("rejected"),
-            TrackerError::Rejected(
+            WorkTrackerError::Rejected(
                 "not a github item: other:open-software-factory/demo#42".to_string()
             )
         );
         assert_eq!(
             tracker.write_recap(&other, "done").expect_err("rejected"),
-            TrackerError::Rejected(
+            WorkTrackerError::Rejected(
                 "not a github item: other:open-software-factory/demo#42".to_string()
             )
         );

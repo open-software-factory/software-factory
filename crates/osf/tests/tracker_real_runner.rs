@@ -4,7 +4,7 @@
 
 #![cfg(unix)]
 
-use osf::github_tracker::{GhRunner, RealGhRunner};
+use osf::github_work_tracker::{GhRunner, RealGhRunner};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;

@@ -145,12 +145,12 @@ pub enum WorkState {
 
 /// A tracker operation failed: the tracker refused it, or it could not run.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TrackerError {
+pub enum WorkTrackerError {
     Rejected(String),
     Failed(String),
 }
 
-impl fmt::Display for TrackerError {
+impl fmt::Display for WorkTrackerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rejected(text) | Self::Failed(text) => f.write_str(text),
@@ -158,7 +158,7 @@ impl fmt::Display for TrackerError {
     }
 }
 
-impl std::error::Error for TrackerError {}
+impl std::error::Error for WorkTrackerError {}
 
 /// Whether one tracker operation is available.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -178,7 +178,7 @@ pub struct StateWrite {
 
 /// What a tracker can do, stated rather than assumed.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub struct TrackerCapabilities {
+pub struct WorkTrackerCapabilities {
     pub title: Capability,
     pub body: Capability,
     pub repository: Capability,
@@ -189,7 +189,7 @@ pub struct TrackerCapabilities {
 }
 
 /// The seam between the factory and a work tracker.
-pub trait Tracker {
+pub trait WorkTracker {
     /// Reads the work items with their status.
     /// The ready rule in `dispatchable` decides which one may be dispatched.
     /// An adapter must not filter by the ready status itself.
@@ -198,38 +198,38 @@ pub trait Tracker {
     /// Writes the state of one work item.
     ///
     /// For a blocked state the adapter records the cause before it moves the status.
-    /// A blocked item then always carries its cause.
+    /// A blocked item then always carries its cause. The recap carries what is missing and who can supply it.
     /// If the cause cannot be recorded, the status is left untouched and the call returns the error.
     /// If the status move fails after the cause was recorded, a cause comment can remain on an item that is not blocked.
     ///
     /// After a failed status move the cause comment stays in place.
     /// The caller must move the item to failed and must not retry the same write, or the cause posts twice.
-    /// The retry policy belongs to open-software-factory/software-factory#117 (policy).
+    /// The retry rule belongs to open-software-factory/software-factory#117.
     ///
     /// # Errors
     /// Returns an error when the tracker refuses the write or it cannot run.
-    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError>;
+    fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), WorkTrackerError>;
 
     /// Writes a recap onto one work item.
     ///
     /// # Errors
     /// Returns an error when the tracker refuses the write or it cannot run.
-    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), TrackerError>;
+    fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), WorkTrackerError>;
 
-    /// Reports what the tracker can do; the engine reads it before its first write.
-    fn capabilities(&self) -> TrackerCapabilities;
+    /// Reports what the work-tracker can do; the develop job reads it before its first write.
+    fn capabilities(&self) -> WorkTrackerCapabilities;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tracker::fake::FakeTracker;
+    use crate::work_tracker::fake::FakeWorkTracker;
 
     #[test]
     fn tracker_is_object_safe() {
-        let fake = FakeTracker::new();
-        let dynamic: &dyn Tracker = &fake;
-        let boxed: Box<dyn Tracker> = Box::new(FakeTracker::new());
+        let fake = FakeWorkTracker::new();
+        let dynamic: &dyn WorkTracker = &fake;
+        let boxed: Box<dyn WorkTracker> = Box::new(FakeWorkTracker::new());
         assert!(matches!(dynamic.read_items(), ReadOutcome::Empty));
         assert!(matches!(boxed.read_items(), ReadOutcome::Empty));
     }
@@ -338,11 +338,11 @@ mod tests {
     #[test]
     fn tracker_error_display_prints_the_inner_text_only() {
         assert_eq!(
-            TrackerError::Rejected("refused".to_string()).to_string(),
+            WorkTrackerError::Rejected("refused".to_string()).to_string(),
             "refused"
         );
         assert_eq!(
-            TrackerError::Failed("failed".to_string()).to_string(),
+            WorkTrackerError::Failed("failed".to_string()).to_string(),
             "failed"
         );
     }
