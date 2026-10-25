@@ -1,23 +1,23 @@
-//! An in-memory [`CommandRunner`] and [`Harness`] test double: they replay
+//! An in-memory [`CommandRunner`] and [`AgentRunner`] test double: they replay
 //! scripted answers, record every call as plain data, and start no process.
 
-use crate::harness::{
-    CommandOutput, CommandRunner, CommandSpec, Harness, HarnessCapabilities, HarnessError,
-    HarnessResult, HarnessTask,
+use crate::agent_runner::{
+    AgentCapabilities, AgentError, AgentRunResult, AgentRunner, AgentTask, CommandOutput,
+    CommandRunner, CommandSpec,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
 /// A [`CommandRunner`] that replays scripted answers and records every command.
 pub struct FakeRunner {
-    responses: RefCell<VecDeque<Result<CommandOutput, HarnessError>>>,
+    responses: RefCell<VecDeque<Result<CommandOutput, AgentError>>>,
     commands: RefCell<Vec<CommandSpec>>,
 }
 
 impl FakeRunner {
     /// A double that replays `responses` in order.
     #[must_use]
-    pub fn new(responses: Vec<Result<CommandOutput, HarnessError>>) -> Self {
+    pub fn new(responses: Vec<Result<CommandOutput, AgentError>>) -> Self {
         Self {
             responses: RefCell::new(responses.into()),
             commands: RefCell::new(Vec::new()),
@@ -32,29 +32,29 @@ impl FakeRunner {
 }
 
 impl CommandRunner for FakeRunner {
-    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, HarnessError> {
+    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, AgentError> {
         self.commands.borrow_mut().push(command.clone());
         let mut responses = self.responses.borrow_mut();
         match responses.pop_front() {
             Some(response) => response,
-            None => Err(HarnessError::Failed("no scripted output left".to_string())),
+            None => Err(AgentError::Failed("no scripted output left".to_string())),
         }
     }
 }
 
-/// A [`Harness`] that replays scripted results and records every task.
-pub struct FakeHarness {
-    results: RefCell<VecDeque<Result<HarnessResult, HarnessError>>>,
-    tasks: RefCell<Vec<HarnessTask>>,
-    capabilities: HarnessCapabilities,
+/// A [`AgentRunner`] that replays scripted results and records every task.
+pub struct FakeAgentRunner {
+    results: RefCell<VecDeque<Result<AgentRunResult, AgentError>>>,
+    tasks: RefCell<Vec<AgentTask>>,
+    capabilities: AgentCapabilities,
 }
 
-impl FakeHarness {
+impl FakeAgentRunner {
     /// A double that replays `results` in order and reports `capabilities`.
     #[must_use]
     pub fn new(
-        results: Vec<Result<HarnessResult, HarnessError>>,
-        capabilities: HarnessCapabilities,
+        results: Vec<Result<AgentRunResult, AgentError>>,
+        capabilities: AgentCapabilities,
     ) -> Self {
         Self {
             results: RefCell::new(results.into()),
@@ -65,26 +65,26 @@ impl FakeHarness {
 
     /// Every task recorded so far, in order.
     #[must_use]
-    pub fn tasks(&self) -> Vec<HarnessTask> {
+    pub fn tasks(&self) -> Vec<AgentTask> {
         self.tasks.borrow().clone()
     }
 }
 
-impl Harness for FakeHarness {
+impl AgentRunner for FakeAgentRunner {
     fn run(
         &self,
         _runner: &dyn CommandRunner,
-        task: &HarnessTask,
-    ) -> Result<HarnessResult, HarnessError> {
+        task: &AgentTask,
+    ) -> Result<AgentRunResult, AgentError> {
         self.tasks.borrow_mut().push(task.clone());
         let mut results = self.results.borrow_mut();
         match results.pop_front() {
             Some(result) => result,
-            None => Err(HarnessError::Failed("no scripted result left".to_string())),
+            None => Err(AgentError::Failed("no scripted result left".to_string())),
         }
     }
 
-    fn capabilities(&self, _runner: &dyn CommandRunner) -> HarnessCapabilities {
+    fn capabilities(&self, _runner: &dyn CommandRunner) -> AgentCapabilities {
         self.capabilities.clone()
     }
 }
@@ -92,7 +92,7 @@ impl Harness for FakeHarness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::harness::{Actor, Capability, CommandOutcome, HarnessOutcome, Usage};
+    use crate::agent_runner::{Actor, AgentOutcome, Capability, CommandOutcome, Usage};
 
     fn command(program: &str) -> CommandSpec {
         CommandSpec {
@@ -113,24 +113,24 @@ mod tests {
         }
     }
 
-    fn task(text: &str) -> HarnessTask {
-        HarnessTask {
+    fn task(text: &str) -> AgentTask {
+        AgentTask {
             text: text.to_string(),
             repository_path: "/repo".to_string(),
             timeout_secs: None,
         }
     }
 
-    fn result(message: &str) -> HarnessResult {
-        HarnessResult {
+    fn result(message: &str) -> AgentRunResult {
+        AgentRunResult {
             actor: Actor {
-                harness: "the-harness".to_string(),
+                agent: "the-harness".to_string(),
                 model: None,
                 model_family: None,
             },
             session_id: None,
             final_message: message.to_string(),
-            outcome: HarnessOutcome::Finished,
+            outcome: AgentOutcome::Finished,
             exit: 0,
             changed_files: Vec::new(),
             branch: Some("main".to_string()),
@@ -145,8 +145,8 @@ mod tests {
         }
     }
 
-    fn capabilities() -> HarnessCapabilities {
-        HarnessCapabilities {
+    fn capabilities() -> AgentCapabilities {
+        AgentCapabilities {
             binary_present: Capability::Supported,
             version_pinned: Capability::Supported,
             headless: Capability::Supported,
@@ -172,13 +172,13 @@ mod tests {
         let error = runner.run(&command("one")).expect_err("fails");
         assert_eq!(
             error,
-            HarnessError::Failed("no scripted output left".to_string())
+            AgentError::Failed("no scripted output left".to_string())
         );
     }
 
     #[test]
     fn the_fake_harness_records_tasks_and_replays_results() {
-        let harness = FakeHarness::new(
+        let harness = FakeAgentRunner::new(
             vec![Ok(result("first")), Ok(result("second"))],
             capabilities(),
         );
@@ -204,12 +204,12 @@ mod tests {
 
     #[test]
     fn the_fake_harness_with_nothing_scripted_is_failed() {
-        let harness = FakeHarness::new(Vec::new(), capabilities());
+        let harness = FakeAgentRunner::new(Vec::new(), capabilities());
         let runner = FakeRunner::new(Vec::new());
         let error = harness.run(&runner, &task("one")).expect_err("fails");
         assert_eq!(
             error,
-            HarnessError::Failed("no scripted result left".to_string())
+            AgentError::Failed("no scripted result left".to_string())
         );
         assert!(runner.commands().is_empty(), "the harness calls no runner");
     }

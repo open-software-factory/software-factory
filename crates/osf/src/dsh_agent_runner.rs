@@ -1,4 +1,4 @@
-//! The `dsh` harness adapter: the first concrete [`Harness`], built from
+//! The `dsh` harness adapter: the first concrete [`AgentRunner`], built from
 //! pure functions and run only through a [`CommandRunner`].
 //!
 //! It runs `dsh --profile headless --json -`, feeds the prompt on stdin, and
@@ -20,9 +20,10 @@
 //!   are not seen. A commit moves the head, and a run that moves it fails.
 //! - Git gets only `PATH`, `HOME` and `GIT_*`; no credential reaches it.
 
-use crate::harness::{
-    build_prompt, question_line, Actor, Capability, CommandOutcome, CommandRunner, CommandSpec,
-    Harness, HarnessCapabilities, HarnessError, HarnessOutcome, HarnessResult, HarnessTask, Usage,
+use crate::agent_runner::{
+    build_prompt, question_line, Actor, AgentCapabilities, AgentError, AgentOutcome,
+    AgentRunResult, AgentRunner, AgentTask, Capability, CommandOutcome, CommandRunner, CommandSpec,
+    Usage,
 };
 
 /// The agent's entry in the one list; the adapter names no agent fact itself.
@@ -61,11 +62,11 @@ impl DshConfig {
 
 /// The concrete adapter for the `dsh` harness.
 #[derive(Debug, Clone)]
-pub struct DshHarness {
+pub struct DshAgentRunner {
     config: DshConfig,
 }
 
-impl DshHarness {
+impl DshAgentRunner {
     /// An adapter that runs `config`.
     #[must_use]
     pub fn new(config: DshConfig) -> Self {
@@ -447,23 +448,23 @@ fn preference(check: MessageCheck) -> u8 {
     }
 }
 
-impl Harness for DshHarness {
+impl AgentRunner for DshAgentRunner {
     fn run(
         &self,
         runner: &dyn CommandRunner,
-        task: &HarnessTask,
-    ) -> Result<HarnessResult, HarnessError> {
+        task: &AgentTask,
+    ) -> Result<AgentRunResult, AgentError> {
         if task.text.trim().is_empty() {
-            return Err(HarnessError::Rejected("the task text is empty".to_string()));
+            return Err(AgentError::Rejected("the task text is empty".to_string()));
         }
         if task.repository_path.is_empty() {
-            return Err(HarnessError::Rejected(
+            return Err(AgentError::Rejected(
                 "the repository path is empty".to_string(),
             ));
         }
         let before = status_of(runner, &self.config, &task.repository_path)?;
         if !before.is_empty() {
-            return Err(HarnessError::Rejected(format!(
+            return Err(AgentError::Rejected(format!(
                 "the repository has uncommitted changes: {}",
                 before.join(", ")
             )));
@@ -480,13 +481,13 @@ impl Harness for DshHarness {
         let output = runner.run(&command)?;
         let stdout = match &output.outcome {
             CommandOutcome::TimedOut { limit_secs } => {
-                return Err(HarnessError::Failed(format!(
+                return Err(AgentError::Failed(format!(
                     "dsh timed out after {limit_secs}s"
                 )));
             }
             CommandOutcome::Exited(0) => output.stdout.clone(),
             CommandOutcome::Exited(code) => {
-                return Err(HarnessError::Failed(failure_text(
+                return Err(AgentError::Failed(failure_text(
                     "dsh",
                     *code,
                     &output.stderr,
@@ -495,15 +496,15 @@ impl Harness for DshHarness {
             }
         };
 
-        let parsed = parse_events(&stdout).map_err(HarnessError::Failed)?;
+        let parsed = parse_events(&stdout).map_err(AgentError::Failed)?;
         if let Some(text) = parsed.turn_failure {
             if text.contains("MISSING_CREDENTIAL") {
-                return Err(HarnessError::CouldNotRun(text));
+                return Err(AgentError::CouldNotRun(text));
             }
-            return Err(HarnessError::Failed(text));
+            return Err(AgentError::Failed(text));
         }
         let Some(final_message) = parsed.final_message else {
-            return Err(HarnessError::Failed(
+            return Err(AgentError::Failed(
                 "dsh exited 0 but printed no final event".to_string(),
             ));
         };
@@ -511,18 +512,18 @@ impl Harness for DshHarness {
         let changed_files = status_of(runner, &self.config, &task.repository_path)?;
         let head_after = head_of(runner, &self.config, &task.repository_path)?;
         if head_before != head_after {
-            return Err(HarnessError::Failed(format!(
+            return Err(AgentError::Failed(format!(
                 "the agent made a commit although the rules forbid it: head moved from {head_before} to {head_after}"
             )));
         }
         let outcome = match question_line(&final_message) {
-            Some(question) => HarnessOutcome::Asked { question },
-            None => HarnessOutcome::Finished,
+            Some(question) => AgentOutcome::Asked { question },
+            None => AgentOutcome::Finished,
         };
 
-        Ok(HarnessResult {
+        Ok(AgentRunResult {
             actor: Actor {
-                harness: dsh_agent().name.to_string(),
+                agent: dsh_agent().name.to_string(),
                 model: None,
                 model_family: Some(
                     dsh_agent()
@@ -543,13 +544,23 @@ impl Harness for DshHarness {
         })
     }
 
-    fn capabilities(&self, runner: &dyn CommandRunner) -> HarnessCapabilities {
+    fn capabilities(&self, runner: &dyn CommandRunner) -> AgentCapabilities {
         let version = probe_version(runner, &self.config);
-        HarnessCapabilities {
+        let headless = probe_headless(runner, &self.config, version.succeeded);
+        let structured_result = match &headless {
+            Capability::Supported => Capability::Supported,
+            Capability::Unsupported(reason) => {
+                Capability::Unsupported(format!("headless mode is not available: {reason}"))
+            }
+            Capability::Unknown(reason) => {
+                Capability::Unknown(format!("headless mode was not probed: {reason}"))
+            }
+        };
+        AgentCapabilities {
             binary_present: version.binary_present,
             version_pinned: version.version_pinned,
-            headless: probe_headless(runner, &self.config, version.succeeded),
-            structured_result: Capability::Supported,
+            headless,
+            structured_result,
             cost_reporting: Capability::Unsupported("token usage only, no cost figure".to_string()),
             stop_mid_run: Capability::Unsupported(
                 "a timeout ends the run; the tool has no mid-run stop".to_string(),
@@ -568,14 +579,14 @@ fn git_stdout(
     runner: &dyn CommandRunner,
     command: &CommandSpec,
     name: &str,
-) -> Result<String, HarnessError> {
+) -> Result<String, AgentError> {
     let output = runner.run(command)?;
     match &output.outcome {
-        CommandOutcome::TimedOut { limit_secs } => Err(HarnessError::Failed(format!(
+        CommandOutcome::TimedOut { limit_secs } => Err(AgentError::Failed(format!(
             "{name} timed out after {limit_secs}s"
         ))),
         CommandOutcome::Exited(0) => Ok(output.stdout.clone()),
-        CommandOutcome::Exited(code) => Err(HarnessError::Failed(failure_text(
+        CommandOutcome::Exited(code) => Err(AgentError::Failed(failure_text(
             name,
             *code,
             &output.stderr,
@@ -589,7 +600,7 @@ fn status_of(
     runner: &dyn CommandRunner,
     config: &DshConfig,
     repository_path: &str,
-) -> Result<Vec<String>, HarnessError> {
+) -> Result<Vec<String>, AgentError> {
     let stdout = git_stdout(
         runner,
         &status_command(config, repository_path),
@@ -603,14 +614,14 @@ fn head_of(
     runner: &dyn CommandRunner,
     config: &DshConfig,
     repository_path: &str,
-) -> Result<String, HarnessError> {
+) -> Result<String, AgentError> {
     let stdout = git_stdout(
         runner,
         &head_command(config, repository_path),
         "git rev-parse HEAD",
     )?;
     parse_head(&stdout)
-        .ok_or_else(|| HarnessError::Failed("git rev-parse HEAD printed nothing".to_string()))
+        .ok_or_else(|| AgentError::Failed("git rev-parse HEAD printed nothing".to_string()))
 }
 
 /// Runs the branch command and parses the branch.
@@ -618,7 +629,7 @@ fn branch_of(
     runner: &dyn CommandRunner,
     config: &DshConfig,
     repository_path: &str,
-) -> Result<Option<String>, HarnessError> {
+) -> Result<Option<String>, AgentError> {
     let stdout = git_stdout(
         runner,
         &branch_command(config, repository_path),
@@ -779,8 +790,8 @@ fn probe_stop_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::harness::fake::FakeRunner;
-    use crate::harness::{CommandOutcome, CommandOutput, HarnessError, HarnessTask, Usage};
+    use crate::agent_runner::fake::FakeRunner;
+    use crate::agent_runner::{AgentError, AgentTask, CommandOutcome, CommandOutput, Usage};
 
     const CREATED_FILE_FIXTURE: &str =
         include_str!("../tests/fixtures/harness/dsh-run-created-file.jsonl");
@@ -1318,17 +1329,17 @@ mod tests {
     #[test]
     fn run_rejects_an_empty_task_before_any_command() {
         let runner = FakeRunner::new(Vec::new());
-        let task = HarnessTask {
+        let task = AgentTask {
             text: "   \n".to_string(),
             repository_path: "/repo".to_string(),
             timeout_secs: None,
         };
-        let error = DshHarness::new(config())
+        let error = DshAgentRunner::new(config())
             .run(&runner, &task)
             .expect_err("an empty task is rejected");
         assert_eq!(
             error,
-            HarnessError::Rejected("the task text is empty".to_string())
+            AgentError::Rejected("the task text is empty".to_string())
         );
         assert!(
             runner.commands().is_empty(),
@@ -1344,17 +1355,17 @@ mod tests {
             stderr: String::new(),
         };
         let runner = FakeRunner::new(vec![Ok(dirty)]);
-        let task = HarnessTask {
+        let task = AgentTask {
             text: "do the thing".to_string(),
             repository_path: "/repo".to_string(),
             timeout_secs: None,
         };
-        let error = DshHarness::new(config())
+        let error = DshAgentRunner::new(config())
             .run(&runner, &task)
             .expect_err("a dirty tree is rejected");
         assert_eq!(
             error,
-            HarnessError::Rejected("the repository has uncommitted changes: dirty.txt".to_string())
+            AgentError::Rejected("the repository has uncommitted changes: dirty.txt".to_string())
         );
         let commands = runner.commands();
         assert_eq!(commands.len(), 1, "only the status command ran");

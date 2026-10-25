@@ -45,8 +45,8 @@ pub trait CommandRunner {
     /// The runner runs `command` with exactly its `env`, in its `workdir`, and
     /// with its `stdin` as the child's input. At `timeout_secs` it kills the
     /// whole process tree and answers [`CommandOutcome::TimedOut`]. A process
-    /// that cannot start is [`HarnessError::CouldNotRun`] when the program is
-    /// missing, [`HarnessError::Failed`] otherwise, carrying the system's own
+    /// that cannot start is [`AgentError::CouldNotRun`] when the program is
+    /// missing, [`AgentError::Failed`] otherwise, carrying the system's own
     /// text.
     ///
     /// `stdout` and `stderr` are text, so a non-UTF-8 path in tool output is
@@ -54,9 +54,9 @@ pub trait CommandRunner {
     ///
     /// # Errors
     ///
-    /// Returns [`HarnessError::CouldNotRun`] when the program is missing, and
-    /// [`HarnessError::Failed`] when it cannot start or the run itself fails.
-    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, HarnessError>;
+    /// Returns [`AgentError::CouldNotRun`] when the program is missing, and
+    /// [`AgentError::Failed`] when it cannot start or the run itself fails.
+    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, AgentError>;
 }
 
 /// The [`CommandRunner`] over a real child process.
@@ -105,7 +105,7 @@ impl Default for RealCommandRunner {
 }
 
 impl CommandRunner for RealCommandRunner {
-    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, HarnessError> {
+    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, AgentError> {
         let mut pending = Command::new(&command.program);
         pending
             .args(&command.args)
@@ -125,26 +125,26 @@ impl CommandRunner for RealCommandRunner {
         let mut child = pending.spawn().map_err(|error| {
             let text = format!("cannot start {}: {error}", command.program);
             if error.kind() == std::io::ErrorKind::NotFound {
-                HarnessError::CouldNotRun(text)
+                AgentError::CouldNotRun(text)
             } else {
-                HarnessError::Failed(text)
+                AgentError::Failed(text)
             }
         })?;
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| HarnessError::Failed("no standard output".to_string()))?;
+            .ok_or_else(|| AgentError::Failed("no standard output".to_string()))?;
         let stderr = child
             .stderr
             .take()
-            .ok_or_else(|| HarnessError::Failed("no standard error".to_string()))?;
+            .ok_or_else(|| AgentError::Failed("no standard error".to_string()))?;
         let stdout = Self::drain(stdout);
         let stderr = Self::drain(stderr);
         let mut input = Some({
             let mut handle = child
                 .stdin
                 .take()
-                .ok_or_else(|| HarnessError::Failed("no standard input".to_string()))?;
+                .ok_or_else(|| AgentError::Failed("no standard input".to_string()))?;
             let payload = command.stdin.clone();
             std::thread::spawn(move || match payload {
                 Some(text) => handle.write_all(text.as_bytes()),
@@ -176,7 +176,7 @@ impl CommandRunner for RealCommandRunner {
                     });
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-                Err(error) => return Err(HarnessError::Failed(format!("cannot wait: {error}"))),
+                Err(error) => return Err(AgentError::Failed(format!("cannot wait: {error}"))),
             }
         };
         let out = stdout.join().unwrap_or_default();
@@ -194,7 +194,7 @@ impl CommandRunner for RealCommandRunner {
 
 /// One task for a harness to run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct HarnessTask {
+pub struct AgentTask {
     pub text: String,
     pub repository_path: String,
     pub timeout_secs: Option<u64>,
@@ -203,7 +203,7 @@ pub struct HarnessTask {
 /// Who ran a task.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Actor {
-    pub harness: String,
+    pub agent: String,
     pub model: Option<String>,
     pub model_family: Option<String>,
 }
@@ -227,7 +227,7 @@ pub struct Usage {
 /// How a run finished.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum HarnessOutcome {
+pub enum AgentOutcome {
     Finished,
     Asked { question: String },
 }
@@ -240,11 +240,11 @@ pub enum HarnessOutcome {
 /// that moved it fails.
 /// `usage` is the sum over the whole run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct HarnessResult {
+pub struct AgentRunResult {
     pub actor: Actor,
     pub session_id: Option<String>,
     pub final_message: String,
-    pub outcome: HarnessOutcome,
+    pub outcome: AgentOutcome,
     pub exit: i32,
     pub changed_files: Vec<String>,
     pub branch: Option<String>,
@@ -253,18 +253,18 @@ pub struct HarnessResult {
     pub cost_micro_usd: Option<u64>,
 }
 
-impl HarnessResult {
+impl AgentRunResult {
     /// The `job-blocked` event for a run that ended by asking a question.
     #[must_use]
     pub fn blocked_event(&self, job: &str, work_item: Option<&str>) -> Option<Payload> {
         match &self.outcome {
-            HarnessOutcome::Asked { question } => Some(Payload::JobBlocked(JobBlocked {
+            AgentOutcome::Asked { question } => Some(Payload::JobBlocked(JobBlocked {
                 job: job.to_string(),
                 work_item: work_item.map(str::to_string),
                 cause: "clarification".to_string(),
                 question: Some(question.clone()),
             })),
-            HarnessOutcome::Finished => None,
+            AgentOutcome::Finished => None,
         }
     }
 }
@@ -280,7 +280,7 @@ pub enum Capability {
 
 /// What a harness can do, stated rather than assumed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct HarnessCapabilities {
+pub struct AgentCapabilities {
     pub binary_present: Capability,
     pub version_pinned: Capability,
     pub headless: Capability,
@@ -298,13 +298,13 @@ pub struct HarnessCapabilities {
 /// `Failed` means something ran and went wrong, or could not run; the text is
 /// the tool's own text.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HarnessError {
+pub enum AgentError {
     Rejected(String),
     CouldNotRun(String),
     Failed(String),
 }
 
-impl fmt::Display for HarnessError {
+impl fmt::Display for AgentError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rejected(text) | Self::CouldNotRun(text) | Self::Failed(text) => {
@@ -314,31 +314,31 @@ impl fmt::Display for HarnessError {
     }
 }
 
-impl std::error::Error for HarnessError {}
+impl std::error::Error for AgentError {}
 
 /// The seam between the factory and an external coding harness.
-pub trait Harness {
+pub trait AgentRunner {
     /// Runs one task.
     ///
     /// A run that ends with no `QUESTION:` line and with an empty
-    /// `changed_files` is [`HarnessOutcome::Finished`] with an empty change
+    /// `changed_files` is [`AgentOutcome::Finished`] with an empty change
     /// set; the engine must treat that as failed.
     ///
     /// # Errors
     ///
-    /// Returns [`HarnessError::Rejected`] when the adapter refuses before it
-    /// starts the agent, and [`HarnessError::Failed`] when the run fails.
+    /// Returns [`AgentError::Rejected`] when the adapter refuses before it
+    /// starts the agent, and [`AgentError::Failed`] when the run fails.
     fn run(
         &self,
         runner: &dyn CommandRunner,
-        task: &HarnessTask,
-    ) -> Result<HarnessResult, HarnessError>;
+        task: &AgentTask,
+    ) -> Result<AgentRunResult, AgentError>;
 
     /// Probes what the harness can do.
     ///
     /// A probe that cannot run is [`Capability::Unknown`], never
     /// [`Capability::Unsupported`], never [`Capability::Supported`].
-    fn capabilities(&self, runner: &dyn CommandRunner) -> HarnessCapabilities;
+    fn capabilities(&self, runner: &dyn CommandRunner) -> AgentCapabilities;
 }
 
 /// The rules every task prompt carries, in order.
@@ -378,10 +378,10 @@ pub fn question_line(final_message: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::harness::fake::{FakeHarness, FakeRunner};
+    use crate::agent_runner::fake::{FakeAgentRunner, FakeRunner};
 
-    fn capabilities() -> HarnessCapabilities {
-        HarnessCapabilities {
+    fn capabilities() -> AgentCapabilities {
+        AgentCapabilities {
             binary_present: Capability::Supported,
             version_pinned: Capability::Supported,
             headless: Capability::Supported,
@@ -393,8 +393,8 @@ mod tests {
         }
     }
 
-    fn task() -> HarnessTask {
-        HarnessTask {
+    fn task() -> AgentTask {
+        AgentTask {
             text: "do the thing".to_string(),
             repository_path: "/repo".to_string(),
             timeout_secs: Some(5),
@@ -470,14 +470,15 @@ mod tests {
 
     #[test]
     fn the_trait_is_object_safe() {
-        let fake = FakeHarness::new(Vec::new(), capabilities());
-        let dynamic: &dyn Harness = &fake;
-        let boxed: Box<dyn Harness> = Box::new(FakeHarness::new(Vec::new(), capabilities()));
+        let fake = FakeAgentRunner::new(Vec::new(), capabilities());
+        let dynamic: &dyn AgentRunner = &fake;
+        let boxed: Box<dyn AgentRunner> =
+            Box::new(FakeAgentRunner::new(Vec::new(), capabilities()));
         let runner = FakeRunner::new(Vec::new());
         let dynamic_runner: &dyn CommandRunner = &runner;
         assert!(matches!(
             dynamic.run(dynamic_runner, &task()),
-            Err(HarnessError::Failed(_))
+            Err(AgentError::Failed(_))
         ));
         assert_eq!(
             boxed.capabilities(dynamic_runner).binary_present,
@@ -485,7 +486,7 @@ mod tests {
         );
         assert!(matches!(
             dynamic_runner.run(&command()),
-            Err(HarnessError::Failed(_))
+            Err(AgentError::Failed(_))
         ));
     }
 
@@ -508,11 +509,11 @@ mod tests {
     #[test]
     fn harness_outcome_serde_names_are_pinned() {
         assert_eq!(
-            serde_json::to_string(&HarnessOutcome::Finished).expect("serializes"),
+            serde_json::to_string(&AgentOutcome::Finished).expect("serializes"),
             r#""finished""#
         );
         assert_eq!(
-            serde_json::to_string(&HarnessOutcome::Asked {
+            serde_json::to_string(&AgentOutcome::Asked {
                 question: "which?".to_string(),
             })
             .expect("serializes"),
@@ -522,15 +523,15 @@ mod tests {
 
     #[test]
     fn an_asked_result_becomes_a_blocked_job_event() {
-        let mut result = HarnessResult {
+        let mut result = AgentRunResult {
             actor: Actor {
-                harness: "the-harness".to_string(),
+                agent: "the-harness".to_string(),
                 model: None,
                 model_family: None,
             },
             session_id: None,
             final_message: "QUESTION: Which?".to_string(),
-            outcome: HarnessOutcome::Finished,
+            outcome: AgentOutcome::Finished,
             exit: 0,
             changed_files: Vec::new(),
             branch: None,
@@ -539,7 +540,7 @@ mod tests {
             cost_micro_usd: None,
         };
         assert!(result.blocked_event("job-1", None).is_none());
-        result.outcome = HarnessOutcome::Asked {
+        result.outcome = AgentOutcome::Asked {
             question: "Which?".to_string(),
         };
         let Some(Payload::JobBlocked(blocked)) =
@@ -557,16 +558,16 @@ mod tests {
     }
 
     #[test]
-    fn harness_result_serializes_every_field() {
-        let result = HarnessResult {
+    fn agent_result_serializes_every_field() {
+        let result = AgentRunResult {
             actor: Actor {
-                harness: "the-harness".to_string(),
+                agent: "the-agent".to_string(),
                 model: Some("the-model".to_string()),
                 model_family: Some("the-family".to_string()),
             },
             session_id: Some("session-1".to_string()),
             final_message: "done".to_string(),
-            outcome: HarnessOutcome::Finished,
+            outcome: AgentOutcome::Finished,
             exit: 0,
             changed_files: vec!["a.rs".to_string()],
             branch: Some("main".to_string()),
@@ -581,13 +582,13 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_string(&result).expect("serializes"),
-            r#"{"actor":{"harness":"the-harness","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"cache_read_tokens":0,"total_tokens":3},"cost_micro_usd":null}"#
+            r#"{"actor":{"agent":"the-agent","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"cache_read_tokens":0,"total_tokens":3},"cost_micro_usd":null}"#
         );
     }
 
     #[test]
     fn harness_capabilities_serializes_every_field() {
-        let caps = HarnessCapabilities {
+        let caps = AgentCapabilities {
             binary_present: Capability::Supported,
             version_pinned: Capability::Unsupported("no".to_string()),
             headless: Capability::Unknown("maybe".to_string()),
@@ -606,11 +607,11 @@ mod tests {
     #[test]
     fn harness_error_display_prints_the_inner_text_only() {
         assert_eq!(
-            HarnessError::Rejected("refused".to_string()).to_string(),
+            AgentError::Rejected("refused".to_string()).to_string(),
             "refused"
         );
         assert_eq!(
-            HarnessError::Failed("failed".to_string()).to_string(),
+            AgentError::Failed("failed".to_string()).to_string(),
             "failed"
         );
     }
@@ -635,7 +636,7 @@ mod tests {
         };
         assert!(matches!(
             RealCommandRunner::new().run(&command),
-            Err(HarnessError::CouldNotRun(_))
+            Err(AgentError::CouldNotRun(_))
         ));
     }
 

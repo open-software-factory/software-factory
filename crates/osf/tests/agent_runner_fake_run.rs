@@ -1,14 +1,14 @@
 //! A full run and capability report through the neutral harness interface,
 //! with the in-memory fakes. The only concrete adapter named here is `dsh`.
 
-use osf::dsh_harness::{
-    branch_command, git_env, head_command, parse_events, probe_command, status_command, DshConfig,
-    DshHarness, PINNED_VERSION,
+use osf::agent_runner::fake::{FakeAgentRunner, FakeRunner};
+use osf::agent_runner::{
+    build_prompt, Actor, AgentCapabilities, AgentError, AgentOutcome, AgentRunResult, AgentRunner,
+    AgentTask, Capability, CommandOutcome, CommandOutput, CommandRunner, Usage,
 };
-use osf::harness::fake::{FakeHarness, FakeRunner};
-use osf::harness::{
-    build_prompt, Actor, Capability, CommandOutcome, CommandOutput, CommandRunner, Harness,
-    HarnessCapabilities, HarnessError, HarnessOutcome, HarnessResult, HarnessTask, Usage,
+use osf::dsh_agent_runner::{
+    branch_command, git_env, head_command, parse_events, probe_command, status_command,
+    DshAgentRunner, DshConfig, PINNED_VERSION,
 };
 
 const CREATED_FILE: &str = include_str!("fixtures/harness/dsh-run-created-file.jsonl");
@@ -33,7 +33,7 @@ const ENABLING_ROW: &str = "- id: osf-writing-check\n  name: '@open-software-fac
 
 /// A successful command (exited 0, empty stderr); the script holds `Result`s.
 #[allow(clippy::unnecessary_wraps)]
-fn ok(stdout: &str) -> Result<CommandOutput, HarnessError> {
+fn ok(stdout: &str) -> Result<CommandOutput, AgentError> {
     Ok(CommandOutput {
         outcome: CommandOutcome::Exited(0),
         stdout: stdout.to_string(),
@@ -43,7 +43,7 @@ fn ok(stdout: &str) -> Result<CommandOutput, HarnessError> {
 
 /// An exited command with `stderr` and no stdout; the script holds `Result`s.
 #[allow(clippy::unnecessary_wraps)]
-fn exited(code: i32, stderr: &str) -> Result<CommandOutput, HarnessError> {
+fn exited(code: i32, stderr: &str) -> Result<CommandOutput, AgentError> {
     Ok(CommandOutput {
         outcome: CommandOutcome::Exited(code),
         stdout: String::new(),
@@ -53,7 +53,7 @@ fn exited(code: i32, stderr: &str) -> Result<CommandOutput, HarnessError> {
 
 /// A timed-out command; the script holds `Result`s.
 #[allow(clippy::unnecessary_wraps)]
-fn timed_out(limit_secs: u64) -> Result<CommandOutput, HarnessError> {
+fn timed_out(limit_secs: u64) -> Result<CommandOutput, AgentError> {
     Ok(CommandOutput {
         outcome: CommandOutcome::TimedOut { limit_secs },
         stdout: String::new(),
@@ -62,12 +62,12 @@ fn timed_out(limit_secs: u64) -> Result<CommandOutput, HarnessError> {
 }
 
 /// A clean repository status.
-fn clean() -> Result<CommandOutput, HarnessError> {
+fn clean() -> Result<CommandOutput, AgentError> {
     ok("")
 }
 
 /// A status holding one new file.
-fn one_new_file() -> Result<CommandOutput, HarnessError> {
+fn one_new_file() -> Result<CommandOutput, AgentError> {
     ok("?? hello.txt\0")
 }
 
@@ -79,17 +79,17 @@ const HEAD_AFTER: &str = "1111111111111111111111111111111111111111";
 const BRANCH: &str = "feat/harness-adapter";
 
 /// A head output line for `commit`.
-fn head(commit: &str) -> Result<CommandOutput, HarnessError> {
+fn head(commit: &str) -> Result<CommandOutput, AgentError> {
     ok(&format!("{commit}\n"))
 }
 
 /// A branch output line for `name`.
-fn branch(name: &str) -> Result<CommandOutput, HarnessError> {
+fn branch(name: &str) -> Result<CommandOutput, AgentError> {
     ok(&format!("{name}\n"))
 }
 
 /// The script of one successful run: clean, head, branch, fixture, file, head.
-fn successful_script() -> Vec<Result<CommandOutput, HarnessError>> {
+fn successful_script() -> Vec<Result<CommandOutput, AgentError>> {
     vec![
         clean(),
         head(HEAD_BEFORE),
@@ -114,13 +114,13 @@ fn config() -> DshConfig {
 }
 
 /// The adapter under test.
-fn harness() -> DshHarness {
-    DshHarness::new(config())
+fn harness() -> DshAgentRunner {
+    DshAgentRunner::new(config())
 }
 
 /// The task every run in this file uses.
-fn task() -> HarnessTask {
-    HarnessTask {
+fn task() -> AgentTask {
+    AgentTask {
         text: "Create hello.txt".to_string(),
         repository_path: "/repo".to_string(),
         timeout_secs: Some(600),
@@ -141,18 +141,18 @@ fn final_message(fixture: &str) -> String {
 }
 
 /// The text inside a `Failed` error; any other variant fails the test.
-fn failed(error: HarnessError) -> String {
+fn failed(error: AgentError) -> String {
     match error {
-        HarnessError::Failed(text) => text,
-        other @ (HarnessError::Rejected(_) | HarnessError::CouldNotRun(_)) => {
+        AgentError::Failed(text) => text,
+        other @ (AgentError::Rejected(_) | AgentError::CouldNotRun(_)) => {
             panic!("expected Failed, got {other:?}")
         }
     }
 }
 
 /// Every capability supported, for constructing a fake.
-fn all_supported() -> HarnessCapabilities {
-    HarnessCapabilities {
+fn all_supported() -> AgentCapabilities {
+    AgentCapabilities {
         binary_present: Capability::Supported,
         version_pinned: Capability::Supported,
         headless: Capability::Supported,
@@ -165,8 +165,8 @@ fn all_supported() -> HarnessCapabilities {
 }
 
 /// Runs the shared task through the trait objects only.
-fn run_one(harness: &dyn Harness, runner: &dyn CommandRunner) -> HarnessResult {
-    harness.run(runner, &task()).expect("the run succeeds")
+fn run_one(agent: &dyn AgentRunner, runner: &dyn CommandRunner) -> AgentRunResult {
+    agent.run(runner, &task()).expect("the run succeeds")
 }
 
 /// The source of `run_one`, from its declaration to its closing brace.
@@ -198,10 +198,10 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
             total_tokens: 16973,
         })
     );
-    assert_eq!(result.outcome, HarnessOutcome::Finished);
+    assert_eq!(result.outcome, AgentOutcome::Finished);
     assert_eq!(result.exit, 0);
     assert_eq!(result.cost_micro_usd, None);
-    assert_eq!(result.actor.harness, "dsh");
+    assert_eq!(result.actor.agent, "dsh");
     assert_eq!(result.actor.model, None);
     assert_eq!(result.actor.model_family.as_deref(), Some("deepseek"));
 }
@@ -224,7 +224,7 @@ fn a_final_message_without_a_question_line_is_finished_even_when_it_asks() {
         let result = harness().run(&runner, &task()).expect("the run succeeds");
         assert_eq!(
             result.outcome,
-            HarnessOutcome::Finished,
+            AgentOutcome::Finished,
             "{label} must not be reported as asked"
         );
         assert!(
@@ -247,7 +247,7 @@ fn a_question_line_is_asked_with_no_changed_file() {
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
-        HarnessOutcome::Asked {
+        AgentOutcome::Asked {
             question: QUESTION_MARKER_TEXT.to_string(),
         }
     );
@@ -267,7 +267,7 @@ fn a_real_run_that_followed_the_question_rule_is_asked() {
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
-        HarnessOutcome::Asked {
+        AgentOutcome::Asked {
             question: "Which colour do you prefer, red or blue?".to_string(),
         }
     );
@@ -286,7 +286,7 @@ fn a_question_line_that_changed_a_file_is_still_asked_and_reports_the_file() {
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
-        HarnessOutcome::Asked {
+        AgentOutcome::Asked {
             question: QUESTION_MARKER_TEXT.to_string(),
         }
     );
@@ -302,7 +302,7 @@ fn a_non_zero_exit_is_failed_with_the_tool_stderr() {
         exited(3, "boom\n"),
     ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
-    assert_eq!(error, HarnessError::Failed("boom".to_string()));
+    assert_eq!(error, AgentError::Failed("boom".to_string()));
     assert_eq!(
         runner.commands().len(),
         4,
@@ -321,7 +321,7 @@ fn a_non_zero_exit_with_no_text_is_failed_with_the_status() {
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(
         error,
-        HarnessError::Failed("dsh exited with status 4".to_string())
+        AgentError::Failed("dsh exited with status 4".to_string())
     );
 }
 
@@ -336,7 +336,7 @@ fn a_timeout_is_failed_and_names_the_limit() {
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(
         error,
-        HarnessError::Failed("dsh timed out after 7s".to_string())
+        AgentError::Failed("dsh timed out after 7s".to_string())
     );
 }
 
@@ -362,7 +362,7 @@ fn a_turn_that_ended_with_an_error_fails_even_at_exit_zero() {
         ok(NO_CREDENTIAL),
     ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
-    let HarnessError::CouldNotRun(text) = error else {
+    let AgentError::CouldNotRun(text) = error else {
         panic!("a missing credential is could-not-run, got {error:?}");
     };
     assert!(text.contains("MISSING_CREDENTIAL"), "{text}");
@@ -405,7 +405,7 @@ fn a_failed_status_before_the_run_is_failed_with_its_text() {
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(
         error,
-        HarnessError::Failed("fatal: not a git repository".to_string())
+        AgentError::Failed("fatal: not a git repository".to_string())
     );
     assert_eq!(runner.commands().len(), 1);
 }
@@ -498,9 +498,9 @@ fn a_head_that_times_out_is_failed_and_names_the_limit() {
 
 #[test]
 fn a_runner_error_passes_through_unchanged() {
-    let runner = FakeRunner::new(vec![Err(HarnessError::Failed("cannot start".to_string()))]);
+    let runner = FakeRunner::new(vec![Err(AgentError::Failed("cannot start".to_string()))]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
-    assert_eq!(error, HarnessError::Failed("cannot start".to_string()));
+    assert_eq!(error, AgentError::Failed("cannot start".to_string()));
 }
 
 #[test]
@@ -511,7 +511,7 @@ fn a_dirty_repository_is_rejected_with_the_file_names() {
         .expect_err("the run is rejected");
     assert_eq!(
         error,
-        HarnessError::Rejected("the repository has uncommitted changes: a.txt, b.txt".to_string())
+        AgentError::Rejected("the repository has uncommitted changes: a.txt, b.txt".to_string())
     );
     assert_eq!(runner.commands().len(), 1);
 }
@@ -519,7 +519,7 @@ fn a_dirty_repository_is_rejected_with_the_file_names() {
 #[test]
 fn an_empty_repository_path_is_rejected() {
     let runner = FakeRunner::new(Vec::new());
-    let empty = HarnessTask {
+    let empty = AgentTask {
         text: "Create hello.txt".to_string(),
         repository_path: String::new(),
         timeout_secs: Some(600),
@@ -529,9 +529,12 @@ fn an_empty_repository_path_is_rejected() {
         .expect_err("the run is rejected");
     assert_eq!(
         error,
-        HarnessError::Rejected("the repository path is empty".to_string())
+        AgentError::Rejected("the repository path is empty".to_string())
     );
-    assert_eq!(runner.commands(), Vec::<osf::harness::CommandSpec>::new());
+    assert_eq!(
+        runner.commands(),
+        Vec::<osf::agent_runner::CommandSpec>::new()
+    );
 }
 
 #[test]
@@ -610,7 +613,7 @@ fn the_result_is_plain_data_for_the_journal() {
     assert_eq!(
         value
             .get("actor")
-            .and_then(|actor| actor.get("harness"))
+            .and_then(|actor| actor.get("agent"))
             .and_then(serde_json::Value::as_str),
         Some("dsh")
     );
@@ -727,7 +730,7 @@ fn capability_report_when_the_dump_probe_times_out() {
 
 #[test]
 fn capability_report_when_the_binary_cannot_start() {
-    let runner = FakeRunner::new(vec![Err(HarnessError::Failed("cannot start".to_string()))]);
+    let runner = FakeRunner::new(vec![Err(AgentError::Failed("cannot start".to_string()))]);
     let capabilities = harness().capabilities(&runner);
     assert_eq!(
         capabilities.binary_present,
@@ -811,6 +814,10 @@ fn capability_report_when_the_headless_help_lacks_json() {
     let runner = FakeRunner::new(vec![ok(VERSION), ok(&help), ok(DUMP)]);
     let capabilities = harness().capabilities(&runner);
     assert!(matches!(capabilities.headless, Capability::Unsupported(_)));
+    assert!(matches!(
+        capabilities.structured_result,
+        Capability::Unsupported(_)
+    ));
 }
 
 #[test]
@@ -821,6 +828,10 @@ fn capability_report_when_the_help_probe_fails() {
         capabilities.headless,
         Capability::Unknown("no help".to_string())
     );
+    assert!(matches!(
+        capabilities.structured_result,
+        Capability::Unknown(_)
+    ));
     assert_eq!(
         capabilities.stop_hook_checks_messages,
         Capability::Unsupported(ABSENT_CHECK_REASON.to_string())
@@ -837,17 +848,17 @@ fn capability_report_when_the_help_probe_fails() {
 fn two_harnesses_run_the_same_task_through_one_function() {
     let dsh_runner = FakeRunner::new(successful_script());
     let dsh_result = run_one(&harness(), &dsh_runner);
-    assert_eq!(dsh_result.actor.harness, "dsh");
+    assert_eq!(dsh_result.actor.agent, "dsh");
 
-    let fake_result = HarnessResult {
+    let fake_result = AgentRunResult {
         actor: Actor {
-            harness: "the-fake".to_string(),
+            agent: "the-fake".to_string(),
             model: None,
             model_family: None,
         },
         session_id: None,
         final_message: "done".to_string(),
-        outcome: HarnessOutcome::Finished,
+        outcome: AgentOutcome::Finished,
         exit: 0,
         changed_files: Vec::new(),
         branch: Some("main".to_string()),
@@ -855,10 +866,10 @@ fn two_harnesses_run_the_same_task_through_one_function() {
         usage: None,
         cost_micro_usd: None,
     };
-    let fake = FakeHarness::new(vec![Ok(fake_result)], all_supported());
+    let fake = FakeAgentRunner::new(vec![Ok(fake_result)], all_supported());
     let fake_runner = FakeRunner::new(Vec::new());
     let fake_answer = run_one(&fake, &fake_runner);
-    assert_eq!(fake_answer.actor.harness, "the-fake");
+    assert_eq!(fake_answer.actor.agent, "the-fake");
     assert_eq!(fake_answer.final_message, "done");
     assert_eq!(
         fake.tasks(),
@@ -866,7 +877,7 @@ fn two_harnesses_run_the_same_task_through_one_function() {
         "both harnesses ran the same task"
     );
 
-    let source = include_str!("harness_fake_run.rs");
+    let source = include_str!("agent_runner_fake_run.rs");
     let body = run_one_source(source);
     for banned in ["Dsh", "dsh", "Fake", "fake"] {
         assert!(!body.contains(banned), "run_one names {banned}: {body}");

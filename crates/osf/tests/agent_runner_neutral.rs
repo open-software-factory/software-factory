@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 fn harness_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
-        .join("harness")
+        .join("agent_runner")
 }
 
 /// Every run of alphanumeric characters in `text`, lowercased.
@@ -126,7 +126,7 @@ fn no_supported_agent_name_appears_in_the_harness_folder() {
     }
     assert!(
         violations.is_empty(),
-        "the provider-neutral harness folder names a harness: {}",
+        "the provider-neutral harness folder names a agent: {}",
         violations.join("; ")
     );
 }
@@ -141,7 +141,7 @@ fn the_scanner_flags_a_source_that_names_an_agent() {
     let name = first.name;
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
-        .join(format!("{name}_harness.rs"));
+        .join(format!("{name}_agent_runner.rs"));
     let found = banned_in_file(&path, &banned);
     assert!(
         !found.is_empty(),
@@ -171,7 +171,7 @@ fn no_model_vendor_name_appears_in_the_harness_folder() {
 fn the_scanner_flags_a_source_that_names_a_model_vendor() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
-        .join("dsh_harness.rs");
+        .join("dsh_agent_runner.rs");
     let found = banned_in_file(&path, &vendor_words());
     assert!(
         found.iter().any(|word| word == "deepseek"),
