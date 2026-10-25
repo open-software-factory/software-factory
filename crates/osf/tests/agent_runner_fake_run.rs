@@ -97,6 +97,7 @@ fn successful_script() -> Vec<Result<CommandOutput, AgentError>> {
         ok(CREATED_FILE),
         one_new_file(),
         head(HEAD_AFTER),
+        branch(BRANCH),
     ]
 }
 
@@ -183,7 +184,7 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(result.changed_files, strings(&["hello.txt"]));
     assert_eq!(result.branch.as_deref(), Some(BRANCH));
-    assert_eq!(result.head_commit, HEAD_AFTER);
+    assert_eq!(result.base_commit, HEAD_AFTER);
     assert_eq!(result.final_message, final_message(CREATED_FILE));
     assert_eq!(
         result.session_id.as_deref(),
@@ -220,6 +221,7 @@ fn a_final_message_without_a_question_line_is_finished_even_when_it_asks() {
             ok(fixture),
             clean(),
             head(HEAD_AFTER),
+            branch(BRANCH),
         ]);
         let result = harness().run(&runner, &task()).expect("the run succeeds");
         assert_eq!(
@@ -243,6 +245,7 @@ fn a_question_line_is_asked_with_no_changed_file() {
         ok(QUESTION_MARKER),
         clean(),
         head(HEAD_AFTER),
+        branch(BRANCH),
     ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
@@ -263,6 +266,7 @@ fn a_real_run_that_followed_the_question_rule_is_asked() {
         ok(QUESTION_CONTRACT),
         clean(),
         head(HEAD_AFTER),
+        branch(BRANCH),
     ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
@@ -282,6 +286,7 @@ fn a_question_line_that_changed_a_file_is_still_asked_and_reports_the_file() {
         ok(QUESTION_MARKER),
         one_new_file(),
         head(HEAD_AFTER),
+        branch(BRANCH),
     ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
@@ -432,10 +437,27 @@ fn a_detached_head_reports_no_branch() {
         ok(CREATED_FILE),
         one_new_file(),
         head(HEAD_AFTER),
+        branch("HEAD"),
     ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(result.branch, None);
-    assert_eq!(result.head_commit, HEAD_AFTER);
+    assert_eq!(result.base_commit, HEAD_AFTER);
+}
+
+#[test]
+fn a_checkout_to_another_branch_is_failed() {
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(CREATED_FILE),
+        one_new_file(),
+        head(HEAD_AFTER),
+        branch("other"),
+    ]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    let text = failed(error);
+    assert!(text.contains("checked out another branch"), "{text}");
 }
 
 #[test]
@@ -544,8 +566,8 @@ fn the_commands_reaching_the_runner_are_the_documented_ones() {
     let commands = runner.commands();
     assert_eq!(
         commands.len(),
-        6,
-        "status, head, branch, agent, status, head"
+        7,
+        "status, head, branch, agent, status, head, branch"
     );
 
     let status = status_command(&config(), "/repo");
@@ -556,6 +578,7 @@ fn the_commands_reaching_the_runner_are_the_documented_ones() {
     assert_eq!(commands.get(2).expect("the branch"), &branch);
     assert_eq!(commands.get(4).expect("the status after"), &status);
     assert_eq!(commands.get(5).expect("the head after"), &head);
+    assert_eq!(commands.get(6).expect("the branch after"), &branch);
 
     let agent = commands.get(3).expect("the agent command");
     assert_eq!(agent.program, "dsh");
@@ -630,7 +653,7 @@ fn the_result_is_plain_data_for_the_journal() {
         Some(BRANCH)
     );
     assert_eq!(
-        value.get("head_commit").and_then(serde_json::Value::as_str),
+        value.get("base_commit").and_then(serde_json::Value::as_str),
         Some(HEAD_AFTER)
     );
     assert_eq!(
@@ -862,7 +885,7 @@ fn two_harnesses_run_the_same_task_through_one_function() {
         exit: 0,
         changed_files: Vec::new(),
         branch: Some("main".to_string()),
-        head_commit: "abc123".to_string(),
+        base_commit: "abc123".to_string(),
         usage: None,
         cost_micro_usd: None,
     };

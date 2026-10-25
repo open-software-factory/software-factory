@@ -1,5 +1,5 @@
-//! Provider-neutral harness interface: the seam between the factory and an
-//! external coding harness. Nothing in this module names a harness, a command
+//! Provider-neutral agent-runner interface: the seam between the factory and
+//! an external coding agent. Nothing in this module names an agent, a command
 //! or a model vendor.
 
 pub mod fake;
@@ -235,9 +235,9 @@ pub enum AgentOutcome {
 /// Plain data for the journal.
 ///
 /// `changed_files` are repository-relative, sorted, without duplicates.
-/// `branch` is `None` on a detached head. `head_commit` is the repository
-/// head after the run, and it equals the head before the run because a run
-/// that moved it fails.
+/// `branch` is `None` on a detached head. `base_commit` is the repository
+/// head the run started from. A run that moves it fails, so the change is
+/// uncommitted files; the engine commits it after the review.
 /// `usage` is the sum over the whole run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AgentRunResult {
@@ -248,7 +248,7 @@ pub struct AgentRunResult {
     pub exit: i32,
     pub changed_files: Vec<String>,
     pub branch: Option<String>,
-    pub head_commit: String,
+    pub base_commit: String,
     pub usage: Option<Usage>,
     pub cost_micro_usd: Option<u64>,
 }
@@ -291,12 +291,13 @@ pub struct AgentCapabilities {
     pub question_signal: Capability,
 }
 
-/// A harness operation failed: the adapter refused it, or it could not run.
+/// An agent-runner operation failed: the adapter refused it, or it could not run.
 ///
 /// `Rejected` means the adapter refused before it started the agent (an empty
 /// task, an empty repository path, or a repository with uncommitted changes).
-/// `Failed` means something ran and went wrong, or could not run; the text is
-/// the tool's own text.
+/// `CouldNotRun` means the program or the agent's credential is missing, so
+/// nothing ran. `Failed` means something ran and went wrong; the text is the
+/// tool's own text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentError {
     Rejected(String),
@@ -316,25 +317,26 @@ impl fmt::Display for AgentError {
 
 impl std::error::Error for AgentError {}
 
-/// The seam between the factory and an external coding harness.
+/// The seam between the factory and an external coding agent.
 pub trait AgentRunner {
     /// Runs one task.
     ///
     /// A run that ends with no `QUESTION:` line and with an empty
     /// `changed_files` is [`AgentOutcome::Finished`] with an empty change
-    /// set; the engine must treat that as failed.
+    /// set; the develop job must treat that as failed.
     ///
     /// # Errors
     ///
     /// Returns [`AgentError::Rejected`] when the adapter refuses before it
-    /// starts the agent, and [`AgentError::Failed`] when the run fails.
+    /// starts the agent, [`AgentError::CouldNotRun`] when the program or the
+    /// credential is missing, and [`AgentError::Failed`] when the run fails.
     fn run(
         &self,
         runner: &dyn CommandRunner,
         task: &AgentTask,
     ) -> Result<AgentRunResult, AgentError>;
 
-    /// Probes what the harness can do.
+    /// Probes what the agent can do.
     ///
     /// A probe that cannot run is [`Capability::Unknown`], never
     /// [`Capability::Unsupported`], never [`Capability::Supported`].
@@ -535,7 +537,7 @@ mod tests {
             exit: 0,
             changed_files: Vec::new(),
             branch: None,
-            head_commit: "abc123".to_string(),
+            base_commit: "abc123".to_string(),
             usage: None,
             cost_micro_usd: None,
         };
@@ -571,7 +573,7 @@ mod tests {
             exit: 0,
             changed_files: vec!["a.rs".to_string()],
             branch: Some("main".to_string()),
-            head_commit: "abc123".to_string(),
+            base_commit: "abc123".to_string(),
             usage: Some(Usage {
                 input_tokens: 1,
                 output_tokens: 2,
@@ -582,7 +584,7 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_string(&result).expect("serializes"),
-            r#"{"actor":{"agent":"the-agent","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"cache_read_tokens":0,"total_tokens":3},"cost_micro_usd":null}"#
+            r#"{"actor":{"agent":"the-agent","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","base_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"cache_read_tokens":0,"total_tokens":3},"cost_micro_usd":null}"#
         );
     }
 

@@ -1,4 +1,4 @@
-//! The `dsh` harness adapter: the first concrete [`AgentRunner`], built from
+//! The `dsh` agent adapter: the first concrete [`AgentRunner`], built from
 //! pure functions and run only through a [`CommandRunner`].
 //!
 //! It runs `dsh --profile headless --json -`, feeds the prompt on stdin, and
@@ -18,7 +18,10 @@
 //!   message with a `QUESTION:` line, and the adapter reads that line.
 //! - Changed files come from `git status --porcelain=v1 -z`, so ignored files
 //!   are not seen. A commit moves the head, and a run that moves it fails.
-//! - Git gets only `PATH`, `HOME` and `GIT_*`; no credential reaches it.
+//!   The adapter records the branch and the base commit; the engine commits
+//!   the change after the review.
+//! - Git gets the platform run variables, `HOME` and the author and committer
+//!   names; no credential reaches it.
 
 use crate::agent_runner::{
     build_prompt, question_line, Actor, AgentCapabilities, AgentError, AgentOutcome,
@@ -60,7 +63,7 @@ impl DshConfig {
     }
 }
 
-/// The concrete adapter for the `dsh` harness.
+/// The concrete adapter for the `dsh` agent.
 #[derive(Debug, Clone)]
 pub struct DshAgentRunner {
     config: DshConfig,
@@ -516,6 +519,12 @@ impl AgentRunner for DshAgentRunner {
                 "the agent made a commit although the rules forbid it: head moved from {head_before} to {head_after}"
             )));
         }
+        let branch_after = branch_of(runner, &self.config, &task.repository_path)?;
+        if branch != branch_after {
+            return Err(AgentError::Failed(format!(
+                "the agent checked out another branch although the rules forbid it: {branch:?} became {branch_after:?}"
+            )));
+        }
         let outcome = match question_line(&final_message) {
             Some(question) => AgentOutcome::Asked { question },
             None => AgentOutcome::Finished,
@@ -537,8 +546,8 @@ impl AgentRunner for DshAgentRunner {
             outcome,
             exit: 0,
             changed_files,
-            branch,
-            head_commit: head_after,
+            branch: branch_after,
+            base_commit: head_after,
             usage: parsed.usage,
             cost_micro_usd: None,
         })
