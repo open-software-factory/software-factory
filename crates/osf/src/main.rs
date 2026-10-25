@@ -136,6 +136,18 @@ enum Command {
         #[command(subcommand)]
         action: AgentsAction,
     },
+    /// Report whether this repository and machine are set up correctly. Read-only.
+    Doctor(DoctorArgs),
+}
+
+#[derive(Args)]
+struct DoctorArgs {
+    /// Print one JSON array instead of text.
+    #[arg(long)]
+    json: bool,
+    /// Run only this check: osf, settings, agents, agent-binaries, hooks or container.
+    #[arg(long)]
+    check: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -916,6 +928,47 @@ fn main() -> ExitCode {
         Command::Agents {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
+        Command::Doctor(args) => doctor_cmd(args),
+    }
+}
+
+fn doctor_cmd(args: &DoctorArgs) -> ExitCode {
+    let checks = match osf::doctor::keep(osf::doctor::report(Path::new(".")), args.check.as_deref())
+    {
+        Ok(checks) => checks,
+        Err(error) => {
+            eprintln!("osf doctor: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    if args.json {
+        match serde_json::to_string_pretty(&checks) {
+            Ok(text) => println!("{text}"),
+            Err(error) => {
+                eprintln!("osf doctor: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        for check in &checks {
+            println!(
+                "{}: {} - {}",
+                check.status.as_str(),
+                check.name,
+                check.detail
+            );
+            if let Some(fix) = &check.fix {
+                println!("  fix: {fix}");
+            }
+        }
+    }
+    if checks
+        .iter()
+        .any(|check| check.status == osf::doctor::Status::Fail)
+    {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 

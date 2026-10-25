@@ -13,6 +13,7 @@ pub mod check;
 pub mod checkpoint;
 pub mod clean_copy;
 pub mod config;
+pub mod doctor;
 pub mod exclude;
 pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
