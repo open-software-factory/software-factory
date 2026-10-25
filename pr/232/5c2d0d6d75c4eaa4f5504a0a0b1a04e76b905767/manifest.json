@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "5c2d0d6d75c4eaa4f5504a0a0b1a04e76b905767",
+    "contentHash": "c478ce088427cdb0fd3bc77b5e341c88"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "harness-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "18b07d524d9bd0e024df2efac44de122",
+      "bytes": 24361,
+      "width": 1718,
+      "height": 582,
+      "animated": false,
+      "path": "harness-architecture-light-18b07d524d9bd0e024df2efac44de122.svg"
+    },
+    {
+      "id": "harness-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "66d08ede7c3085abbbb8e21484f251fe",
+      "bytes": 24691,
+      "width": 1718,
+      "height": 582,
+      "animated": false,
+      "path": "harness-architecture-dark-66d08ede7c3085abbbb8e21484f251fe.svg"
+    },
+    {
+      "id": "dsh-run-sequence-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-run-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cd669179c88c1fbfe661a003ec63af36",
+      "bytes": 11325,
+      "width": 870,
+      "height": 418,
+      "animated": false,
+      "path": "dsh-run-sequence-light-cd669179c88c1fbfe661a003ec63af36.svg"
+    },
+    {
+      "id": "dsh-run-sequence-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-run-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "820b9d3e62209754ad92d0eee52e13a4",
+      "bytes": 11464,
+      "width": 870,
+      "height": 418,
+      "animated": false,
+      "path": "dsh-run-sequence-dark-820b9d3e62209754ad92d0eee52e13a4.svg"
+    }
+  ]
+}

@@ -1,0 +1,578 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T09:18:34.594Z",
+  "title": "Provider-neutral harness seam and the dsh adapter",
+  "summary": "Adds a provider-neutral `harness` module (the `Harness` and `CommandRunner` traits, plain-data task/result/capability types, prompt building and the `QUESTION:` line contract) plus an in-memory fake, and the first concrete adapter, `dsh_harness`, which runs `dsh --profile headless --json -` through a `CommandRunner`, parses newline-delimited JSON events, guards the repository with git status/head/branch probes, and reports capabilities by probing `--version`, headless `--help` and `--dump-config`. Nothing in the neutral module names a harness or a model vendor; a test enforces that boundary.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870",
+      "ref": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870"
+    },
+    "head": {
+      "sha": "5c2d0d6d75c4eaa4f5504a0a0b1a04e76b905767",
+      "ref": "5c2d0d6d75c4eaa4f5504a0a0b1a04e76b905767"
+    },
+    "pullRequest": {
+      "number": 232,
+      "url": "https://github.com/open-software-factory/software-factory/pull/232"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "neutral-seam",
+      "label": "Neutral harness seam",
+      "subtitle": "crates/osf/src/harness",
+      "order": 0,
+      "delta": "added",
+      "summary": "Provider-neutral traits and plain data: no harness, command or model vendor is named here."
+    },
+    {
+      "id": "adapters",
+      "label": "Concrete adapters",
+      "subtitle": "crates/osf/src/dsh_harness.rs",
+      "order": 1,
+      "delta": "added",
+      "summary": "The dsh adapter: builds commands, parses events, guards the repository, probes capabilities."
+    },
+    {
+      "id": "external",
+      "label": "External processes",
+      "subtitle": "dsh and git",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The tools the adapter drives through a CommandRunner; the adapter starts none of them itself."
+    },
+    {
+      "id": "tests",
+      "label": "Tests and fixtures",
+      "subtitle": "crates/osf/tests",
+      "order": 3,
+      "delta": "added",
+      "summary": "Scripted fakes, recorded dsh event fixtures and the neutrality scanner."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "harness-mod",
+      "label": "harness::mod",
+      "kind": "module",
+      "delta": "added",
+      "lane": "neutral-seam",
+      "group": "neutral",
+      "subtitle": "Harness, CommandRunner, HarnessTask, HarnessResult",
+      "summary": "Defines the seam: CommandSpec/CommandOutput/CommandOutcome, the CommandRunner and Harness traits, HarnessTask, Actor, Usage, HarnessOutcome, HarnessResult, Capability, HarnessCapabilities and HarnessError. Also carries build_prompt, the RULES list and question_line.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 1,
+          "endLine": 432
+        }
+      ],
+      "badges": [
+        "object-safe traits"
+      ]
+    },
+    {
+      "id": "harness-fake",
+      "label": "harness::fake",
+      "kind": "module",
+      "delta": "added",
+      "lane": "neutral-seam",
+      "group": "neutral",
+      "subtitle": "FakeRunner, FakeHarness",
+      "summary": "In-memory doubles that replay scripted answers and record every command and task as plain data, starting no process.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/fake.rs",
+          "startLine": 1,
+          "endLine": 216
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prompt-contract",
+      "label": "Prompt + QUESTION: contract",
+      "kind": "function",
+      "delta": "added",
+      "lane": "neutral-seam",
+      "group": "neutral",
+      "subtitle": "build_prompt / question_line",
+      "summary": "Appends the four task rules to the task text, and reads a question only from the last non-blank line of the final message when it starts with `QUESTION:`.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 330,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-harness",
+      "label": "DshHarness",
+      "kind": "module",
+      "delta": "added",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "impl Harness for DshHarness",
+      "summary": "The concrete adapter. Rejects empty tasks and dirty trees, runs the agent, parses events, checks the head did not move, and reports capabilities from three probes.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 1,
+          "endLine": 1328
+        }
+      ],
+      "badges": [
+        "pinned 0.2.0-rc.2"
+      ]
+    },
+    {
+      "id": "command-builders",
+      "label": "Command builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "build_command, status/head/branch, probe_command",
+      "summary": "Pure functions that produce the CommandSpec for the agent run, the three git probes and the dsh capability probes. git_env narrows the environment to PATH, HOME and GIT_*.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 80,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-parser",
+      "label": "parse_events",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "newline-delimited JSON → Parsed",
+      "summary": "Reduces the run's JSONL events to session id, final message, summed token usage and the first non-completed turn reason. A non-JSON line is an error naming its line number.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 200,
+          "endLine": 330
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-parsers",
+      "label": "parse_changed_files / parse_head / parse_branch",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "porcelain -z and rev-parse readers",
+      "summary": "Turns `git status --porcelain=v1 -z` into sorted, deduplicated repository-relative paths (including a rename's original path), and trims rev-parse output, treating a detached `HEAD` as no branch.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 330,
+          "endLine": 420
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "capability-probes",
+      "label": "Capability probes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "probe_version / probe_headless / probe_stop_hook",
+      "summary": "Runs `--version`, headless `--help` and `--dump-config` in order, each gated on the previous, and maps the results to Supported/Unsupported/Unknown. message_check_in reads the plugin row from the dump.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 700,
+          "endLine": 900
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lib-rs",
+      "label": "osf::lib",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "adapters",
+      "group": "dsh",
+      "subtitle": "pub mod harness; pub mod dsh_harness;",
+      "summary": "Registers the two new modules on the crate root.",
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 13,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-binary",
+      "label": "dsh",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "--profile headless --json -",
+      "summary": "The external coding harness. It reads the prompt on stdin and writes newline-delimited JSON events to stdout; it reports no model name and no cost figure.",
+      "files": [],
+      "badges": [
+        "no cost figure",
+        "no question event"
+      ]
+    },
+    {
+      "id": "git-binary",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "status / rev-parse",
+      "summary": "Used only for the clean-tree check, the head commit and the branch. It receives the minimal environment, so no credential reaches it.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "fake-run-tests",
+      "label": "harness_fake_run",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "group": "integration",
+      "subtitle": "full run + capability report",
+      "summary": "Drives a whole run and a capability report through the trait objects with FakeRunner, asserting the exact command sequence, the parsed result and every capability outcome.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 870
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "neutral-tests",
+      "label": "harness_neutral",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "group": "integration",
+      "subtitle": "vendor-name scanner",
+      "summary": "Asserts the neutral folder holds exactly mod.rs and fake.rs and names no supported agent, container word or model vendor, and proves the scanner can fail by pointing it at dsh_harness.rs.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-fixtures",
+      "label": "dsh event fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "group": "fixtures",
+      "subtitle": "*.jsonl, version, help, dump-config",
+      "summary": "Recorded dsh output: a created-file run, a question run, four question-prose variants, a missing-credential failure, the version line, the headless help and a full profile dump.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-created-file.jsonl"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-no-credential.jsonl"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-dump-config.yml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dsh-impl-harness",
+      "from": "dsh-harness",
+      "to": "harness-mod",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Harness",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter implements the neutral trait, so the engine can hold it as a `dyn Harness`.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 560,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-builders",
+      "from": "dsh-harness",
+      "to": "command-builders",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every command the adapter runs is produced by a pure builder.",
+      "files": []
+    },
+    {
+      "id": "dsh-uses-parser",
+      "from": "dsh-harness",
+      "to": "event-parser",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent's stdout is reduced to a Parsed before any decision is made.",
+      "files": []
+    },
+    {
+      "id": "dsh-uses-git-parsers",
+      "from": "dsh-harness",
+      "to": "git-parsers",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Status, head and branch output are parsed by these functions.",
+      "files": []
+    },
+    {
+      "id": "dsh-uses-probes",
+      "from": "dsh-harness",
+      "to": "capability-probes",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "capabilities() delegates to the three probes.",
+      "files": []
+    },
+    {
+      "id": "dsh-uses-question",
+      "from": "dsh-harness",
+      "to": "prompt-contract",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The prompt is built with build_prompt and the outcome decided by question_line.",
+      "files": []
+    },
+    {
+      "id": "dsh-runs-dsh",
+      "from": "dsh-harness",
+      "to": "dsh-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "CommandRunner",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter never starts a process itself; it hands a CommandSpec to the runner, which runs dsh.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 560,
+          "endLine": 620
+        }
+      ]
+    },
+    {
+      "id": "dsh-runs-git",
+      "from": "dsh-harness",
+      "to": "git-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "minimal env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Three git probes bracket the run: clean tree, head and branch before; status and head after.",
+      "files": []
+    },
+    {
+      "id": "fake-impl-runner",
+      "from": "harness-fake",
+      "to": "harness-mod",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl CommandRunner + Harness",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The fakes implement both traits so tests can drive the seam without a process.",
+      "files": []
+    },
+    {
+      "id": "fake-run-tests-use-fake",
+      "from": "fake-run-tests",
+      "to": "harness-fake",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration test scripts the fakes and inspects what they recorded.",
+      "files": []
+    },
+    {
+      "id": "fake-run-tests-use-dsh",
+      "from": "fake-run-tests",
+      "to": "dsh-harness",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The same test file exercises the concrete adapter through the same trait objects.",
+      "files": []
+    },
+    {
+      "id": "fake-run-tests-use-fixtures",
+      "from": "fake-run-tests",
+      "to": "event-fixtures",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Fixtures are included at compile time and replayed as scripted stdout.",
+      "files": []
+    },
+    {
+      "id": "neutral-tests-scan",
+      "from": "neutral-tests",
+      "to": "harness-mod",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "reads source",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scanner reads the neutral folder's files and asserts no banned word appears.",
+      "files": []
+    },
+    {
+      "id": "neutral-tests-scan-dsh",
+      "from": "neutral-tests",
+      "to": "dsh-harness",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "negative control",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Points the vendor scanner at dsh_harness.rs to prove it can fail.",
+      "files": []
+    },
+    {
+      "id": "lib-exposes",
+      "from": "lib-rs",
+      "to": "harness-mod",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`pub mod harness` makes the seam reachable from the crate root.",
+      "files": []
+    },
+    {
+      "id": "lib-exposes-dsh",
+      "from": "lib-rs",
+      "to": "dsh-harness",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`pub mod dsh_harness` exposes the concrete adapter.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 16,
+    "additions": 3532,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New modules",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "Recorded dsh fixtures",
+        "value": "9",
+        "tone": "added"
+      },
+      {
+        "label": "Commands per run",
+        "value": "6",
+        "tone": "neutral"
+      },
+      {
+        "label": "Capability probes",
+        "value": "3",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "harness-architecture",
+      "title": "Harness seam and the dsh adapter",
+      "lens": "architecture",
+      "summary": "The neutral seam, the one concrete adapter, the external processes it drives and the tests that pin both.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "dsh-run-sequence",
+      "title": "One dsh run, step by step",
+      "lens": "architecture",
+      "summary": "The six commands a successful run issues, in order, and what each one decides.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dsh-harness",
+          "command-builders",
+          "event-parser",
+          "git-parsers",
+          "dsh-binary",
+          "git-binary"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
