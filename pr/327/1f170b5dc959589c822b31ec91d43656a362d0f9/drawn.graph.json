@@ -1,0 +1,573 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T00:13:35.834Z",
+  "title": "Bump Vite 8.3.1 → 8.3.5 in console-lab",
+  "summary": "A dependency-only change: apps/console-lab pins Vite to 8.3.5 instead of 8.3.1, and pnpm-lock.yaml is regenerated to match. The lockfile ripple pulls a newer rolldown (1.2.11 → 1.2.15) with its platform bindings, postcss 8.5.31, nanoid 3.3.20, source-map-js 1.2.2 and @oxc-project/types 0.155.0, and records deprecation notices on two OpenTelemetry trace packages. No application source, build config or runtime behaviour is touched; the console-lab build toolchain is the only thing that moves.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "1f170b5dc959589c822b31ec91d43656a362d0f9",
+      "ref": "1f170b5dc959589c822b31ec91d43656a362d0f9"
+    },
+    "pullRequest": {
+      "number": 327,
+      "url": "https://github.com/open-software-factory/software-factory/pull/327"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "app",
+      "label": "Console Lab app",
+      "subtitle": "apps/console-lab",
+      "order": 0,
+      "summary": "The single-page console app whose build toolchain is being bumped."
+    },
+    {
+      "id": "build",
+      "label": "Build toolchain",
+      "subtitle": "Vite and its plugins",
+      "order": 1,
+      "summary": "The dev server and bundler that compile the console-lab app."
+    },
+    {
+      "id": "bundler",
+      "label": "Bundler internals",
+      "subtitle": "rolldown, postcss, oxc",
+      "order": 2,
+      "summary": "Transitive packages Vite pulls in; these are what the lockfile churn is actually about."
+    },
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo",
+      "order": 3,
+      "summary": "The root lockfile that pins every importer's resolved versions."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console-lab",
+      "label": "console-lab",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "app",
+      "subtitle": "apps/console-lab",
+      "summary": "The console lab application. Its own source is untouched; only its devDependency pin on Vite changes.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 17,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite",
+      "label": "vite",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build",
+      "subtitle": "8.3.1 → 8.3.5",
+      "summary": "The build tool and dev server for console-lab. Bumped a patch line; its peer range for @vitejs/devtools widens to ^0.7.1 || ^0.8.0.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1878,
+          "endLine": 1878
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plugin-react",
+      "label": "@vitejs/plugin-react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build",
+      "subtitle": "6.1.2, re-resolved on vite 8.3.5",
+      "summary": "React plugin for Vite. Version is unchanged; only its peer resolution moves to the new Vite.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2850,
+          "endLine": 2853
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plugin-singlefile",
+      "label": "vite-plugin-singlefile",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "build",
+      "subtitle": "2.3.3, re-resolved on vite 8.3.5",
+      "summary": "Inlines the built bundle into a single HTML file. Version unchanged; peer resolution moves to the new Vite.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3557,
+          "endLine": 3560
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rolldown",
+      "label": "rolldown",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "subtitle": "1.2.11 → 1.2.15",
+      "summary": "The bundler Vite delegates to. The largest part of the lockfile diff: version bump plus fifteen platform-specific optional bindings.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1709,
+          "endLine": 1709
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3362,
+          "endLine": 3384
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rolldown-bindings",
+      "label": "rolldown native bindings",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "group": "rolldown",
+      "subtitle": "15 platform packages, 1.2.11 → 1.2.15",
+      "summary": "Optional per-platform native binaries for rolldown (android, darwin, linux, freebsd, openharmony, win32). All move in lockstep with the parent.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 971,
+          "endLine": 1059
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "oxc-types",
+      "label": "@oxc-project/types",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "group": "rolldown",
+      "subtitle": "0.151.0 → 0.155.0",
+      "summary": "Type definitions consumed by rolldown; bumped alongside it.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 695,
+          "endLine": 695
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "postcss",
+      "label": "postcss",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "subtitle": "8.5.28 → 8.5.31",
+      "summary": "CSS processing used by Vite. Patch bump, which in turn moves nanoid and source-map-js.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1644,
+          "endLine": 1644
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "nanoid",
+      "label": "nanoid",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "group": "postcss",
+      "subtitle": "3.3.19 → 3.3.20",
+      "summary": "Transitive dependency of postcss; patch bump.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1571,
+          "endLine": 1571
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "source-map-js",
+      "label": "source-map-js",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "group": "postcss",
+      "subtitle": "1.2.1 → 1.2.2",
+      "summary": "Transitive dependency of postcss; patch bump.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1787,
+          "endLine": 1789
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "otel-trace",
+      "label": "@opentelemetry/sdk-trace-*",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "bundler",
+      "subtitle": "2.12.0, now marked deprecated",
+      "summary": "Two OpenTelemetry trace packages gain a deprecation notice in the lockfile pointing at @opentelemetry/sdk-trace. Versions do not change.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 668,
+          "endLine": 668
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 674,
+          "endLine": 674
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-lock",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "root lockfile",
+      "summary": "The single lockfile for the whole monorepo. Every importer's resolved graph is recorded here, so a one-line pin change in one app rewrites the shared resolution.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 28,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-lab-vite",
+      "from": "console-lab",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 8.3.5",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one authored line of this change: console-lab's Vite pin moves from 8.3.1 to 8.3.5.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "console-lab-plugin-react",
+      "from": "console-lab",
+      "to": "plugin-react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "React plugin stays at 6.1.2.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 19,
+          "endLine": 19
+        }
+      ]
+    },
+    {
+      "id": "console-lab-plugin-singlefile",
+      "from": "console-lab",
+      "to": "plugin-singlefile",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Single-file plugin stays at 2.3.3.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 21,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "id": "plugin-react-vite",
+      "from": "plugin-react",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Peer resolution re-pointed at vite 8.3.5.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2850,
+          "endLine": 2853
+        }
+      ]
+    },
+    {
+      "id": "plugin-singlefile-vite",
+      "from": "plugin-singlefile",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Peer resolution re-pointed at vite 8.3.5.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3557,
+          "endLine": 3560
+        }
+      ]
+    },
+    {
+      "id": "vite-rolldown",
+      "from": "vite",
+      "to": "rolldown",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.2.15",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Vite's bundler dependency moves to 1.2.15, which is where most of the lockfile diff comes from.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3566,
+          "endLine": 3566
+        }
+      ]
+    },
+    {
+      "id": "vite-postcss",
+      "from": "vite",
+      "to": "postcss",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "8.5.31",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vite's CSS dependency moves to 8.5.31.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3565,
+          "endLine": 3565
+        }
+      ]
+    },
+    {
+      "id": "rolldown-bindings-edge",
+      "from": "rolldown",
+      "to": "rolldown-bindings",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "optionalDependencies",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Fifteen optional native bindings re-pinned to 1.2.15.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3366,
+          "endLine": 3384
+        }
+      ]
+    },
+    {
+      "id": "rolldown-oxc",
+      "from": "rolldown",
+      "to": "oxc-types",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.155.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "rolldown's type dependency bumps with it.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3364,
+          "endLine": 3364
+        }
+      ]
+    },
+    {
+      "id": "postcss-nanoid",
+      "from": "postcss",
+      "to": "nanoid",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.3.20",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "postcss pulls the newer nanoid patch.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3262,
+          "endLine": 3262
+        }
+      ]
+    },
+    {
+      "id": "postcss-source-map",
+      "from": "postcss",
+      "to": "source-map-js",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.2.2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "postcss pulls the newer source-map-js patch.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3264,
+          "endLine": 3264
+        }
+      ]
+    },
+    {
+      "id": "lock-vite",
+      "from": "pnpm-lock",
+      "to": "vite",
+      "kind": "data",
+      "delta": "modified",
+      "label": "resolves",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the resolved vite 8.3.5 entry and its dependency set.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1878,
+          "endLine": 1878
+        }
+      ]
+    },
+    {
+      "id": "lock-otel",
+      "from": "pnpm-lock",
+      "to": "otel-trace",
+      "kind": "data",
+      "delta": "modified",
+      "label": "deprecation notices",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Regenerating the lockfile surfaced deprecation metadata on two OpenTelemetry trace packages; their versions are unchanged.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 668,
+          "endLine": 674
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 98,
+    "deletions": 90,
+    "chips": [
+      {
+        "label": "Authored lines",
+        "value": "1",
+        "tone": "hero"
+      },
+      {
+        "label": "Vite",
+        "value": "8.3.1 → 8.3.5",
+        "tone": "modified"
+      },
+      {
+        "label": "rolldown",
+        "value": "1.2.11 → 1.2.15",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "console-lab-toolchain",
+      "title": "console-lab build toolchain",
+      "lens": "architecture",
+      "summary": "How the console-lab app's build dependencies resolve after the bump, and which transitive packages the lockfile churn actually moves.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ],
+  "layout": {
+    "direction": "right",
+    "laneOrder": [
+      "app",
+      "build",
+      "bundler",
+      "workspace"
+    ]
+  }
+}
