@@ -20,7 +20,7 @@ The visual system remains incomplete. Explore typography, the exact palette, mot
 
 ### Every element earns its place
 
-Every visual element should answer a real operator question, advance understanding, expose an action, or create necessary hierarchy.
+Every visual element should answer a real person question, advance understanding, expose an action, or create necessary hierarchy.
 
 Remove filler, decorative metrics, repetitive labels and charts with no operational question behind them.
 
@@ -176,7 +176,7 @@ Every important summary should drill into why, and every explanation into raw ev
 
 ### 10.6 Preserve causal lineage
 
-The operator must be able to travel from intent to spec, work, code, verification, deployment and outcome.
+The person must be able to travel from intent to spec, work, code, verification, deployment and outcome.
 
 ### 10.7 Show flow, queues and constraints
 
@@ -188,7 +188,7 @@ Current state without history is insufficient for understanding autonomous execu
 
 ### 10.9 Confidence is visible only when useful
 
-Surface uncertainty where it affects operator behaviour.
+Surface uncertainty where it affects person behaviour.
 
 Do not attach meaningless confidence percentages to everything.
 
@@ -255,7 +255,7 @@ Avoid replacing one design trope with another. The goal is intentional design.
 
 For meaningful new surfaces:
 
-1. Understand the operator question being answered.
+1. Understand the person question being answered.
 2. Read existing factory/domain context and current visual system.
 3. Identify the information hierarchy before styling.
 4. Explore multiple materially different interaction/layout directions when the solution is not obvious.

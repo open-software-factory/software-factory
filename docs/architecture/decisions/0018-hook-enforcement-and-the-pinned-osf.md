@@ -1,4 +1,4 @@
-# 0018: Hook enforcement and the pinned osf
+# 0018: Hook enforcement and which osf a check uses
 
 Status: accepted
 
