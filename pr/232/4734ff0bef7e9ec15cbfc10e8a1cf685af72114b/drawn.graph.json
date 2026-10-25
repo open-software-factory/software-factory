@@ -1,0 +1,503 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T11:17:22.458Z",
+  "title": "Provider-neutral agent runner seam + dsh adapter",
+  "summary": "Introduces a provider-neutral harness interface (`AgentRunner`/`CommandRunner` traits, task/result/capability types, prompt and QUESTION-line contract) plus in-memory fakes, and the first concrete adapter, `DshAgentRunner`, which drives `dsh --profile headless --json -` through a `CommandRunner`, parses newline-delimited JSON events, and brackets each run with git status/head/branch probes using a credential-free git environment. A new `job-blocked` journal payload carries a clarification question out of a run. Tests and recorded `dsh` fixtures pin the parsing and capability behaviour.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870",
+      "ref": "30fee7e3826f0f3fb7a01ea9785f83e9c16aa870"
+    },
+    "head": {
+      "sha": "4734ff0bef7e9ec15cbfc10e8a1cf685af72114b",
+      "ref": "4734ff0bef7e9ec15cbfc10e8a1cf685af72114b"
+    },
+    "pullRequest": {
+      "number": 232,
+      "url": "https://github.com/open-software-factory/software-factory/pull/232"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "factory",
+      "label": "Factory core",
+      "subtitle": "osf crate",
+      "order": 0,
+      "summary": "The existing factory code the new seam plugs into: the journal and the reviewer environment allow-list."
+    },
+    {
+      "id": "seam",
+      "label": "Harness seam",
+      "subtitle": "agent_runner",
+      "order": 1,
+      "summary": "Provider-neutral traits and plain data types that name no harness, command or model vendor."
+    },
+    {
+      "id": "adapter",
+      "label": "dsh adapter",
+      "subtitle": "dsh_agent_runner",
+      "order": 2,
+      "summary": "The first concrete AgentRunner: builds commands, parses events, and enforces the run contract."
+    },
+    {
+      "id": "process",
+      "label": "Process boundary",
+      "subtitle": "child processes",
+      "order": 3,
+      "summary": "The real command runner and the external tools it starts: the dsh binary and git."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "journal",
+      "label": "Journal",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "factory",
+      "subtitle": "Payload enum + replay",
+      "summary": "Append-only event log. Gains a `JobBlocked` payload variant carrying job, work item, cause and an optional question, and passes it through replay unchanged.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-env",
+      "label": "Reviewer env allow-list",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "factory",
+      "subtitle": "RUN_ENV_VARS",
+      "summary": "The list of environment names safe to pass to a reviewer process. Widened from private to crate-visible so the dsh adapter can reuse it as the git environment allow-list.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 245,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-runner-trait",
+      "label": "AgentRunner trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "run / capabilities",
+      "summary": "The seam between the factory and an external coding harness. `run` takes a `CommandRunner` and an `AgentTask`; `capabilities` probes what the harness can do. Object-safe.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "command-runner-trait",
+      "label": "CommandRunner trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "run(CommandSpec)",
+      "summary": "Runs exactly one command with its own environment, workdir, stdin and timeout. The only way an adapter reaches a process.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "result-types",
+      "label": "Task / result / capability types",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "AgentTask, AgentRunResult, Capability",
+      "summary": "Plain serializable data for the journal: task, actor, usage, outcome (finished or asked), changed files, branch, head commit, and the eight capability states.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prompt-contract",
+      "label": "Prompt + QUESTION contract",
+      "kind": "function",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "build_prompt / question_line",
+      "summary": "Builds the task prompt with the four rules appended, and reads a trailing `QUESTION:` line from a final message as the clarification signal.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fakes",
+      "label": "FakeRunner / FakeAgentRunner",
+      "kind": "test",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "in-memory doubles",
+      "summary": "Replay scripted answers and record every command and task as plain data; start no process.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/fake.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-adapter",
+      "label": "DshAgentRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "AgentRunner impl",
+      "summary": "Rejects empty tasks and dirty trees, snapshots head and branch, runs dsh, parses events, checks the head did not move, and maps a QUESTION line to an asked outcome.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "command-builders",
+      "label": "Command builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "build_command / status / head / branch",
+      "summary": "Pure functions that produce the dsh run command and the git status, head and branch commands, each with its own environment.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-parser",
+      "label": "Event parser",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "parse_events / parse_changed_files",
+      "summary": "Reads newline-delimited JSON events into session id, final message, summed usage and the first non-completed turn reason; reads NUL-separated git status into sorted changed paths.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "capability-probes",
+      "label": "Capability probes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "version / headless / dump-config",
+      "summary": "Probes `--version`, the headless help and the profile dump, reporting each capability as supported, unsupported or unknown rather than assuming.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "real-command-runner",
+      "label": "RealCommandRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "process",
+      "subtitle": "child process + timeout",
+      "summary": "Clears the environment, starts the child as its own process-group leader, drains both pipes on threads, and kills the whole tree at the deadline.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-binary",
+      "label": "dsh binary",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "process",
+      "subtitle": "--profile headless --json -",
+      "summary": "The external coding harness. Reads the prompt on stdin and writes newline-delimited JSON events to stdout.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-headless-help.txt"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "process",
+      "subtitle": "status / rev-parse",
+      "summary": "Reads the working tree state, head commit and branch. Reached with only PATH, HOME and GIT_* names, so no credential reaches it.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "adapter-uses-trait",
+      "from": "dsh-adapter",
+      "to": "agent-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "implements",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The dsh adapter is the first implementation of the neutral seam.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ]
+    },
+    {
+      "id": "adapter-uses-command-runner",
+      "from": "dsh-adapter",
+      "to": "command-runner-trait",
+      "kind": "call",
+      "delta": "added",
+      "label": "runs every command",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter starts no process itself; every dsh and git command goes through the runner.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_agent_runner.rs"
+        }
+      ]
+    },
+    {
+      "id": "adapter-uses-builders",
+      "from": "dsh-adapter",
+      "to": "command-builders",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-uses-parser",
+      "from": "dsh-adapter",
+      "to": "event-parser",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-uses-probes",
+      "from": "dsh-adapter",
+      "to": "capability-probes",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-uses-prompt",
+      "from": "dsh-adapter",
+      "to": "prompt-contract",
+      "kind": "call",
+      "delta": "added",
+      "label": "build_prompt, question_line",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-uses-result-types",
+      "from": "dsh-adapter",
+      "to": "result-types",
+      "kind": "data",
+      "delta": "added",
+      "label": "AgentRunResult",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-uses-reviewers-env",
+      "from": "dsh-adapter",
+      "to": "reviewers-env",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "git env allow-list",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "result-to-journal",
+      "from": "result-types",
+      "to": "journal",
+      "kind": "data",
+      "delta": "added",
+      "label": "JobBlocked payload",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An asked outcome becomes a `job-blocked` event with cause `clarification` and the question text.",
+      "files": [
+        {
+          "path": "crates/osf/src/agent_runner/mod.rs"
+        },
+        {
+          "path": "crates/osf/src/journal.rs"
+        }
+      ]
+    },
+    {
+      "id": "fakes-implement-traits",
+      "from": "fakes",
+      "to": "agent-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "test doubles",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "real-runner-implements",
+      "from": "real-command-runner",
+      "to": "command-runner-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "implements",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "real-runner-spawns-dsh",
+      "from": "real-command-runner",
+      "to": "dsh-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn, stdin, timeout",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "real-runner-spawns-git",
+      "from": "real-command-runner",
+      "to": "git",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn, 60s",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 3946,
+    "deletions": 5,
+    "chips": [
+      {
+        "label": "New harness seam",
+        "value": "2 traits",
+        "tone": "added"
+      },
+      {
+        "label": "dsh adapter",
+        "value": "first impl",
+        "tone": "hero"
+      },
+      {
+        "label": "Recorded fixtures",
+        "value": "8",
+        "tone": "added"
+      },
+      {
+        "label": "Capabilities probed",
+        "value": "8",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "harness-seam",
+      "title": "Harness seam and dsh adapter",
+      "lens": "architecture",
+      "summary": "The neutral traits, the dsh adapter that implements them, and the process boundary they reach through.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "adapter-internals",
+      "title": "Inside the dsh adapter",
+      "lens": "architecture",
+      "summary": "The pure functions the adapter composes: command builders, event parser, capability probes and the prompt contract.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dsh-adapter",
+          "command-builders",
+          "event-parser",
+          "capability-probes",
+          "prompt-contract",
+          "result-types",
+          "journal",
+          "reviewers-env"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
