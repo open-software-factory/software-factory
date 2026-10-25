@@ -1,0 +1,599 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T21:35:52.451Z",
+  "title": "Per-agent launch command overrides in osf.toml",
+  "summary": "Adds an `[agents.launch.<name>]` table to `osf.toml` so an adopter can replace an agent's launch command and add non-secret environment without forking osf. `agents::resolve` validates each override (known agent, enabled, non-empty command, no provider credential variable in any letter case) and stores it on `Selection`; `reviewers::roster` threads it into `Reviewer.command` and `Reviewer.env`, and `prepare_command` applies the template env first so the fresh `RunHome` and allow-listed variables still win. The doctor message and development docs are reworded to drop the stale launch-templates note.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "1a9ccef17e5011cbffc67ac079d421ca40efa5bb",
+      "ref": "1a9ccef17e5011cbffc67ac079d421ca40efa5bb"
+    },
+    "head": {
+      "sha": "c7dcd541d8bee6d881514c9c59e3b72d20e7721b",
+      "ref": "c7dcd541d8bee6d881514c9c59e3b72d20e7721b"
+    },
+    "pullRequest": {
+      "number": 341,
+      "url": "https://github.com/open-software-factory/software-factory/pull/341"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml on disk",
+      "order": 0,
+      "summary": "The repository's `osf.toml`, parsed into `AgentsConfig` and its new `LaunchTemplateConfig` entries."
+    },
+    {
+      "id": "osf-core",
+      "label": "osf core",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The library that resolves the agent selection, builds the reviewer roster and prepares child processes."
+    },
+    {
+      "id": "agent-process",
+      "label": "Agent process",
+      "subtitle": "child process",
+      "order": 2,
+      "summary": "The external agent binary osf spawns to perform a review, with its environment and fresh home."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "[agents.launch.<name>]",
+      "summary": "The repository config file. This change gives it a new `[agents.launch.<name>]` table holding `command` and `env` per agent.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 753,
+          "endLine": 768
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-config",
+      "label": "AgentsConfig",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "config.rs",
+      "summary": "Deserialized `[agents]` table. Gains a `launch` map and the new `LaunchTemplateConfig` struct with `command` and `env`, both `deny_unknown_fields` and defaulted.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 246,
+          "endLine": 263
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-list",
+      "label": "AGENTS list",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "agents.rs",
+      "summary": "The static list of every agent osf can drive. Gains `KNOWN_CREDENTIAL_VARS`, the provider credential aliases a launch template may never carry.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 256,
+          "endLine": 266
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve",
+      "label": "agents::resolve",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "Selection",
+      "summary": "Validates the config against the agent list. Now also builds the credential-name set, then for each launch override checks the agent is known and enabled, the command is non-empty, and no env key is a credential variable in any letter case; stores the result as `LaunchTemplate` on `Selection`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 666,
+          "endLine": 711
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "selection",
+      "label": "Selection",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "enabled, reviewers, models, launch",
+      "summary": "The resolved view of `[agents]`. Gains a `launch` map and a `launch(agent)` accessor returning the `LaunchTemplate` override, if any.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 564,
+          "endLine": 596
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "roster",
+      "label": "reviewers::roster",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "Vec<Reviewer>",
+      "summary": "Builds the reviewer list from the selection. Now passes `selection.launch(agent)` into `Reviewer::from_agent`.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 246,
+          "endLine": 252
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-from-agent",
+      "label": "Reviewer::from_agent",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "command, env",
+      "summary": "Takes an optional `LaunchTemplate`. When present it replaces the agent's own command and supplies `env`; otherwise the built-in command is used and `env` is empty. Read-only mode, schema flag and model flag still come from the agent entry.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 97,
+          "endLine": 130
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer",
+      "label": "Reviewer",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "command, env, read_only",
+      "summary": "The per-agent run description. Gains an `env` field carrying the template environment.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 36,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prepare-command",
+      "label": "prepare_command",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "Command",
+      "summary": "Builds the child `Command` with a cleared environment. Now applies the reviewer's template env first, then the fresh `RunHome`, then the read-only and clean-copy variables, so the fresh home and allow-listed variables always take precedence.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 618,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "doctor-binaries",
+      "label": "doctor binaries check",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-core",
+      "subtitle": "agent-binaries",
+      "summary": "The `agent-binaries` check message is reworded: the unknown status now points at the unimplemented agent version pin rather than the launch templates.",
+      "files": [
+        {
+          "path": "crates/osf/src/doctor.rs",
+          "startLine": 210,
+          "endLine": 216
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-binary",
+      "label": "Agent binary",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agent-process",
+      "subtitle": "spawned child",
+      "summary": "The external agent program osf launches to review. It receives the template command, the template env, the fresh home and the allow-listed variables.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 645,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-toml-to-agents-config",
+      "from": "osf-toml",
+      "to": "agents-config",
+      "kind": "data",
+      "delta": "modified",
+      "label": "[agents.launch.<name>]",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new launch table is deserialized into `LaunchTemplateConfig` entries.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 246,
+          "endLine": 263
+        }
+      ]
+    },
+    {
+      "id": "agents-config-to-resolve",
+      "from": "agents-config",
+      "to": "resolve",
+      "kind": "call",
+      "delta": "modified",
+      "label": "cfg.launch",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`resolve` iterates the launch overrides and validates each against the agent list.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 666,
+          "endLine": 711
+        }
+      ]
+    },
+    {
+      "id": "agent-list-to-resolve",
+      "from": "agent-list",
+      "to": "resolve",
+      "kind": "data",
+      "delta": "modified",
+      "label": "credential names",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The credential-name set is built from the known aliases and every agent's `credential_env`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 666,
+          "endLine": 678
+        }
+      ]
+    },
+    {
+      "id": "resolve-to-selection",
+      "from": "resolve",
+      "to": "selection",
+      "kind": "data",
+      "delta": "modified",
+      "label": "LaunchTemplate",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Validated overrides are stored on the `Selection`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 700,
+          "endLine": 711
+        }
+      ]
+    },
+    {
+      "id": "selection-to-roster",
+      "from": "selection",
+      "to": "roster",
+      "kind": "call",
+      "delta": "modified",
+      "label": "selection.launch(agent)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The roster asks the selection for each agent's launch override.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 246,
+          "endLine": 252
+        }
+      ]
+    },
+    {
+      "id": "roster-to-reviewer-from-agent",
+      "from": "roster",
+      "to": "reviewer-from-agent",
+      "kind": "call",
+      "delta": "modified",
+      "label": "template",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each reviewer is built with its optional launch template.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 97,
+          "endLine": 130
+        }
+      ]
+    },
+    {
+      "id": "reviewer-from-agent-to-reviewer",
+      "from": "reviewer-from-agent",
+      "to": "reviewer",
+      "kind": "data",
+      "delta": "modified",
+      "label": "command, env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The template command and env land on the `Reviewer`.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 110,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "reviewer-to-prepare-command",
+      "from": "reviewer",
+      "to": "prepare-command",
+      "kind": "call",
+      "delta": "modified",
+      "label": "reviewer.env",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "`prepare_command` reads the reviewer's template env and applies it before the fresh home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 645,
+          "endLine": 655
+        }
+      ]
+    },
+    {
+      "id": "prepare-command-to-agent-binary",
+      "from": "prepare-command",
+      "to": "agent-binary",
+      "kind": "other",
+      "delta": "modified",
+      "label": "spawn with env",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The child is spawned with the template env, then the fresh home and allow-listed variables layered on top.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 645,
+          "endLine": 660
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "launch-override-flow",
+      "title": "Launch override from osf.toml to the agent process",
+      "summary": "How an `[agents.launch.<name>]` entry is validated, carried through the selection and roster, and applied to the spawned agent's environment.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        },
+        {
+          "node": "resolve",
+          "label": "resolve"
+        },
+        {
+          "node": "selection",
+          "label": "Selection"
+        },
+        {
+          "node": "roster",
+          "label": "roster"
+        },
+        {
+          "node": "prepare-command",
+          "label": "prepare_command"
+        },
+        {
+          "node": "agent-binary",
+          "label": "Agent binary"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-launch-table",
+          "from": "osf-toml",
+          "to": "resolve",
+          "label": "[agents.launch.<name>]",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Deserialized into `LaunchTemplateConfig` before `resolve` sees it.",
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 246,
+              "endLine": 263
+            }
+          ]
+        },
+        {
+          "id": "validate-override",
+          "from": "resolve",
+          "to": "resolve",
+          "label": "known, enabled, non-empty, no credential",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Credential names are compared case-insensitively against the known aliases and every agent's `credential_env`.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 666,
+              "endLine": 711
+            }
+          ]
+        },
+        {
+          "id": "store-template",
+          "from": "resolve",
+          "to": "selection",
+          "label": "LaunchTemplate",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 700,
+              "endLine": 711
+            }
+          ]
+        },
+        {
+          "id": "ask-for-template",
+          "from": "roster",
+          "to": "selection",
+          "label": "selection.launch(agent)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 246,
+              "endLine": 252
+            }
+          ]
+        },
+        {
+          "id": "build-reviewer",
+          "from": "selection",
+          "to": "roster",
+          "label": "command + env",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "`Reviewer::from_agent` copies the template command and env onto the reviewer.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 97,
+              "endLine": 130
+            }
+          ]
+        },
+        {
+          "id": "apply-env",
+          "from": "roster",
+          "to": "prepare-command",
+          "label": "reviewer.env",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 645,
+              "endLine": 655
+            }
+          ]
+        },
+        {
+          "id": "spawn-child",
+          "from": "prepare-command",
+          "to": "agent-binary",
+          "label": "spawn with template env",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Template env is applied first; the fresh `RunHome` and allow-listed variables are applied after and win.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 645,
+              "endLine": 660
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 287,
+    "deletions": 8,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "launch-override-architecture",
+      "title": "Launch override path through osf",
+      "lens": "architecture",
+      "summary": "Config, osf core and the spawned agent process, with the override path highlighted.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "launch-override-flow-view",
+      "title": "Launch override sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps from reading `osf.toml` to spawning the agent with the template environment.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "launch-override-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
