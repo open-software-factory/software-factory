@@ -136,6 +136,27 @@ enum Command {
         #[command(subcommand)]
         action: AgentsAction,
     },
+    /// Report whether this repository and machine are set up correctly. Read-only.
+    Doctor(DoctorArgs),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum DoctorFormat {
+    Text,
+    Json,
+}
+
+#[derive(Args)]
+struct DoctorArgs {
+    /// How to print the report.
+    #[arg(long, value_enum, default_value_t = DoctorFormat::Text)]
+    format: DoctorFormat,
+    /// Print one JSON array instead of text. Kept as an alias for --format json.
+    #[arg(long, hide = true)]
+    json: bool,
+    /// Print only this check: osf, settings, agents, agent-binaries, hooks or container.
+    #[arg(long)]
+    check: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -499,7 +520,8 @@ impl ReviewBindingArgs {
 
 #[derive(Args)]
 struct ReviewReduceArgs {
-    /// The saved reviewer files.
+    /// The saved reviewer files. A folder stands for the `.json` files
+    /// directly inside it.
     files: Vec<PathBuf>,
     #[command(flatten)]
     binding: ReviewBindingArgs,
@@ -915,6 +937,49 @@ fn main() -> ExitCode {
         Command::Agents {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
+        Command::Doctor(args) => doctor_cmd(args, cli.config.as_deref()),
+    }
+}
+
+fn doctor_cmd(args: &DoctorArgs, config_file: Option<&Path>) -> ExitCode {
+    let root = osf::git::repo_root(Path::new(".")).unwrap_or_else(|_| Path::new(".").to_path_buf());
+    let checks = osf::doctor::report(&root, config_file);
+    let checks = match osf::doctor::keep(checks, args.check.as_deref()) {
+        Ok(checks) => checks,
+        Err(error) => {
+            eprintln!("osf doctor: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let json = args.json || args.format == DoctorFormat::Json;
+    if json {
+        match serde_json::to_string_pretty(&checks) {
+            Ok(text) => println!("{text}"),
+            Err(error) => {
+                eprintln!("osf doctor: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        for check in &checks {
+            println!(
+                "{}: {} - {}",
+                check.status.as_str(),
+                check.name,
+                check.detail
+            );
+            if let Some(fix) = &check.fix {
+                println!("  fix: {fix}");
+            }
+        }
+    }
+    if checks
+        .iter()
+        .any(|check| check.status == osf::doctor::Status::Fail)
+    {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 
@@ -2045,6 +2110,7 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
             reviewer: name.clone(),
             lenses: Vec::new(),
             binding: None,
+            not_run: None,
         };
         return match empty.save(out) {
             Ok(()) => 0,
@@ -2065,8 +2131,7 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
 
 /// The pull request's number, title and body, from the JSON file at `path`.
 fn load_pull_request(path: &Path) -> Result<osf::review_context::PullRequest, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+    osf::review_context::PullRequest::load(path)
 }
 
 /// Prints `outcome`, writes SARIF and posts as asked, and returns the exit
@@ -2117,8 +2182,15 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         eprintln!("osf review reduce: a base is required: pass --base or set OSF_BASE");
         return 2;
     };
-    let mut runs = Vec::with_capacity(args.files.len());
-    for file in &args.files {
+    let files = match review_run::expand_saved_runs(&args.files) {
+        Ok(files) => files,
+        Err(e) => {
+            eprintln!("osf review reduce: {e}");
+            return 2;
+        }
+    };
+    let mut runs = Vec::with_capacity(files.len());
+    for file in &files {
         let name = file
             .file_stem()
             .and_then(std::ffi::OsStr::to_str)
@@ -2258,6 +2330,35 @@ fn action_str(action: answer::Action) -> &'static str {
     }
 }
 
+/// The plan for a post. The pull request's diff is read only when a finding
+/// could be an inline comment. When GitHub will not give the diff (it
+/// refuses a very large one), every finding goes into the body with a line
+/// saying so, and the review still posts.
+fn plan_for_post(
+    findings: &[review::Finding],
+    summary: &str,
+    block_on: &[String],
+    overall: Option<reducer::Verdict>,
+    repo: &str,
+    pr: u64,
+) -> Result<review::Plan, review::ReviewError> {
+    let candidates = findings
+        .iter()
+        .any(|f| f.action != "dismiss" && f.line.is_some());
+    let diff = if candidates {
+        match review::fetch_diff(repo, pr) {
+            Ok(diff) => Some(diff),
+            Err(e) => {
+                eprintln!("osf: {e}; placing every finding in the review body");
+                Some(review::DiffLines::unavailable())
+            }
+        }
+    } else {
+        None
+    };
+    review::plan_review_in_diff(findings, summary, block_on, overall, diff.as_ref())
+}
+
 /// A run's kept findings, as `review::Finding`s `osf review post`'s own
 /// planning already knows how to turn into inline comments. Each finding's
 /// id is its lens name and its place within that lens, one-based, since a
@@ -2306,8 +2407,14 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let findings = review_findings_for_post(&outcome.findings);
     let summary = review_run_summary(outcome);
     let block_on = resolve_block_on(None);
-    let plan = match review::plan_review_for(&findings, &summary, &block_on, Some(outcome.verdict))
-    {
+    let plan = match plan_for_post(
+        &findings,
+        &summary,
+        &block_on,
+        Some(outcome.verdict),
+        &repo,
+        pr,
+    ) {
         Ok(plan) => plan,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
@@ -2905,7 +3012,7 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         }
     };
     let block_on = resolve_block_on(args.block_on.as_deref());
-    let plan = match review::plan_review(&findings, &summary, &block_on) {
+    let plan = match plan_for_post(&findings, &summary, &block_on, None, &args.repo, args.pr) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("osf: {e}");

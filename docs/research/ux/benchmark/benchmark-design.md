@@ -66,7 +66,7 @@ Candidates are guided by the Factory's intent rather than left to their training
 - `docs/product/ux/factory-ux-vision.md`;
 - `docs/product/ux/design-principles.md`;
 - `docs/product/ux/open-questions.md`;
-- `docs/product/decisions/0001-factory-ui-is-an-operator-console.md`;
+- `docs/product/decisions/0001-factory-ui-is-a-console.md`;
 - `docs/research/ux/ux-references.md`;
 - the benchmark brief, glossary, visualization-intent guide, fixture and constraint sheet.
 

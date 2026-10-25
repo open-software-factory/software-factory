@@ -39,6 +39,13 @@ ARG GH_VERSION=2.102.0
 ARG GH_SHA256_AMD64=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
 ARG GH_SHA256_ARM64=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484
 
+# kache, the Rust compiler cache. It restores matching compiler outputs
+# across worktrees, so a new worktree does not rebuild every crate. The
+# checksums are the official SHA-256 published next to each release asset.
+ARG KACHE_VERSION=1.2.2
+ARG KACHE_SHA256_AMD64=f2f6555dee50945c2a90a7fb793c2084a00cc6459d08ac2306d38d905064321b
+ARG KACHE_SHA256_ARM64=38856cee613f6ee0ec579099fc9205b840a0b45bb763f4b8fa782d25d93c18ef
+
 # actionlint, for the builder role: the writing-a-workflow skill and this
 # project's own CI both lint GitHub Actions workflow files with it.
 ARG ACTIONLINT_VERSION=1.7.12
@@ -389,6 +396,27 @@ ENV CARGO_HOME=/home/dev/.cargo
 RUN rustup component add rustfmt clippy && \
     rustfmt --version && \
     cargo-clippy --version
+
+# kache, installed once for every worktree. Cargo is configured below to
+# use it as the rustc wrapper for the dev user.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) sha="${KACHE_SHA256_AMD64}"; arch=x86_64 ;; \
+      arm64) sha="${KACHE_SHA256_ARM64}"; arch=aarch64 ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    url="https://github.com/kunobi-ninja/kache/releases/download/v${KACHE_VERSION}/kache-${arch}-unknown-linux-musl.tar.gz"; \
+    curl -fsSL "$url" -o /tmp/kache.tar.gz; \
+    echo "$sha  /tmp/kache.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/kache.tar.gz -C /tmp kache; \
+    install -m 0755 /tmp/kache /usr/local/bin/kache; \
+    rm -f /tmp/kache.tar.gz /tmp/kache
+
+# Cargo uses kache as its rustc wrapper for the dev user. The cache lives
+# in dev's home, so every worktree in the container shares it.
+RUN mkdir -p "${DEV_HOME}/.cargo" && \
+    printf '[build]\nrustc-wrapper = "kache"\n' > "${DEV_HOME}/.cargo/config.toml" && \
+    chown -R dev:dev "${DEV_HOME}/.cargo"
 
 # The base image ships this toolchain group- and other-writable, on both
 # directories and many of the binaries and libraries themselves, so dev

@@ -10,7 +10,7 @@ The operator console's design work stalled on exactly this: its state vocabulary
 
 ## Decision
 
-The engine owns one domain model. Provider schemas are translated to it at the edges and never imported into it.
+osf owns one domain model. Provider schemas are translated to it at the edges and never imported into it.
 
 ### Entities
 
@@ -36,7 +36,7 @@ Every finding and every summary carries one grade:
 | Reported | An agent or a person said so, unmeasured. |
 | Unverified | No deterministic confirmation yet. |
 
-Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed. A warning is never enough to accept it. A policy may refuse to act on reported evidence.
+Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed. A warning is never enough to accept it. A check may refuse to act on reported evidence.
 
 ### Events are a core part of the model
 

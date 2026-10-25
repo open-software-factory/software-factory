@@ -30,16 +30,7 @@ struct BareRemote {
 impl BareRemote {
     fn new(name: &str) -> Self {
         let dir = common::unique_dir(&format!("osf-assets-publish-remote-{name}"));
-        let output = Command::new("git")
-            .args(["init", "--quiet", "--bare"])
-            .arg(&dir)
-            .output()
-            .expect("git init --bare runs");
-        assert!(
-            output.status.success(),
-            "git init --bare failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        common::scratch_git::init_bare(&dir);
         BareRemote { dir }
     }
 
@@ -50,11 +41,8 @@ impl BareRemote {
     /// Every commit hash on `branch`, oldest first, or empty when the
     /// branch does not exist yet.
     fn commits_on(&self, branch: &str) -> Vec<String> {
-        let output = Command::new("git")
-            .args(["log", "--format=%H", "--reverse", branch])
-            .current_dir(&self.dir)
-            .output()
-            .expect("git log runs");
+        let output =
+            common::scratch_git::run(&self.dir, &["log", "--format=%H", "--reverse", branch]);
         if !output.status.success() {
             return Vec::new();
         }
@@ -66,11 +54,7 @@ impl BareRemote {
 
     /// The content of `path` as committed on `branch`.
     fn file_at(&self, branch: &str, path: &str) -> String {
-        let output = Command::new("git")
-            .args(["show", &format!("{branch}:{path}")])
-            .current_dir(&self.dir)
-            .output()
-            .expect("git show runs");
+        let output = common::scratch_git::run(&self.dir, &["show", &format!("{branch}:{path}")]);
         assert!(
             output.status.success(),
             "git show {branch}:{path} failed: {}",

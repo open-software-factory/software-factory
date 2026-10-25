@@ -1,4 +1,4 @@
-# 0002: The operator, and the words the product uses
+# 0002: The person, and the words the product uses
 
 Status: accepted
 
@@ -10,9 +10,9 @@ In August 2026 four agent-built consoles printed builder doctrine as UI labels. 
 
 ## Decision
 
-### The operator
+### The person
 
-The operator is an engineer who runs the factory and owns what it produces. At first that is one developer running the factory over their own repositories. Later it is a senior engineer or a lead accountable for a handful of repositories. The words are the same at both scales.
+The person is an engineer who runs the factory and owns what it produces. At first that is one developer running the factory over their own repositories. Later it is a senior engineer or a lead accountable for a handful of repositories. The words are the same at both scales.
 
 Their role has moved from writing every change to operating and managing the agents that write them. The value the product gives them is observability of the whole software lifecycle: rich live views, alerts, and history, so they can see and steer everything the factory does.
 
@@ -36,13 +36,13 @@ Each product word maps to one term of the domain model in architecture [decision
 | Blocked, with its cause | Blocked: dependency, human, clarification, ambiguous, capacity | Copy says the cause: "blocked, waiting for you", "blocked on a dependency". |
 | Needs you | Attention | The list of items that need a person. |
 | Since you last looked | Recap | The arrival summary on every surface. |
-| Agent, by its product name | Actor: harness, model, model family | Shown under the run. The product has no roster of agents. |
+| Agent, by its product name | Actor: agent, model, model family | Shown under the run. The product has no roster of agents. |
 
 The six surfaces are named in the product as Attention, Floor, Work, Recorder, Runway and Insights. The navigation uses the same six words.
 
 ### Words that stay off the screen
 
-Builder doctrine is an instruction to the builder and never a label for the operator. These phrases, and the documents they come from, do not appear in operator copy or accessible names: persistent spatial backbone, calm is an explicit state, every record inspectable, same truth multiple projections, overview explanation evidence, human attention is the scarce resource, show work before agents, design for calm autonomy. The builder's nouns stay off too: verifier, reporter, policy, projection, event stream, snapshot, catalog, fixture, scenario, harness.
+Builder doctrine is an instruction to the builder and never a label for the person. These phrases, and the documents they come from, do not appear in person copy or accessible names: persistent spatial backbone, calm is an explicit state, every record inspectable, same truth multiple projections, overview explanation evidence, human attention is the scarce resource, show work before agents, design for calm autonomy. The builder's nouns stay off too: verifier, reporter, policy, projection, event stream, snapshot, catalog, fixture, scenario, agent.
 
 Test and evaluator controls never appear in a product surface. A source-level check keeps product code from importing the test interface.
 
@@ -51,4 +51,4 @@ Test and evaluator controls never appear in a product surface. A source-level ch
 - The deterministic copy scan the August lessons asked for gets its word list from this record.
 - The status block, the command-line output and the integrations are checked against the product-word table, and each divergence is a work item.
 - A surface built by an agent receives this record beside the design principles, and the review of that surface checks the copy against it.
-- A later shift-operator persona, staffed to watch continuously, is out of scope and would need its own record.
+- A later shift-person and product vocabulary, staffed to watch continuously, is out of scope and would need its own record.

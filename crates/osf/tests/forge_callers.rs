@@ -19,6 +19,10 @@ set -euo pipefail
 dir="${FAKE_GH_DIR:?FAKE_GH_DIR is set by the test}"
 calls="$dir/calls"
 stdin_dir="$dir/stdin"
+if [ "$1" = "pr" ] && [ "$2" = "diff" ]; then
+  printf '%s\n' 'diff --git a/src/lib.rs b/src/lib.rs' '--- a/src/lib.rs' '+++ b/src/lib.rs' '@@ -1,1 +1,10 @@' ' a' '+b' '+c' '+d' '+e' '+f' '+g' '+h' '+i' '+j'
+  exit 0
+fi
 printf '%s\n' "$*" >> "$calls"
 
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
@@ -680,23 +684,33 @@ fn status_refresh_a_failed_edit_reports_the_gh_text() {
 }
 
 #[test]
-fn review_post_reports_a_rejected_review_when_the_advisory_body_is_too_long() {
+fn a_too_long_advisory_is_shortened_and_posted() {
     let fake = FakeGh::new("review-post-advisory-too-long", "");
     fake.fail_first_api("gh: Review cannot be requested on your own pull request (HTTP 422)\n");
     let home = isolated_home("forge-review-advisory-too-long");
     // This summary fits the review body limit; the advisory prefix pushes the body over it.
     let summary = "x".repeat(1900);
     let output = review_post_with_summary(&fake, &home, &summary, &[]);
-    assert_eq!(output.status.code(), Some(2));
-    assert_eq!(stdout_text(&output), "");
-    assert_eq!(
-        stderr_text(&output),
-        "osf: the advisory body is 2117 characters, limit is 2000. Shorten the summary.\n"
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = stdout_text(&output);
+    assert!(
+        stdout.contains("posted comment 43: COMMENTED, https://example.invalid/r/43"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("COMMENT (advisory REQUEST_CHANGES) with 1 inline comment(s)"),
+        "{stdout}"
+    );
+    let stderr = stderr_text(&output);
+    assert!(
+        stderr.contains("GitHub refuses REQUEST_CHANGES"),
+        "{stderr}"
     );
     assert_eq!(
         fake.calls(),
         concat!(
             "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
             "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
         )
     );

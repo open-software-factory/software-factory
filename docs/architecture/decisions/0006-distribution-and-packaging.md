@@ -14,13 +14,13 @@ The factory reaches a workspace as a core and a surface, which [how the factory 
 
 ### One repository, several artifacts
 
-The engine, the contracts, the default skills, the per-ecosystem templates, the console and the container definition live in one repository, in one folder each. A folder becomes its own repository only when an adopter needs to fork that piece alone, or when two pieces' release cadences genuinely conflict. Not before.
+The factory, the contracts, the default skills, the per-ecosystem templates, the console and the container definition live in one repository, in one folder each. A folder becomes its own repository only when an adopter needs to fork that piece alone, or when two pieces' release cadences genuinely conflict. Not before.
 
 Each release publishes:
 
 | Artifact | Form |
 |---|---|
-| The engine binary | One static binary per platform, attached to the release |
+| The osf binary | One static binary per platform, attached to the release |
 | The skills bundle | An archive of the default agent skills and rules |
 | The templates bundle | An archive of the per-ecosystem verifier configurations and workflow templates |
 | The sandbox image | The default container sandbox, built from the same commit, carrying the binary |

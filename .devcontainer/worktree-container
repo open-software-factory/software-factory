@@ -1,0 +1,92 @@
+#!/bin/sh
+# Starts and drives ONE development container for ONE git worktree.
+#
+#   worktree-container start [WORKTREE]   start the container (idempotent)
+#   worktree-container exec  [WORKTREE] -- CMD...   run CMD in it
+#   worktree-container stop  [WORKTREE]   remove the container
+#   worktree-container name  [WORKTREE]   print the container's name
+#
+# WORKTREE defaults to the current directory's worktree. The container
+# mounts:
+#   - the worktree, read-write, at /workspace;
+#   - the main clone's git directory, read-write, at its host path (git
+#     needs to write objects, refs, and this worktree's own files there);
+#   - the main clone's .git/config, read-only, on top of that, so no
+#     process in the container can change the shared config.
+# It mounts no home folder and no login folder. HOME is the image's own
+# home for its dev user, which lives in the container and goes away with it.
+#
+# The image is OSF_IMAGE (default osf-devcontainer:latest). The engine is
+# OSF_CONTAINER_ENGINE (default docker). GH_TOKEN, when set in the caller's
+# environment, is passed through by name, so its value never appears on a
+# command line or on disk. See docs/development.md, "One container per
+# worktree", for coverage and what this does not do.
+set -eu
+
+ENGINE="${OSF_CONTAINER_ENGINE:-docker}"
+IMAGE="${OSF_IMAGE:-osf-devcontainer:latest}"
+
+usage() {
+  echo "usage: worktree-container start|stop|name [WORKTREE]" >&2
+  echo "       worktree-container exec [WORKTREE] -- COMMAND..." >&2
+  exit 2
+}
+
+[ "$#" -ge 1 ] || usage
+sub="$1"
+shift
+
+worktree_arg=""
+if [ "$#" -gt 0 ] && [ "$1" != "--" ]; then
+  worktree_arg="$1"
+  shift
+fi
+
+worktree=$(git -C "${worktree_arg:-.}" rev-parse --show-toplevel)
+if [ -d "$worktree/.git" ]; then
+  echo "worktree-container: $worktree is a main clone, not a linked worktree." >&2
+  echo "Add a worktree with 'git worktree add' and pass that." >&2
+  exit 1
+fi
+common=$(cd "$worktree" && cd "$(git rev-parse --git-common-dir)" && pwd -P)
+
+# The name carries the folder name for a person and a checksum of the full
+# path so two worktrees with the same folder name never share a container.
+base=$(basename "$worktree" | tr -c 'A-Za-z0-9_.\n-' '-')
+sum=$(printf '%s' "$worktree" | cksum | cut -d' ' -f1)
+name="osf-wt-$base-$sum"
+
+case "$sub" in
+  name)
+    echo "$name"
+    ;;
+  start)
+    if "$ENGINE" container inspect "$name" >/dev/null 2>&1; then
+      "$ENGINE" start "$name" >/dev/null
+      echo "$name"
+      exit 0
+    fi
+    "$ENGINE" run -d --init --name "$name" \
+      --label "osf.worktree=$worktree" \
+      -e GH_TOKEN \
+      -v "$worktree:/workspace" \
+      -v "$common:$common" \
+      -v "$common/config:$common/config:ro" \
+      "$IMAGE" sleep infinity >/dev/null
+    echo "$name"
+    ;;
+  exec)
+    [ "${1:-}" = "--" ] || usage
+    shift
+    [ "$#" -gt 0 ] || usage
+    # -e GH_TOKEN passes the caller's current value, so a fresh token can
+    # ride on each call without being stored in the container.
+    exec "$ENGINE" exec -e GH_TOKEN -w /workspace "$name" "$@"
+    ;;
+  stop)
+    "$ENGINE" rm -f "$name" >/dev/null
+    ;;
+  *)
+    usage
+    ;;
+esac
