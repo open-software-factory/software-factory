@@ -1,0 +1,315 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T00:10:41.317Z",
+  "title": "Bump rust-cache action in status-block workflow",
+  "summary": "A one-line dependency bump: the status-block GitHub Actions workflow now pins Swatinem/rust-cache to v2.9.3 (commit d1527c8) instead of v2.9.2. Nothing else in the workflow changes — the checkout, the release build of the osf tool, and the status-block job that consumes it all stay as they were. The only behavioural surface is the cache restore/save step that sits between checkout and the cargo build.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "0b98351a1706b3fec0a52d80bc167364d140d6d7",
+      "ref": "0b98351a1706b3fec0a52d80bc167364d140d6d7"
+    },
+    "pullRequest": {
+      "number": 325,
+      "url": "https://github.com/open-software-factory/software-factory/pull/325"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github",
+      "label": "GitHub Actions",
+      "subtitle": "workflow runtime",
+      "order": 0,
+      "summary": "The hosted runner that executes the status-block workflow and its steps."
+    },
+    {
+      "id": "actions",
+      "label": "Third-party actions",
+      "subtitle": "pinned by commit sha",
+      "order": 1,
+      "summary": "Reusable actions the workflow invokes, pinned to immutable commit shas."
+    },
+    {
+      "id": "build",
+      "label": "Build & tooling",
+      "subtitle": "cargo workspace",
+      "order": 2,
+      "summary": "The Rust workspace and the osf binary the workflow builds and runs."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "status-block-workflow",
+      "label": "status-block.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "workflow definition",
+      "summary": "The workflow file touched by this change. Only the rust-cache step's pinned sha and version comment differ from base.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 71,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkout-step",
+      "label": "actions/checkout",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "actions",
+      "subtitle": "fetch-depth: 0",
+      "summary": "Checks out the default branch with full history before the cache and build steps run. Unchanged by this diff.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 68,
+          "endLine": 72
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rust-cache-action",
+      "label": "Swatinem/rust-cache",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "actions",
+      "subtitle": "v2.9.2 → v2.9.3",
+      "summary": "The only changed element. The pinned commit moves from 6323deb (v2.9.2) to d1527c8 (v2.9.3); the step's inputs and position in the job are untouched.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 74,
+          "endLine": 74
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-build-step",
+      "label": "cargo build -p osf --release",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "build",
+      "subtitle": "release build",
+      "summary": "Builds the osf tool in release mode. Consumes whatever the cache action restored; its command line is unchanged.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 76,
+          "endLine": 77
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-tool",
+      "label": "osf binary",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "build",
+      "subtitle": "software-factory CLI",
+      "summary": "The compiled tool the workflow produces and later runs to render the status block. Not modified here.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 76,
+          "endLine": 77
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "checkout-to-cache",
+      "from": "checkout-step",
+      "to": "rust-cache-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "workspace on disk",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The cache action restores and saves cargo/target caches keyed on the checked-out workspace.",
+      "files": []
+    },
+    {
+      "id": "cache-to-build",
+      "from": "rust-cache-action",
+      "to": "cargo-build-step",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "restored cargo cache",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The cache contents handed to the build step now come from rust-cache v2.9.3 rather than v2.9.2 — the one behavioural consequence of this diff.",
+      "files": []
+    },
+    {
+      "id": "build-to-osf",
+      "from": "cargo-build-step",
+      "to": "osf-tool",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "produces",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The build step emits the osf release binary.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "status-block-run",
+      "title": "status-block workflow run",
+      "summary": "How a run of the status-block workflow moves from checkout through the cache action to the built tool, with the cache step being the only part this change touches.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "status-block-workflow",
+          "label": "workflow"
+        },
+        {
+          "node": "checkout-step",
+          "label": "checkout"
+        },
+        {
+          "node": "rust-cache-action",
+          "label": "rust-cache"
+        },
+        {
+          "node": "cargo-build-step",
+          "label": "cargo build"
+        },
+        {
+          "node": "osf-tool",
+          "label": "osf"
+        }
+      ],
+      "messages": [
+        {
+          "id": "run-start",
+          "from": "status-block-workflow",
+          "to": "checkout-step",
+          "label": "dispatch job",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/status-block.yml",
+              "startLine": 68,
+              "endLine": 72
+            }
+          ]
+        },
+        {
+          "id": "checkout-done",
+          "from": "checkout-step",
+          "to": "rust-cache-action",
+          "label": "workspace ready",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "cache-restore",
+          "from": "rust-cache-action",
+          "to": "cargo-build-step",
+          "label": "restore cargo cache (v2.9.3)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same step, same inputs; only the pinned action commit changed.",
+          "files": [
+            {
+              "path": ".github/workflows/status-block.yml",
+              "startLine": 74,
+              "endLine": 74
+            }
+          ]
+        },
+        {
+          "id": "build-run",
+          "from": "cargo-build-step",
+          "to": "osf-tool",
+          "label": "cargo build -p osf --release",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/status-block.yml",
+              "startLine": 76,
+              "endLine": 77
+            }
+          ]
+        },
+        {
+          "id": "cache-save",
+          "from": "rust-cache-action",
+          "to": "rust-cache-action",
+          "label": "save cache",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Post-job save now performed by v2.9.3.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-architecture",
+      "title": "status-block workflow and its actions",
+      "lens": "architecture",
+      "summary": "The workflow file, the actions it pins, and the build it drives. Only the rust-cache pin moved.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "cache-step-flow",
+      "title": "Cache step in the run sequence",
+      "lens": "data-flow",
+      "summary": "Ordered steps of a status-block run, highlighting where the cache action sits between checkout and build.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

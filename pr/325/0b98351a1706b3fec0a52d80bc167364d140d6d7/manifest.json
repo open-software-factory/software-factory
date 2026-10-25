@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "0b98351a1706b3fec0a52d80bc167364d140d6d7",
+    "contentHash": "3cd96b66bd560f4ec1eee1a15d9cb62b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.5"
+  },
+  "assets": [
+    {
+      "id": "workflow-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9c915abe8e8a9cb55916c90ac6293bcc",
+      "bytes": 9552,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "workflow-architecture-light-9c915abe8e8a9cb55916c90ac6293bcc.svg"
+    },
+    {
+      "id": "workflow-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "836db81cad29eee915eea68a11586300",
+      "bytes": 9632,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "workflow-architecture-dark-836db81cad29eee915eea68a11586300.svg"
+    },
+    {
+      "id": "cache-step-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "cache-step-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d4197b61dc05cc5cafd7000bde5497e0",
+      "bytes": 12370,
+      "width": 1266,
+      "height": 357,
+      "animated": true,
+      "path": "cache-step-flow-light-d4197b61dc05cc5cafd7000bde5497e0.svg"
+    },
+    {
+      "id": "cache-step-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "cache-step-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "132085ec4456b7be164a3d4abc211fd5",
+      "bytes": 12483,
+      "width": 1266,
+      "height": 357,
+      "animated": true,
+      "path": "cache-step-flow-dark-132085ec4456b7be164a3d4abc211fd5.svg"
+    }
+  ]
+}
