@@ -3194,6 +3194,12 @@ fn run_cmd(action: &RunAction) -> ExitCode {
 }
 
 fn run_start_cmd(args: &RunStartArgs) -> ExitCode {
+    if let Err(error) =
+        <osf::work_tracker::WorkItemId as std::str::FromStr>::from_str(&args.work_item)
+    {
+        eprintln!("osf run start: {error}; use provider:owner/repo#number");
+        return ExitCode::from(2);
+    }
     let selection = match agents::selection(Path::new(".")) {
         Ok(selection) => selection,
         Err(error) => {

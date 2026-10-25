@@ -292,8 +292,8 @@ mod tests {
     use super::*;
     use crate::journal::{
         Actor, Attention, CheckResult, CheckpointComplete, EventDraft, EvidenceGrade, Finding,
-        Journal, Review, RunComplete, RunOutcome, RunStarted, Severity, StateChange, Verification,
-        WorkItemState,
+        Journal, Review, ReviewAnswer, ReviewDecision, RunComplete, RunOutcome, RunStarted,
+        Severity, StateChange, Verification, WorkItemState,
     };
     use crate::test_support::TempDir;
 
@@ -386,8 +386,36 @@ mod tests {
         })
     }
 
+    fn review_answer() -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            round: 1,
+            lens: "correctness".into(),
+            reviewer: "reviewer".into(),
+            family: "test-family".into(),
+            model: None,
+            result: "answered".into(),
+            scores: std::collections::BTreeMap::from([("quality".to_string(), 1.0)]),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: None,
+            reason: None,
+            grade: "reported".into(),
+        })
+    }
+
+    fn review_decision() -> Payload {
+        Payload::ReviewDecision(ReviewDecision {
+            verdict: "approve".into(),
+            lenses: vec![("correctness".to_string(), "answered".to_string())],
+            score: Some(1.0),
+            threshold: Some(0.5),
+            builder_families: vec!["test-family".to_string()],
+            grade: "reported".into(),
+        })
+    }
+
     /// Writes one of each event type through the writer, run-complete last.
-    fn write_all_eight(dir: &Path, run: &str) -> Vec<Event> {
+    fn write_all_ten(dir: &Path, run: &str) -> Vec<Event> {
         let mut journal = Journal::open(dir, run).expect("open");
         let mut events = vec![journal
             .append(&actor(), 1, run_started())
@@ -418,10 +446,20 @@ mod tests {
                 .append(&actor(), 7, checkpoint_complete())
                 .expect("checkpoint-complete"),
         );
+        events.push(
+            journal
+                .append(&actor(), 8, review_answer())
+                .expect("review-answer"),
+        );
+        events.push(
+            journal
+                .append(&actor(), 9, review_decision())
+                .expect("review-decision"),
+        );
         let head = events.last().expect("events").hash.clone();
         events.push(
             journal
-                .append(&actor(), 8, run_complete(head))
+                .append(&actor(), 10, run_complete(head))
                 .expect("run-complete"),
         );
         events
@@ -476,10 +514,10 @@ mod tests {
     }
 
     #[test]
-    fn all_eight_event_types_round_trip_through_the_writer_and_reader() {
-        let dir = TempDir::new("osf-reader-eight");
-        let written = write_all_eight(&dir, "run-8");
-        let journal = read_run(&dir, "run-8").expect("read");
+    fn all_ten_event_types_round_trip_through_the_writer_and_reader() {
+        let dir = TempDir::new("osf-reader-ten");
+        let written = write_all_ten(&dir, "run-10");
+        let journal = read_run(&dir, "run-10").expect("read");
         assert_eq!(journal.events, written);
         let last = written.last().expect("at least one event");
         assert_eq!(journal.head_hash, last.hash);
@@ -585,7 +623,7 @@ mod tests {
     #[test]
     fn a_tampered_payload_breaks_the_chain_at_its_line() {
         let dir = TempDir::new("osf-reader-tamper");
-        write_all_eight(&dir, "run-tamper");
+        write_all_ten(&dir, "run-tamper");
         let mut lines = journal_lines(&dir, "run-tamper");
         let tampered = edit_event(lines.get(2).expect("the review line"), |event| {
             if let Payload::Review(review) = &mut event.payload {
@@ -604,7 +642,7 @@ mod tests {
     #[test]
     fn a_changed_duration_alone_breaks_the_chain_at_its_line() {
         let dir = TempDir::new("osf-reader-duration");
-        write_all_eight(&dir, "run-duration");
+        write_all_ten(&dir, "run-duration");
         let mut lines = journal_lines(&dir, "run-duration");
         let tampered = edit_event(lines.get(1).expect("the verification line"), |event| {
             if let Payload::Verification(verification) = &mut event.payload {
@@ -623,7 +661,7 @@ mod tests {
     #[test]
     fn a_changed_cache_alone_breaks_the_chain_at_its_line() {
         let dir = TempDir::new("osf-reader-cache");
-        write_all_eight(&dir, "run-cache");
+        write_all_ten(&dir, "run-cache");
         let mut lines = journal_lines(&dir, "run-cache");
         let tampered = edit_event(lines.get(1).expect("the verification line"), |event| {
             if let Payload::Verification(verification) = &mut event.payload {
@@ -642,7 +680,7 @@ mod tests {
     #[test]
     fn a_changed_timestamp_alone_does_not_break_the_chain() {
         let dir = TempDir::new("osf-reader-time-ok");
-        write_all_eight(&dir, "run-time-ok");
+        write_all_ten(&dir, "run-time-ok");
         let before = read_run(&dir, "run-time-ok").expect("read before");
         let mut lines = journal_lines(&dir, "run-time-ok");
         let edited = edit_event(lines.get(1).expect("the verification line"), |event| {
@@ -657,7 +695,7 @@ mod tests {
     #[test]
     fn a_deleted_middle_line_breaks_the_chain() {
         let dir = TempDir::new("osf-reader-deleted");
-        write_all_eight(&dir, "run-deleted");
+        write_all_ten(&dir, "run-deleted");
         let mut lines = journal_lines(&dir, "run-deleted");
         lines.remove(1);
         write_lines(&dir, "run-deleted", &lines);
@@ -671,7 +709,7 @@ mod tests {
     #[test]
     fn two_swapped_lines_break_the_chain() {
         let dir = TempDir::new("osf-reader-swapped");
-        write_all_eight(&dir, "run-swapped");
+        write_all_ten(&dir, "run-swapped");
         let mut lines = journal_lines(&dir, "run-swapped");
         lines.swap(1, 2);
         write_lines(&dir, "run-swapped", &lines);
@@ -685,7 +723,7 @@ mod tests {
     #[test]
     fn an_edited_timestamp_is_outside_the_chain() {
         let dir = TempDir::new("osf-reader-timestamp");
-        write_all_eight(&dir, "run-time");
+        write_all_ten(&dir, "run-time");
         let mut lines = journal_lines(&dir, "run-time");
         let edited = edit_event(lines.get(1).expect("the verification line"), |event| {
             event.timestamp_ms = 999_999;
@@ -702,7 +740,7 @@ mod tests {
     #[test]
     fn an_unsupported_schema_version_names_the_version_and_line() {
         let dir = TempDir::new("osf-reader-version");
-        write_all_eight(&dir, "run-version");
+        write_all_ten(&dir, "run-version");
         let mut lines = journal_lines(&dir, "run-version");
         let changed = set_field(
             lines.first().expect("line"),
@@ -784,7 +822,7 @@ mod tests {
     #[test]
     fn an_event_from_another_run_is_refused() {
         let dir = TempDir::new("osf-reader-run-mismatch");
-        write_all_eight(&dir, "run-a");
+        write_all_ten(&dir, "run-a");
         let runs = dir.join("runs");
         std::fs::copy(runs.join("run-a.jsonl"), runs.join("run-b.jsonl")).expect("copy");
         let error = read_run(&dir, "run-b").expect_err("run mismatch");
@@ -858,13 +896,13 @@ mod tests {
     #[test]
     fn a_last_line_without_a_newline_is_malformed() {
         let dir = TempDir::new("osf-reader-no-newline");
-        write_all_eight(&dir, "run-no-newline");
+        write_all_ten(&dir, "run-no-newline");
         let path = dir.join("runs/run-no-newline.jsonl");
         let text = std::fs::read_to_string(&path).expect("read");
         std::fs::write(&path, text.trim_end_matches('\n')).expect("write");
         let error = read_run(&dir, "run-no-newline").expect_err("no newline");
         assert!(
-            matches!(error, ReadError::Malformed { line: 8, .. }),
+            matches!(error, ReadError::Malformed { line: 10, .. }),
             "{error:?}"
         );
     }
@@ -894,7 +932,7 @@ mod tests {
     #[test]
     fn a_complete_journal_reads_as_complete() {
         let dir = TempDir::new("osf-reader-complete");
-        write_all_eight(&dir, "run-done");
+        write_all_ten(&dir, "run-done");
         let journal = read_run(&dir, "run-done").expect("read");
         assert!(journal.complete);
     }
@@ -902,7 +940,7 @@ mod tests {
     #[test]
     fn deleting_the_last_line_reads_as_incomplete() {
         let dir = TempDir::new("osf-reader-cut");
-        let written = write_all_eight(&dir, "run-cut");
+        let written = write_all_ten(&dir, "run-cut");
         let mut lines = journal_lines(&dir, "run-cut");
         lines.pop();
         write_lines(&dir, "run-cut", &lines);
@@ -914,7 +952,7 @@ mod tests {
     #[test]
     fn keeping_only_two_lines_reads_as_incomplete() {
         let dir = TempDir::new("osf-reader-two");
-        write_all_eight(&dir, "run-two");
+        write_all_ten(&dir, "run-two");
         let mut lines = journal_lines(&dir, "run-two");
         lines.truncate(2);
         write_lines(&dir, "run-two", &lines);
@@ -935,7 +973,7 @@ mod tests {
     #[test]
     fn an_event_after_run_complete_is_refused_by_the_reader() {
         let dir = TempDir::new("osf-reader-after-complete");
-        write_all_eight(&dir, "run-after-complete");
+        write_all_ten(&dir, "run-after-complete");
         let mut lines = journal_lines(&dir, "run-after-complete");
         let last: Event = serde_json::from_str(lines.last().expect("run-complete")).expect("event");
         let mut event = Event {
@@ -955,7 +993,7 @@ mod tests {
         write_lines(&dir, "run-after-complete", &lines);
         let error = read_run(&dir, "run-after-complete").expect_err("event after run-complete");
         assert!(
-            matches!(error, ReadError::EventAfterRunComplete { line: 9 }),
+            matches!(error, ReadError::EventAfterRunComplete { line: 11 }),
             "{error:?}"
         );
     }

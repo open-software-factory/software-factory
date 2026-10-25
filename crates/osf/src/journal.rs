@@ -376,7 +376,7 @@ pub fn complete_run(
             outcome,
             head_hash: head,
             summary: summary.to_string(),
-            grade: EvidenceGrade::Observed,
+            grade: EvidenceGrade::Reported,
             transcript_hash: None,
         }),
     )
@@ -596,8 +596,36 @@ mod tests {
         })
     }
 
+    fn review_answer() -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            round: 1,
+            lens: "correctness".into(),
+            reviewer: "reviewer".into(),
+            family: "test-family".into(),
+            model: None,
+            result: "answered".into(),
+            scores: std::collections::BTreeMap::from([("quality".to_string(), 1.0)]),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: None,
+            reason: None,
+            grade: "reported".into(),
+        })
+    }
+
+    fn review_decision() -> Payload {
+        Payload::ReviewDecision(ReviewDecision {
+            verdict: "approve".into(),
+            lenses: vec![("correctness".to_string(), "answered".to_string())],
+            score: Some(1.0),
+            threshold: Some(0.5),
+            builder_families: vec!["test-family".to_string()],
+            grade: "reported".into(),
+        })
+    }
+
     /// Writes one of each event type through the writer, run-complete last.
-    fn write_eight_events(j: &mut Journal) -> Vec<Event> {
+    fn write_ten_events(j: &mut Journal) -> Vec<Event> {
         let mut events = vec![j
             .append_draft(draft(Payload::RunStarted(RunStarted {
                 title: Some("Ship the fix".into()),
@@ -636,6 +664,8 @@ mod tests {
                     CheckResult::Passed,
                 )]),
             }),
+            review_answer(),
+            review_decision(),
         ] {
             events.push(j.append_draft(draft(payload)).expect("append"));
         }
@@ -648,15 +678,39 @@ mod tests {
     }
 
     #[test]
+    fn a_second_writer_on_one_fresh_run_is_refused() {
+        let dir = TempDir::new("osf-journal-run-lock");
+        let mut first = Journal::open(&dir, "run-lock").expect("the first writer");
+        first
+            .append(
+                &actor(),
+                1,
+                finding(EvidenceGrade::Observed, Some("osf:lint")),
+            )
+            .expect("the first event");
+        let second_dir = dir.to_path_buf();
+        let second = std::thread::spawn(move || Journal::open(&second_dir, "run-lock"));
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        drop(first);
+        let error = second
+            .join()
+            .expect("the second writer joins")
+            .expect_err("the second writer is refused");
+        assert!(error.contains("already has events"), "{error}");
+        let journal = super::read_run(&dir, "run-lock").expect("the journal reads");
+        assert_eq!(journal.events.len(), 1);
+    }
+
+    #[test]
     fn the_writer_accepts_every_event_type_and_each_line_validates() {
-        let dir = TempDir::new("osf-journal-eight-types");
+        let dir = TempDir::new("osf-journal-ten-types");
         let mut j = Journal::open(&dir, "run-8").expect("open");
-        let events = write_eight_events(&mut j);
-        assert_eq!(events.len(), 8);
+        let events = write_ten_events(&mut j);
+        assert_eq!(events.len(), 10);
         let text = std::fs::read_to_string(dir.join("runs/run-8.jsonl")).expect("file");
         let validator = test_validator();
         let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), 8);
+        assert_eq!(lines.len(), 10);
         for line in lines {
             let value: serde_json::Value = serde_json::from_str(line).expect("line is JSON");
             assert!(validator.is_valid(&value), "{line}");
@@ -669,7 +723,7 @@ mod tests {
     fn the_reader_reproduces_the_written_chain_and_every_line_validates() {
         let dir = TempDir::new("osf-journal-replay");
         let mut j = Journal::open(&dir, "run-replay").expect("open");
-        let written = write_eight_events(&mut j);
+        let written = write_ten_events(&mut j);
         let journal = super::read_run(&dir, "run-replay").expect("read");
         assert_eq!(journal.events, written);
         let validator = test_validator();
