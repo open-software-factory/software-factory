@@ -64,6 +64,27 @@ fn an_unknown_state_is_a_usage_error() {
 }
 
 #[test]
+fn an_empty_recap_is_a_usage_error() {
+    let path = std::env::temp_dir().join(format!("osf-wt-recap-{}", std::process::id())); // osf: temp-dir allowed, a throwaway recap the command must refuse
+    std::fs::write(&path, "   \n").expect("write recap");
+    let output = osf(&[
+        "work-tracker",
+        "report",
+        "github:open-software-factory/software-factory#1",
+        "--state",
+        "in-review",
+        "--recap",
+        path.to_str().expect("path is text"),
+    ])
+    .output()
+    .expect("runs osf");
+    std::fs::remove_file(&path).ok();
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("recap is empty"), "{stderr}");
+}
+
+#[test]
 fn the_help_lists_both_commands() {
     let output = osf(&["work-tracker", "--help"]).output().expect("runs osf");
     assert_eq!(output.status.code(), Some(0));

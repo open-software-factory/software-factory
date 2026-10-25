@@ -987,18 +987,16 @@ fn main() -> ExitCode {
 }
 
 fn work_tracker_cmd(action: &WorkTrackerAction) -> ExitCode {
+    let root = osf::git::repo_root(Path::new(".")).unwrap_or_else(|_| Path::new(".").to_path_buf());
     match action {
         WorkTrackerAction::Ready(args) => {
             if args.limit != 1 {
                 eprintln!("osf work-tracker ready: read one item at a time; --limit must be 1");
                 return ExitCode::from(2);
             }
-            match osf::work_tracker_command::ready(Path::new(".")) {
+            match osf::work_tracker_command::ready(&root) {
                 Ok(pick) => {
-                    if let osf::work_tracker::Pick::Unknown(reason) = &pick {
-                        eprintln!("osf work-tracker ready: {reason}");
-                        return ExitCode::from(1);
-                    }
+                    let unknown = matches!(&pick, osf::work_tracker::Pick::Unknown(_));
                     match args.format {
                         WorkTrackerFormat::Json => match serde_json::to_string_pretty(&pick) {
                             Ok(text) => println!("{text}"),
@@ -1009,7 +1007,11 @@ fn work_tracker_cmd(action: &WorkTrackerAction) -> ExitCode {
                         },
                         WorkTrackerFormat::Text => print_pick(&pick),
                     }
-                    ExitCode::SUCCESS
+                    if unknown {
+                        ExitCode::from(1)
+                    } else {
+                        ExitCode::SUCCESS
+                    }
                 }
                 Err(error) => {
                     eprintln!("osf work-tracker ready: {error}");
@@ -1043,7 +1045,11 @@ fn work_tracker_cmd(action: &WorkTrackerAction) -> ExitCode {
                     return ExitCode::from(2);
                 }
             };
-            match osf::work_tracker_command::report(Path::new("."), &id, &state, &recap) {
+            if recap.trim().is_empty() {
+                eprintln!("osf work-tracker report: the recap is empty; write what happened");
+                return ExitCode::from(2);
+            }
+            match osf::work_tracker_command::report(&root, &id, &state, &recap) {
                 Ok(()) => {
                     println!("reported {id}");
                     ExitCode::SUCCESS

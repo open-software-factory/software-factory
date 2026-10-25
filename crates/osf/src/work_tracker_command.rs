@@ -18,6 +18,11 @@ fn adapter_config(root: &Path) -> Result<GitHubWorkTrackerConfig, String> {
     };
     let mut adapter = GitHubWorkTrackerConfig::standard(config.owner, config.project_number);
     adapter.status_field = config.status_field;
+    adapter.skip_status = if config.skip_status.is_empty() {
+        None
+    } else {
+        Some(config.skip_status)
+    };
     Ok(adapter)
 }
 
@@ -52,6 +57,9 @@ pub fn report(root: &Path, id: &WorkItemId, state: &WorkState, recap: &str) -> R
 /// # Errors
 /// Names the state or cause it does not know, or a blocked state without a cause.
 pub fn parse_state(state: &str, cause: Option<&str>) -> Result<WorkState, String> {
+    if state != "blocked" && cause.is_some() {
+        return Err("--cause is only for the blocked state".to_string());
+    }
     match state {
         "in-progress" => Ok(WorkState::InProgress),
         "in-review" => Ok(WorkState::InReview),
@@ -107,13 +115,22 @@ mod tests {
             parse_state("failed", None).expect("parses"),
             WorkState::Failed
         );
-        assert_eq!(
-            parse_state("blocked", Some("human")).expect("parses"),
-            WorkState::Blocked(BlockedCause::Human)
-        );
+        for (cause, expected) in [
+            ("dependency", BlockedCause::Dependency),
+            ("human", BlockedCause::Human),
+            ("clarification", BlockedCause::Clarification),
+            ("ambiguous", BlockedCause::Ambiguous),
+            ("capacity", BlockedCause::Capacity),
+        ] {
+            assert_eq!(
+                parse_state("blocked", Some(cause)).expect("parses"),
+                WorkState::Blocked(expected)
+            );
+        }
         assert!(parse_state("blocked", None).is_err());
         assert!(parse_state("blocked", Some("other")).is_err());
         assert!(parse_state("other", None).is_err());
+        assert!(parse_state("in-review", Some("human")).is_err());
     }
 
     #[test]

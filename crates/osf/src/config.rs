@@ -259,10 +259,18 @@ pub struct WorkTrackerConfig {
     /// The project field that holds the status. Defaults to `Status`.
     #[serde(default = "default_status_field")]
     pub status_field: String,
+    /// The status whose items the read leaves out. Defaults to `Done`; an
+    /// empty string reads them too.
+    #[serde(default = "default_skip_status")]
+    pub skip_status: String,
 }
 
 fn default_status_field() -> String {
     "Status".to_string()
+}
+
+fn default_skip_status() -> String {
+    "Done".to_string()
 }
 
 /// Reads the `[work_tracker]` table of `<root>/osf.toml`, or `None` when
@@ -684,10 +692,10 @@ pub fn load(
             let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
-            // `[review]` and `[agents]` are this same file's own tables, read
-            // separately by `review_config` and `agents_config`. Drop them
-            // here so their presence never trips this struct's
-            // `deny_unknown_fields`.
+            // `[review]`, `[agents]` and `[work_tracker]` are this same file's
+            // own tables, read separately by `review_config`, `agents_config`
+            // and `work_tracker_config`. Drop them here so their presence
+            // never trips this struct's `deny_unknown_fields`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
@@ -1789,13 +1797,28 @@ mod tests {
         assert_eq!(loaded.owner, "open-software-factory");
         assert_eq!(loaded.project_number, 7);
         assert_eq!(loaded.status_field, "Status");
+        assert_eq!(loaded.skip_status, "Done");
         std::fs::write(
             dir.join("osf.toml"),
-            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\nstatus_field = \"Workflow\"\n",
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\nstatus_field = \"Workflow\"\nskip_status = \"\"\n",
         )
         .expect("osf.toml writes");
         let loaded = work_tracker_config(&dir).expect("loads").expect("a table");
         assert_eq!(loaded.status_field, "Workflow");
+        assert_eq!(loaded.skip_status, "");
+    }
+
+    #[test]
+    fn a_work_tracker_table_does_not_trip_the_general_config() {
+        let dir = TempDir::new("osf-config-work-tracker-general");
+        let path = dir.join("osf.toml");
+        std::fs::write(
+            &path,
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = load(Some(&path), &[], &[], false).expect("general config loads");
+        assert!(loaded.file.is_some());
     }
 
     #[test]
