@@ -144,7 +144,9 @@ fn final_message(fixture: &str) -> String {
 fn failed(error: HarnessError) -> String {
     match error {
         HarnessError::Failed(text) => text,
-        other @ HarnessError::Rejected(_) => panic!("expected Failed, got {other:?}"),
+        other @ (HarnessError::Rejected(_) | HarnessError::CouldNotRun(_)) => {
+            panic!("expected Failed, got {other:?}")
+        }
     }
 }
 
@@ -201,7 +203,7 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
     assert_eq!(result.cost_micro_usd, None);
     assert_eq!(result.actor.harness, "dsh");
     assert_eq!(result.actor.model, None);
-    assert_eq!(result.actor.model_family.as_deref(), Some("DeepSeek"));
+    assert_eq!(result.actor.model_family.as_deref(), Some("deepseek"));
 }
 
 #[test]
@@ -360,7 +362,9 @@ fn a_turn_that_ended_with_an_error_fails_even_at_exit_zero() {
         ok(NO_CREDENTIAL),
     ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
-    let text = failed(error);
+    let HarnessError::CouldNotRun(text) = error else {
+        panic!("a missing credential is could-not-run, got {error:?}");
+    };
     assert!(text.contains("MISSING_CREDENTIAL"), "{text}");
     assert!(text.contains("no API key"), "{text}");
     assert_eq!(

@@ -18,6 +18,18 @@ pub enum Payload {
     CheckpointComplete(CheckpointComplete),
     ReviewAnswer(ReviewAnswer),
     ReviewDecision(ReviewDecision),
+    JobBlocked(JobBlocked),
+}
+
+/// A job that ended blocked, with the cause and, for a clarification, the
+/// question the agent asked.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct JobBlocked {
+    pub job: String,
+    pub work_item: Option<String>,
+    /// The cause name from the work tracker, such as `clarification`.
+    pub cause: String,
+    pub question: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -165,7 +177,9 @@ fn replay_payload(payload: &Payload) -> Payload {
             transcript: None,
             ..a.clone()
         }),
-        Payload::CheckpointComplete(_) | Payload::ReviewDecision(_) => payload.clone(),
+        Payload::CheckpointComplete(_) | Payload::ReviewDecision(_) | Payload::JobBlocked(_) => {
+            payload.clone()
+        }
     }
 }
 
@@ -348,7 +362,8 @@ mod tests {
             Payload::Verification(v) => Payload::Verification(Verification { duration_ms, ..v }),
             other @ (Payload::CheckpointComplete(_)
             | Payload::ReviewAnswer(_)
-            | Payload::ReviewDecision(_)) => other,
+            | Payload::ReviewDecision(_)
+            | Payload::JobBlocked(_)) => other,
         }
     }
 
@@ -423,7 +438,8 @@ mod tests {
             }),
             other @ (Payload::CheckpointComplete(_)
             | Payload::ReviewAnswer(_)
-            | Payload::ReviewDecision(_)) => other,
+            | Payload::ReviewDecision(_)
+            | Payload::JobBlocked(_)) => other,
         };
         let a_dir = TempDir::new("osf-journal-cache-miss");
         let b_dir = TempDir::new("osf-journal-cache-hit");
@@ -472,5 +488,34 @@ mod tests {
         std::fs::create_dir_all(&buffer_dir).expect("buffer dir");
         std::fs::write(buffer_dir.join("run-5.jsonl"), "").expect("empty file");
         Journal::open(&dir, "run-5").expect("open");
+    }
+
+    #[test]
+    fn a_blocked_job_event_round_trips_with_its_cause_and_question() {
+        let payload = Payload::JobBlocked(JobBlocked {
+            job: "job-1".to_string(),
+            work_item: Some("github:open-software-factory/demo#42".to_string()),
+            cause: "clarification".to_string(),
+            question: Some("Which database?".to_string()),
+        });
+        let value = serde_json::to_value(&payload).expect("serializes");
+        assert_eq!(
+            value.get("event_type").and_then(serde_json::Value::as_str),
+            Some("job-blocked")
+        );
+        assert_eq!(
+            value
+                .pointer("/payload/cause")
+                .and_then(serde_json::Value::as_str),
+            Some("clarification")
+        );
+        assert_eq!(
+            value
+                .pointer("/payload/question")
+                .and_then(serde_json::Value::as_str),
+            Some("Which database?")
+        );
+        let back: Payload = serde_json::from_value(value).expect("parses");
+        assert_eq!(back, payload);
     }
 }

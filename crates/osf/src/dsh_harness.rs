@@ -25,11 +25,13 @@ use crate::harness::{
     Harness, HarnessCapabilities, HarnessError, HarnessOutcome, HarnessResult, HarnessTask, Usage,
 };
 
-/// The harness name recorded in every result.
-pub const HARNESS_NAME: &str = "dsh";
-
-/// The model family this harness runs; the adapter never names a model.
-pub const MODEL_FAMILY: &str = "DeepSeek";
+/// The agent's entry in the one list; the adapter names no agent fact itself.
+fn dsh_agent() -> &'static crate::agents::Agent {
+    crate::agents::AGENTS
+        .iter()
+        .find(|agent| agent.name == "dsh")
+        .expect("the agent list holds dsh")
+}
 
 /// The version this adapter is pinned to.
 pub const PINNED_VERSION: &str = "0.2.0-rc.2";
@@ -101,7 +103,12 @@ pub fn git_env(config: &DshConfig) -> Vec<(String, String)> {
     config
         .env
         .iter()
-        .filter(|(name, _)| name == "PATH" || name == "HOME" || name.starts_with("GIT_"))
+        .filter(|(name, _)| {
+            crate::reviewers::RUN_ENV_VARS.contains(&name.as_str())
+                || name == "HOME"
+                || name.starts_with("GIT_AUTHOR_")
+                || name.starts_with("GIT_COMMITTER_")
+        })
         .cloned()
         .collect()
 }
@@ -344,7 +351,12 @@ pub fn headless_help_is_adequate(help: &str) -> bool {
 }
 
 /// The package whose profile row checks messages at the end of a turn.
-pub const MESSAGE_CHECK_PLUGIN: &str = "@open-software-factory/osf-dsh-plugin";
+fn message_check_plugin() -> &'static str {
+    match dsh_agent().hooks {
+        crate::agents::Hooks::DshPatch { package, .. } => package,
+        _ => panic!("dsh configures its hooks in a patch file"),
+    }
+}
 
 /// How a profile dump names the package that checks messages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -363,7 +375,7 @@ pub fn message_check_in(dump: &str) -> MessageCheck {
         let Some(name) = row.iter().find_map(|line| row_value(line, "name:")) else {
             continue;
         };
-        if unquote(name) != MESSAGE_CHECK_PLUGIN {
+        if unquote(name) != message_check_plugin() {
             continue;
         }
         let disabled = row.iter().find_map(|line| row_value(line, "disabled:"));
@@ -485,6 +497,9 @@ impl Harness for DshHarness {
 
         let parsed = parse_events(&stdout).map_err(HarnessError::Failed)?;
         if let Some(text) = parsed.turn_failure {
+            if text.contains("MISSING_CREDENTIAL") {
+                return Err(HarnessError::CouldNotRun(text));
+            }
             return Err(HarnessError::Failed(text));
         }
         let Some(final_message) = parsed.final_message else {
@@ -507,9 +522,14 @@ impl Harness for DshHarness {
 
         Ok(HarnessResult {
             actor: Actor {
-                harness: HARNESS_NAME.to_string(),
+                harness: dsh_agent().name.to_string(),
                 model: None,
-                model_family: Some(MODEL_FAMILY.to_string()),
+                model_family: Some(
+                    dsh_agent()
+                        .family_for(None)
+                        .expect("dsh names a fixed family")
+                        .to_string(),
+                ),
             },
             session_id: parsed.session_id,
             final_message,
@@ -840,6 +860,21 @@ mod tests {
     #[test]
     fn git_env_of_an_empty_environment_is_empty() {
         assert_eq!(git_env(&config()), Vec::<(String, String)>::new());
+    }
+
+    #[test]
+    fn git_env_drops_a_git_name_outside_the_allow_list() {
+        let config = DshConfig::new(
+            "dsh",
+            vec![
+                ("PATH".to_string(), "/bin".to_string()),
+                ("GIT_OTHER".to_string(), "value".to_string()),
+                ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+            ],
+        );
+        let env = git_env(&config);
+        assert!(!env.iter().any(|(name, _)| name == "GIT_OTHER"));
+        assert!(env.iter().any(|(name, _)| name == "GIT_AUTHOR_NAME"));
     }
 
     #[test]

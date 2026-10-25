@@ -245,9 +245,9 @@ pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
 /// environment when present: never a credential, so the same names are safe
 /// for every reviewer regardless of which one is starting.
 #[cfg(unix)]
-const RUN_ENV_VARS: &[&str] = &["PATH", "LANG", "LC_ALL", "TMPDIR"];
+pub(crate) const RUN_ENV_VARS: &[&str] = &["PATH", "LANG", "LC_ALL", "TMPDIR"];
 #[cfg(windows)]
-const RUN_ENV_VARS: &[&str] = &[
+pub(crate) const RUN_ENV_VARS: &[&str] = &[
     "PATH",
     "SYSTEMROOT",
     "SYSTEMDRIVE",

@@ -4,8 +4,12 @@
 
 pub mod fake;
 
+use crate::journal::{JobBlocked, Payload};
 use serde::Serialize;
 use std::fmt;
+use std::io::{Read, Write as _};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// One command to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +45,8 @@ pub trait CommandRunner {
     /// The runner runs `command` with exactly its `env`, in its `workdir`, and
     /// with its `stdin` as the child's input. At `timeout_secs` it kills the
     /// whole process tree and answers [`CommandOutcome::TimedOut`]. A process
-    /// that cannot start is [`HarnessError::Failed`] carrying the system's own
+    /// that cannot start is [`HarnessError::CouldNotRun`] when the program is
+    /// missing, [`HarnessError::Failed`] otherwise, carrying the system's own
     /// text.
     ///
     /// `stdout` and `stderr` are text, so a non-UTF-8 path in tool output is
@@ -49,9 +54,136 @@ pub trait CommandRunner {
     ///
     /// # Errors
     ///
-    /// Returns [`HarnessError::Failed`] when the process cannot start or the
-    /// run itself fails.
+    /// Returns [`HarnessError::CouldNotRun`] when the program is missing, and
+    /// [`HarnessError::Failed`] when it cannot start or the run itself fails.
     fn run(&self, command: &CommandSpec) -> Result<CommandOutput, HarnessError>;
+}
+
+/// The [`CommandRunner`] over a real child process.
+///
+/// It clears the environment and sets exactly the command's own, starts the
+/// child as its own process-group leader on Unix, and kills the whole tree at
+/// the deadline. A command with no timeout gets the default, so an unattended
+/// run is always bounded.
+pub struct RealCommandRunner {
+    default_timeout: Duration,
+}
+
+impl RealCommandRunner {
+    /// The bound for a command that names none: one hour.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3600);
+
+    /// A runner with the default bound.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            default_timeout: Self::DEFAULT_TIMEOUT,
+        }
+    }
+
+    /// A runner with a different bound for a command that names none.
+    #[must_use]
+    pub fn with_default_timeout(mut self, timeout: Duration) -> Self {
+        self.default_timeout = timeout;
+        self
+    }
+
+    /// Reads one child pipe to its end on its own thread.
+    fn drain<R: Read + Send + 'static>(mut reader: R) -> std::thread::JoinHandle<Vec<u8>> {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = reader.read_to_end(&mut bytes);
+            bytes
+        })
+    }
+}
+
+impl Default for RealCommandRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CommandRunner for RealCommandRunner {
+    fn run(&self, command: &CommandSpec) -> Result<CommandOutput, HarnessError> {
+        let mut pending = Command::new(&command.program);
+        pending
+            .args(&command.args)
+            .env_clear()
+            .envs(command.env.iter().map(|(name, value)| (name, value)))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(workdir) = &command.workdir {
+            pending.current_dir(workdir);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            pending.process_group(0);
+        }
+        let mut child = pending.spawn().map_err(|error| {
+            let text = format!("cannot start {}: {error}", command.program);
+            if error.kind() == std::io::ErrorKind::NotFound {
+                HarnessError::CouldNotRun(text)
+            } else {
+                HarnessError::Failed(text)
+            }
+        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| HarnessError::Failed("no standard output".to_string()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| HarnessError::Failed("no standard error".to_string()))?;
+        let stdout = Self::drain(stdout);
+        let stderr = Self::drain(stderr);
+        let input = {
+            let mut handle = child
+                .stdin
+                .take()
+                .ok_or_else(|| HarnessError::Failed("no standard input".to_string()))?;
+            let payload = command.stdin.clone();
+            std::thread::spawn(move || match payload {
+                Some(text) => handle.write_all(text.as_bytes()),
+                None => Ok(()),
+            })
+        };
+        let limit = command
+            .timeout_secs
+            .map_or(self.default_timeout, Duration::from_secs);
+        let deadline = Instant::now() + limit;
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) if Instant::now() >= deadline => {
+                    let _ = crate::process::kill_tree(&child);
+                    let _ = child.wait();
+                    let out = stdout.join().unwrap_or_default();
+                    let err = stderr.join().unwrap_or_default();
+                    return Ok(CommandOutput {
+                        outcome: CommandOutcome::TimedOut {
+                            limit_secs: limit.as_secs(),
+                        },
+                        stdout: String::from_utf8_lossy(&out).into_owned(),
+                        stderr: String::from_utf8_lossy(&err).into_owned(),
+                    });
+                }
+                Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+                Err(error) => return Err(HarnessError::Failed(format!("cannot wait: {error}"))),
+            }
+        };
+        let out = stdout.join().unwrap_or_default();
+        let err = stderr.join().unwrap_or_default();
+        let _ = input.join();
+        Ok(CommandOutput {
+            outcome: CommandOutcome::Exited(status.code().unwrap_or(-1)),
+            stdout: String::from_utf8_lossy(&out).into_owned(),
+            stderr: String::from_utf8_lossy(&err).into_owned(),
+        })
+    }
 }
 
 /// One task for a harness to run.
@@ -115,6 +247,22 @@ pub struct HarnessResult {
     pub cost_micro_usd: Option<u64>,
 }
 
+impl HarnessResult {
+    /// The `job-blocked` event for a run that ended by asking a question.
+    #[must_use]
+    pub fn blocked_event(&self, job: &str, work_item: Option<&str>) -> Option<Payload> {
+        match &self.outcome {
+            HarnessOutcome::Asked { question } => Some(Payload::JobBlocked(JobBlocked {
+                job: job.to_string(),
+                work_item: work_item.map(str::to_string),
+                cause: "clarification".to_string(),
+                question: Some(question.clone()),
+            })),
+            HarnessOutcome::Finished => None,
+        }
+    }
+}
+
 /// Whether one harness operation is available.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -146,13 +294,16 @@ pub struct HarnessCapabilities {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HarnessError {
     Rejected(String),
+    CouldNotRun(String),
     Failed(String),
 }
 
 impl fmt::Display for HarnessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Rejected(text) | Self::Failed(text) => f.write_str(text),
+            Self::Rejected(text) | Self::CouldNotRun(text) | Self::Failed(text) => {
+                f.write_str(text)
+            }
         }
     }
 }
@@ -364,6 +515,42 @@ mod tests {
     }
 
     #[test]
+    fn an_asked_result_becomes_a_blocked_job_event() {
+        let mut result = HarnessResult {
+            actor: Actor {
+                harness: "the-harness".to_string(),
+                model: None,
+                model_family: None,
+            },
+            session_id: None,
+            final_message: "QUESTION: Which?".to_string(),
+            outcome: HarnessOutcome::Finished,
+            exit: 0,
+            changed_files: Vec::new(),
+            branch: None,
+            head_commit: "abc123".to_string(),
+            usage: None,
+            cost_micro_usd: None,
+        };
+        assert!(result.blocked_event("job-1", None).is_none());
+        result.outcome = HarnessOutcome::Asked {
+            question: "Which?".to_string(),
+        };
+        let Some(Payload::JobBlocked(blocked)) =
+            result.blocked_event("job-1", Some("github:open-software-factory/demo#1"))
+        else {
+            panic!("an asked result is a blocked job event");
+        };
+        assert_eq!(blocked.job, "job-1");
+        assert_eq!(
+            blocked.work_item.as_deref(),
+            Some("github:open-software-factory/demo#1")
+        );
+        assert_eq!(blocked.cause, "clarification");
+        assert_eq!(blocked.question.as_deref(), Some("Which?"));
+    }
+
+    #[test]
     fn harness_result_serializes_every_field() {
         let result = HarnessResult {
             actor: Actor {
@@ -428,5 +615,95 @@ mod tests {
             serde_json::to_string(&task()).expect("serializes"),
             r#"{"text":"do the thing","repository_path":"/repo","timeout_secs":5}"#
         );
+    }
+
+    #[test]
+    fn a_missing_program_is_could_not_run() {
+        let command = CommandSpec {
+            program: "osf-no-such-program-9f1c".to_string(),
+            args: Vec::new(),
+            workdir: None,
+            env: Vec::new(),
+            stdin: None,
+            timeout_secs: Some(5),
+        };
+        assert!(matches!(
+            RealCommandRunner::new().run(&command),
+            Err(HarnessError::CouldNotRun(_))
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_real_runner_captures_output_and_the_exit_code() {
+        let command = CommandSpec {
+            program: "sh".to_string(),
+            args: vec![
+                "-c".to_string(),
+                "printf out; printf err >&2; exit 3".to_string(),
+            ],
+            workdir: None,
+            env: Vec::new(),
+            stdin: None,
+            timeout_secs: Some(10),
+        };
+        let output = RealCommandRunner::new().run(&command).expect("runs");
+        assert_eq!(output.outcome, CommandOutcome::Exited(3));
+        assert_eq!(output.stdout, "out");
+        assert_eq!(output.stderr, "err");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_real_runner_passes_stdin_and_the_environment() {
+        let command = CommandSpec {
+            program: "sh".to_string(),
+            args: vec![
+                "-c".to_string(),
+                "cat; printf '|%s' \"$OSF_TEST_VALUE\"".to_string(),
+            ],
+            workdir: None,
+            env: vec![("OSF_TEST_VALUE".to_string(), "set".to_string())],
+            stdin: Some("in".to_string()),
+            timeout_secs: Some(10),
+        };
+        let output = RealCommandRunner::new().run(&command).expect("runs");
+        assert_eq!(output.outcome, CommandOutcome::Exited(0));
+        assert_eq!(output.stdout, "in|set");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_real_runner_times_out() {
+        let command = CommandSpec {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), "sleep 30".to_string()],
+            workdir: None,
+            env: Vec::new(),
+            stdin: None,
+            timeout_secs: Some(1),
+        };
+        let output = RealCommandRunner::new().run(&command).expect("runs");
+        assert_eq!(output.outcome, CommandOutcome::TimedOut { limit_secs: 1 });
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_real_runner_captures_output_and_the_exit_code_on_windows() {
+        let command = CommandSpec {
+            program: "cmd".to_string(),
+            args: vec![
+                "/C".to_string(),
+                "echo out & echo err 1>&2 & exit /b 3".to_string(),
+            ],
+            workdir: None,
+            env: Vec::new(),
+            stdin: None,
+            timeout_secs: Some(10),
+        };
+        let output = RealCommandRunner::new().run(&command).expect("runs");
+        assert_eq!(output.outcome, CommandOutcome::Exited(3));
+        assert_eq!(output.stdout.trim_end(), "out");
+        assert_eq!(output.stderr.trim_end(), "err");
     }
 }
