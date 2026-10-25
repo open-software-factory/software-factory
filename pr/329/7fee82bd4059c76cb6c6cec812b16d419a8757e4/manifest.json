@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7fee82bd4059c76cb6c6cec812b16d419a8757e4",
+    "contentHash": "0891ed255ade5e87b7f222889c5e12cf"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.5"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3b3deb78593461cbba74256b75247603",
+      "bytes": 17726,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-light-3b3deb78593461cbba74256b75247603.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d48b35091e20671ba8802cb254ffe707",
+      "bytes": 17899,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-dark-d48b35091e20671ba8802cb254ffe707.svg"
+    },
+    {
+      "id": "data-flow-install-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "data-flow-install",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a6c599f667b1661447356ca629a32ea0",
+      "bytes": 13675,
+      "width": 1241,
+      "height": 337,
+      "animated": true,
+      "path": "data-flow-install-light-a6c599f667b1661447356ca629a32ea0.svg"
+    },
+    {
+      "id": "data-flow-install-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "data-flow-install",
+      "mediaType": "image/svg+xml",
+      "contentHash": "75a3b0ab2213e3131b414dd3cb95502f",
+      "bytes": 13824,
+      "width": 1241,
+      "height": 337,
+      "animated": true,
+      "path": "data-flow-install-dark-75a3b0ab2213e3131b414dd3cb95502f.svg"
+    }
+  ]
+}
