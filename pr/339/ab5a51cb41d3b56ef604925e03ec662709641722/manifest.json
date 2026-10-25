@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ab5a51cb41d3b56ef604925e03ec662709641722",
+    "contentHash": "8b297a59cc2183588c594ef5c57204b1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "container-toolchain-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-toolchain",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c2ab2ee801c2f190656300fc42df6463",
+      "bytes": 22485,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "container-toolchain-light-c2ab2ee801c2f190656300fc42df6463.svg"
+    },
+    {
+      "id": "container-toolchain-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-toolchain",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f28702f7c7faf71bd9418269d04435ad",
+      "bytes": 22709,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "container-toolchain-dark-f28702f7c7faf71bd9418269d04435ad.svg"
+    },
+    {
+      "id": "image-build-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "image-build-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "65c48e5f4bcdee39dc0f902e295b87f3",
+      "bytes": 12528,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "image-build-detail-light-65c48e5f4bcdee39dc0f902e295b87f3.svg"
+    },
+    {
+      "id": "image-build-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "image-build-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "04d7298769f640ac935cdff15b7b4413",
+      "bytes": 12651,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "image-build-detail-dark-04d7298769f640ac935cdff15b7b4413.svg"
+    },
+    {
+      "id": "cargo-build-through-kache-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "cargo-build-through-kache-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dbed5c3f16df8083121b16aeb8f25d33",
+      "bytes": 15061,
+      "width": 1641,
+      "height": 467,
+      "animated": true,
+      "path": "cargo-build-through-kache-view-light-dbed5c3f16df8083121b16aeb8f25d33.svg"
+    },
+    {
+      "id": "cargo-build-through-kache-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "cargo-build-through-kache-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "14ea867199c9db06eb65678c95e2622f",
+      "bytes": 15183,
+      "width": 1641,
+      "height": 467,
+      "animated": true,
+      "path": "cargo-build-through-kache-view-dark-14ea867199c9db06eb65678c95e2622f.svg"
+    }
+  ]
+}

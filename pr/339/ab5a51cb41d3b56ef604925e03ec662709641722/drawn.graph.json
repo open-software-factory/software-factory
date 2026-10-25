@@ -1,0 +1,750 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T07:56:38.992Z",
+  "title": "kache compiler cache in the dev container",
+  "summary": "Adds kache, a Rust compiler cache, to the shared builder/reviewer dev container image. The Dockerfile downloads the pinned, checksum-verified release for the target architecture, installs it to /usr/local/bin, and writes a dev-user ~/.cargo/config.toml that sets rustc-wrapper = \"kache\" so every worktree in the container shares one compiler cache. The builder-tools smoke test now asserts both the binary and the cargo config, and the development docs describe the tool and the KACHE_DISABLED=1 escape hatch.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "ab5a51cb41d3b56ef604925e03ec662709641722",
+      "ref": "ab5a51cb41d3b56ef604925e03ec662709641722"
+    },
+    "pullRequest": {
+      "number": 339,
+      "url": "https://github.com/open-software-factory/software-factory/pull/339"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "image-build",
+      "label": "Image build",
+      "subtitle": "Dockerfile layers",
+      "order": 0
+    },
+    {
+      "id": "container-tools",
+      "label": "Container toolchain",
+      "subtitle": "installed binaries",
+      "order": 1
+    },
+    {
+      "id": "cargo-runtime",
+      "label": "Cargo runtime",
+      "subtitle": "dev user, per worktree",
+      "order": 2
+    },
+    {
+      "id": "verification",
+      "label": "Verification",
+      "subtitle": "smoke tests & docs",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "devcontainer-dockerfile",
+      "label": "devcontainer Dockerfile",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "image-build",
+      "subtitle": "multi-arch builder image",
+      "summary": "Defines the single image used by both the builder and reviewer roles. This change adds kache version/checksum build args, an install layer, and a cargo config layer.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "kache-release",
+      "label": "kache release asset",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "image-build",
+      "subtitle": "kunobi-ninja/kache v1.2.2",
+      "summary": "Upstream GitHub release tarball per architecture, fetched at build time and verified against the pinned SHA-256 before extraction.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 40,
+          "endLine": 46
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "kache-install-layer",
+      "label": "kache install layer",
+      "kind": "function",
+      "delta": "added",
+      "lane": "image-build",
+      "subtitle": "curl → sha256sum -c → install",
+      "summary": "Selects the checksum by TARGETARCH, downloads the musl tarball, verifies it, and installs the binary to /usr/local/bin/kache.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 400,
+          "endLine": 414
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-config-layer",
+      "label": "cargo config layer",
+      "kind": "config",
+      "delta": "added",
+      "lane": "image-build",
+      "subtitle": "~/.cargo/config.toml",
+      "summary": "Writes [build] rustc-wrapper = \"kache\" into the dev user's cargo config and chowns it, so the setting applies to every worktree in the container.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 416,
+          "endLine": 421
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "kache-binary",
+      "label": "kache",
+      "kind": "package",
+      "delta": "added",
+      "lane": "container-tools",
+      "subtitle": "/usr/local/bin/kache",
+      "summary": "The compiler cache binary, installed once per image and shared by all worktrees.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 412,
+          "endLine": 412
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo",
+      "label": "cargo",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "container-tools",
+      "subtitle": "rustup toolchain",
+      "summary": "The Rust build tool already in the image; it now reads the wrapper setting from the dev user's config.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 397,
+          "endLine": 399
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rustc",
+      "label": "rustc",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "container-tools",
+      "subtitle": "compiler",
+      "summary": "The real compiler, invoked through the kache wrapper rather than directly by cargo.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 397,
+          "endLine": 399
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-config",
+      "label": "~/.cargo/config.toml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "cargo-runtime",
+      "subtitle": "rustc-wrapper = \"kache\"",
+      "summary": "Per-user cargo configuration that redirects every rustc invocation through kache. Lives in the dev home so all worktrees share it.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 418,
+          "endLine": 421
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "worktree-build",
+      "label": "worktree cargo build",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "cargo-runtime",
+      "subtitle": "cargo build / test / clippy",
+      "summary": "Any cargo invocation in any worktree of the container. Unchanged from the caller's point of view; it now resolves rustc through the wrapper.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1206,
+          "endLine": 1211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "kache-cache",
+      "label": "kache cache store",
+      "kind": "cache",
+      "delta": "added",
+      "lane": "cargo-runtime",
+      "subtitle": "dev home, shared across worktrees",
+      "summary": "Compiler outputs keyed by inputs, stored once in the dev user's home and restored by later worktrees instead of rebuilt.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1208,
+          "endLine": 1210
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "builder-tools-test",
+      "label": "builder-tools.sh",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "verification",
+      "subtitle": "container smoke test",
+      "summary": "Asserts kache --version succeeds and that the cargo config contains the rustc-wrapper line.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/builder-tools.sh",
+          "startLine": 39,
+          "endLine": 39
+        },
+        {
+          "path": ".devcontainer/tests/builder-tools.sh",
+          "startLine": 50,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "development-docs",
+      "label": "docs/development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "verification",
+      "subtitle": "builder tools section",
+      "summary": "Lists kache among the builder tools and explains the shared cache and the KACHE_DISABLED=1 bypass.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1199,
+          "endLine": 1211
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dockerfile-fetches-kache",
+      "from": "devcontainer-dockerfile",
+      "to": "kache-release",
+      "kind": "http",
+      "delta": "added",
+      "label": "pinned tarball + SHA-256",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Build-time download of the architecture-specific kache release.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 405,
+          "endLine": 408
+        }
+      ]
+    },
+    {
+      "id": "dockerfile-runs-install",
+      "from": "devcontainer-dockerfile",
+      "to": "kache-install-layer",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The image build executes the install layer.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 400,
+          "endLine": 414
+        }
+      ]
+    },
+    {
+      "id": "install-verifies-release",
+      "from": "kache-install-layer",
+      "to": "kache-release",
+      "kind": "data",
+      "delta": "added",
+      "label": "sha256sum -c",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Checksum verification gates extraction of the downloaded archive.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 407,
+          "endLine": 407
+        }
+      ]
+    },
+    {
+      "id": "install-places-binary",
+      "from": "kache-install-layer",
+      "to": "kache-binary",
+      "kind": "data",
+      "delta": "added",
+      "label": "install -m 0755",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The verified binary lands in /usr/local/bin.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 412,
+          "endLine": 412
+        }
+      ]
+    },
+    {
+      "id": "dockerfile-writes-config",
+      "from": "devcontainer-dockerfile",
+      "to": "cargo-config-layer",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A later layer writes the dev user's cargo config.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 416,
+          "endLine": 421
+        }
+      ]
+    },
+    {
+      "id": "config-layer-writes-config",
+      "from": "cargo-config-layer",
+      "to": "cargo-config",
+      "kind": "data",
+      "delta": "added",
+      "label": "printf [build] rustc-wrapper",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config file is created and owned by dev.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 418,
+          "endLine": 421
+        }
+      ]
+    },
+    {
+      "id": "cargo-reads-config",
+      "from": "cargo",
+      "to": "cargo-config",
+      "kind": "data",
+      "delta": "added",
+      "label": "reads at invocation",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Cargo loads the per-user config, which now names the rustc wrapper.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 418,
+          "endLine": 419
+        }
+      ]
+    },
+    {
+      "id": "worktree-invokes-cargo",
+      "from": "worktree-build",
+      "to": "cargo",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Builds in any worktree still start with cargo.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1206,
+          "endLine": 1211
+        }
+      ]
+    },
+    {
+      "id": "cargo-wraps-rustc",
+      "from": "cargo",
+      "to": "kache-binary",
+      "kind": "call",
+      "delta": "added",
+      "label": "rustc-wrapper",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The connection the change is about: cargo now routes every rustc invocation through kache.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 418,
+          "endLine": 419
+        }
+      ]
+    },
+    {
+      "id": "kache-invokes-rustc",
+      "from": "kache-binary",
+      "to": "rustc",
+      "kind": "call",
+      "delta": "added",
+      "label": "cache miss",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "On a miss kache runs the real compiler and stores the result.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1208,
+          "endLine": 1210
+        }
+      ]
+    },
+    {
+      "id": "kache-reads-cache",
+      "from": "kache-binary",
+      "to": "kache-cache",
+      "kind": "data",
+      "delta": "added",
+      "label": "hit / store",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Compiler outputs are restored from or written to the shared cache instead of rebuilt per worktree.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1208,
+          "endLine": 1210
+        }
+      ]
+    },
+    {
+      "id": "test-asserts-binary",
+      "from": "builder-tools-test",
+      "to": "kache-binary",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "kache --version",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Smoke test fails the image if the binary is missing.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/builder-tools.sh",
+          "startLine": 39,
+          "endLine": 39
+        }
+      ]
+    },
+    {
+      "id": "test-asserts-config",
+      "from": "builder-tools-test",
+      "to": "cargo-config",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "grep rustc-wrapper",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Smoke test fails if the wrapper line is absent from the cargo config.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/builder-tools.sh",
+          "startLine": 50,
+          "endLine": 56
+        }
+      ]
+    },
+    {
+      "id": "docs-describe-kache",
+      "from": "development-docs",
+      "to": "kache-cache",
+      "kind": "other",
+      "delta": "added",
+      "label": "shared cache, KACHE_DISABLED=1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Docs explain the shared cache and the per-command bypass.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1206,
+          "endLine": 1211
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "cargo-build-through-kache",
+      "title": "A cargo build in a worktree, through kache",
+      "summary": "How a build in any worktree reaches the compiler after this change: cargo resolves the wrapper from the dev user's config, kache answers from the shared cache or falls back to rustc.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "worktree-build",
+          "label": "cargo build"
+        },
+        {
+          "node": "cargo"
+        },
+        {
+          "node": "kache-binary",
+          "label": "kache"
+        },
+        {
+          "node": "kache-cache",
+          "label": "cache"
+        },
+        {
+          "node": "rustc"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-invoke-cargo",
+          "from": "worktree-build",
+          "to": "cargo",
+          "label": "cargo build / test / clippy",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "docs/development.md",
+              "startLine": 1206,
+              "endLine": 1211
+            }
+          ]
+        },
+        {
+          "id": "step-load-config",
+          "from": "cargo",
+          "to": "cargo",
+          "label": "load ~/.cargo/config.toml",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The config now carries [build] rustc-wrapper = \"kache\".",
+          "files": [
+            {
+              "path": ".devcontainer/Dockerfile",
+              "startLine": 418,
+              "endLine": 421
+            }
+          ]
+        },
+        {
+          "id": "step-call-wrapper",
+          "from": "cargo",
+          "to": "kache-binary",
+          "label": "rustc-wrapper kache <args>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".devcontainer/Dockerfile",
+              "startLine": 418,
+              "endLine": 419
+            }
+          ]
+        },
+        {
+          "id": "step-cache-lookup",
+          "from": "kache-binary",
+          "to": "kache-cache",
+          "label": "lookup by inputs",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "docs/development.md",
+              "startLine": 1208,
+              "endLine": 1210
+            }
+          ]
+        },
+        {
+          "id": "step-cache-hit",
+          "from": "kache-cache",
+          "to": "kache-binary",
+          "label": "hit: cached outputs",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "A hit skips compilation entirely; a miss continues to rustc.",
+          "files": [
+            {
+              "path": "docs/development.md",
+              "startLine": 1208,
+              "endLine": 1210
+            }
+          ]
+        },
+        {
+          "id": "step-call-rustc",
+          "from": "kache-binary",
+          "to": "rustc",
+          "label": "compile on miss",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "docs/development.md",
+              "startLine": 1208,
+              "endLine": 1210
+            }
+          ]
+        },
+        {
+          "id": "step-store",
+          "from": "kache-binary",
+          "to": "kache-cache",
+          "label": "store outputs",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "note": "Stored once in the dev home, reused by every worktree in the container.",
+          "files": [
+            {
+              "path": "docs/development.md",
+              "startLine": 1208,
+              "endLine": 1210
+            }
+          ]
+        },
+        {
+          "id": "step-return",
+          "from": "kache-binary",
+          "to": "cargo",
+          "label": "compiler outputs",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 48,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "New tool in image",
+        "value": "kache 1.2.2",
+        "tone": "added"
+      },
+      {
+        "label": "Architectures",
+        "value": "amd64 + arm64",
+        "tone": "neutral"
+      },
+      {
+        "label": "Cache scope",
+        "value": "all worktrees",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "container-toolchain",
+      "title": "Dev container toolchain",
+      "lens": "architecture",
+      "summary": "The image build installs kache and writes the cargo wrapper config; at runtime cargo in any worktree routes rustc through kache and its shared cache.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "image-build-detail",
+      "title": "Image build: kache install and config layers",
+      "lens": "architecture",
+      "summary": "The two new Dockerfile layers: verified download and install of the kache binary, then the dev user's cargo config.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "devcontainer-dockerfile",
+          "kache-release",
+          "kache-install-layer",
+          "cargo-config-layer",
+          "kache-binary",
+          "cargo-config"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "cargo-build-through-kache-view",
+      "title": "Cargo build through kache",
+      "lens": "data-flow",
+      "summary": "Ordered steps of a worktree build after the change.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "cargo-build-through-kache"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
