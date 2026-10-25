@@ -36,6 +36,7 @@ assert_ok "gh --version" gh --version
 assert_ok "cargo --version" cargo --version
 assert_ok "rustfmt --version" rustfmt --version
 assert_ok "cargo-clippy --version" cargo-clippy --version
+assert_ok "kache --version" kache --version
 assert_ok "osf --version" osf --version
 assert_ok "moon --version" moon --version
 assert_ok "node --version" node --version
@@ -45,6 +46,14 @@ assert_ok "uv --version" uv --version
 assert_ok "bun --version" bun --version
 assert_ok "skillspector --help" skillspector --help
 assert_ok "skillevaluator --help" skillevaluator --help
+
+# Cargo uses kache as its rustc wrapper, so builds in every worktree share
+# the compiler cache.
+if grep -q '^rustc-wrapper = "kache"$' "$HOME/.cargo/config.toml" 2>/dev/null; then
+  pass "cargo is configured to use kache as its rustc wrapper"
+else
+  fail "cargo is configured to use kache as its rustc wrapper"
+fi
 
 # moon must come from its one install, /usr/local/bin, not a second copy.
 moon_path=""
