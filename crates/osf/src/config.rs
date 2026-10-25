@@ -1747,4 +1747,16 @@ mod tests {
         let err = agents_config(&dir).expect_err("an unknown key is refused");
         assert!(err.to_string().contains("reviewer"), "{err}");
     }
+
+    #[test]
+    fn an_unknown_agents_launch_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-launch-unknown-field");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents.launch.codex]\ncommand = [\"x\"]\ntypo = true\n",
+        )
+        .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown launch key is refused");
+        assert!(err.to_string().contains("typo"), "{err}");
+    }
 }

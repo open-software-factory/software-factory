@@ -907,6 +907,7 @@ fn read_all(pipe: &mut impl std::io::Read) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn reviewer(name: &str, command: Vec<&str>) -> Reviewer {
         Reviewer {
@@ -1266,6 +1267,58 @@ mod tests {
             }
         }
         assert!(found, "the fresh home wins over the template env");
+    }
+
+    #[test]
+    fn a_launch_env_value_sees_the_review_dir() {
+        let mut r = reviewer("a-reviewer", vec!["x"]);
+        r.review_dir = Some(PathBuf::from("/review"));
+        r.env = vec![("A".to_string(), "{review_dir}".to_string())];
+        let (command, _home, _notes) =
+            prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");
+        let mut got = None;
+        for (name, value) in command.get_envs() {
+            if name == "A" {
+                got = value.map(|v| v.to_string_lossy().into_owned());
+            }
+        }
+        assert_eq!(got.as_deref(), Some("/review"));
+    }
+
+    #[test]
+    fn a_launch_env_cannot_override_a_read_only_setting() {
+        let mut r = reviewer("a-reviewer", vec!["x"]);
+        r.read_only = Some(ReadOnly {
+            args: &[],
+            env: &[("A", "read-only")],
+        });
+        r.env = vec![("A".to_string(), "template".to_string())];
+        let (command, _home, _notes) =
+            prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");
+        let mut got = None;
+        for (name, value) in command.get_envs() {
+            if name == "A" {
+                got = value.map(|v| v.to_string_lossy().into_owned());
+            }
+        }
+        assert_eq!(got.as_deref(), Some("read-only"));
+    }
+
+    #[test]
+    fn a_launch_env_cannot_override_an_allow_listed_variable() {
+        if let Ok(path) = std::env::var("PATH") {
+            let mut r = reviewer("a-reviewer", vec!["x"]);
+            r.env = vec![("PATH".to_string(), "/bad".to_string())];
+            let (command, _home, _notes) =
+                prepare_command(&r, "x", &[], Path::new("/tmp"), None).expect("prepares");
+            let mut got = None;
+            for (name, value) in command.get_envs() {
+                if name == "PATH" {
+                    got = value.map(|v| v.to_string_lossy().into_owned());
+                }
+            }
+            assert_eq!(got.as_deref(), Some(path.as_str()));
+        }
     }
 
     #[test]

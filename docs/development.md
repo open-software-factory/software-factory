@@ -764,9 +764,13 @@ env = { EXAMPLE_HOME = "/opt/example" }
 
 Replace `example-agent` with a name from `osf agents list`.
 
-The name must be in the one agent list and enabled, and the command must not be empty. The command must keep the agent's output and schema contract, because the review reads the answer and validates it. The environment is for non-secret settings. A known provider credential variable is refused in any letter case. Credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
+The name must be in the one agent list and enabled, and the command must not be empty. The program token must not be blank. The command must keep the agent's output and schema contract, because the review reads the answer and validates it. The environment is for non-secret settings. A known provider credential variable is refused in any letter case. Credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
 
 Only a reviewer run uses the override today. The builder platform and the effective command in `osf agents list` follow.
+
+The launch table must come from trusted content. `osf review run` reads it from `--config-root`, which must point at the base branch, not the change under review.
+
+This slice changes an existing agent's command. Adding a new agent still needs an entry in the agent list.
 
 ### The builder's own family is left out
 

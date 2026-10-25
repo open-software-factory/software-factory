@@ -564,7 +564,9 @@ pub fn project_settings() -> Vec<&'static str> {
 /// One agent's effective launch command: its own, or the `[agents.launch]` override.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchTemplate {
+    /// The program and its arguments, in order.
     pub command: Vec<String>,
+    /// Extra environment for the run, as sorted name-value pairs.
     pub env: Vec<(String, String)>,
 }
 
@@ -677,16 +679,22 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
     for (name, template) in &cfg.launch {
         let agent = find(name, "launch")?;
         require_enabled(&enabled, agent, "launch")?;
+        // The dotted path mirrors the table an adopter edits, so the
+        // message names the exact key.
         if let Some(key) = template
             .env
             .keys()
             .find(|key| credentials.contains(&key.to_ascii_lowercase()))
         {
             return Err(format!(
-                "[agents] launch.{name}.env: {key} is a credential variable; pass it in the environment, not in osf.toml"
+                "[agents] launch.{name}.env: \"{key}\" is a credential variable; pass it in the environment, not in osf.toml"
             ));
         }
-        if template.command.is_empty() {
+        if template
+            .command
+            .first()
+            .is_none_or(|program| program.trim().is_empty())
+        {
             return Err(format!(
                 "[agents] launch.{name}: command is empty; name the program and its arguments"
             ));
@@ -1142,7 +1150,11 @@ mod tests {
     #[test]
     fn a_launch_override_replaces_the_command_and_adds_env() {
         let agent = a_runnable_reviewer();
-        let mut config = cfg(None, &[agent.name], &[]);
+        let other = AGENTS
+            .iter()
+            .find(|a| a.name != agent.name)
+            .expect("another agent");
+        let mut config = cfg(None, &[], &[]);
         config.launch.insert(
             agent.name.to_string(),
             LaunchTemplateConfig {
@@ -1150,14 +1162,46 @@ mod tests {
                 env: BTreeMap::from([("A".to_string(), "B".to_string())]),
             },
         );
+        config.launch.insert(
+            other.name.to_string(),
+            LaunchTemplateConfig {
+                command: vec!["other-command".to_string()],
+                ..Default::default()
+            },
+        );
         let selection = resolve(&config).expect("resolves");
         let template = selection.launch(agent).expect("the override");
         assert_eq!(template.command, vec!["my-command", "--x"]);
         assert_eq!(template.env, vec![("A".to_string(), "B".to_string())]);
+        assert!(
+            selection.launch(other).is_some(),
+            "the second override is kept"
+        );
+        let untouched = AGENTS
+            .iter()
+            .find(|a| a.name != agent.name && a.name != other.name)
+            .expect("a third agent");
+        assert!(selection.launch(untouched).is_none(), "no override is none");
     }
 
     #[test]
-    fn a_launch_override_must_name_an_enabled_agent_and_a_command() {
+    fn a_launch_override_needs_a_known_agent() {
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            "nope".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                ..Default::default()
+            },
+        );
+        let error = resolve(&config).expect_err("unknown agent");
+        assert!(error.contains("unknown agent"), "{error}");
+        assert!(error.contains("nope"), "{error}");
+        assert!(error.contains("launch"), "{error}");
+    }
+
+    #[test]
+    fn a_launch_override_needs_an_enabled_agent() {
         let agent = a_runnable_reviewer();
         let mut config = cfg(Some(&["dsh"]), &[], &[]);
         config.launch.insert(
@@ -1171,27 +1215,29 @@ mod tests {
         assert!(error.contains("not in the enabled agents"), "{error}");
         assert!(error.contains(agent.name), "{error}");
         assert!(error.contains("launch"), "{error}");
-        let mut config = cfg(None, &[], &[]);
-        config.launch.insert(
-            "nope".to_string(),
-            LaunchTemplateConfig {
-                command: vec!["x".to_string()],
-                ..Default::default()
-            },
-        );
-        let error = resolve(&config).expect_err("unknown agent");
-        assert!(error.contains("unknown agent"), "{error}");
-        assert!(error.contains("nope"), "{error}");
-        assert!(error.contains("launch"), "{error}");
-        let mut config = cfg(None, &[], &[]);
-        config
-            .launch
-            .insert(agent.name.to_string(), LaunchTemplateConfig::default());
-        let error = resolve(&config).expect_err("empty command");
-        assert!(error.contains("command is empty"), "{error}");
-        assert!(error.contains(agent.name), "{error}");
-        assert!(error.contains("launch."), "{error}");
-        let mut config = cfg(None, &[], &[]);
+    }
+
+    #[test]
+    fn a_launch_override_needs_a_command_with_a_program() {
+        let agent = a_runnable_reviewer();
+        for command in [Vec::new(), vec![String::new()], vec!["  ".to_string()]] {
+            let mut config = cfg(None, &[], &[]);
+            config.launch.insert(
+                agent.name.to_string(),
+                LaunchTemplateConfig {
+                    command,
+                    ..Default::default()
+                },
+            );
+            let error = resolve(&config).expect_err("no program");
+            assert!(error.contains("command is empty"), "{error}");
+            assert!(error.contains(agent.name), "{error}");
+            assert!(error.contains("launch."), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_launch_override_refuses_a_declared_credential_variable() {
         let credential_agent = AGENTS
             .iter()
             .find(|a| {
@@ -1207,6 +1253,7 @@ mod tests {
             .credential_env
             .first()
             .expect("a credential variable");
+        let mut config = cfg(None, &[], &[]);
         config.launch.insert(
             credential_agent.name.to_string(),
             LaunchTemplateConfig {
@@ -1218,6 +1265,18 @@ mod tests {
         assert!(error.contains("credential variable"), "{error}");
         assert!(error.contains(credential_agent.name), "{error}");
         assert!(error.contains(credential), "{error}");
+    }
+
+    #[test]
+    fn a_launch_override_refuses_known_credential_aliases_in_any_case() {
+        let credential_agent = AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| !r.credential_env.is_empty())
+            })
+            .expect("an agent with a credential variable");
         for key in ["ANTHROPIC_API_KEY", "codex_api_key"] {
             let mut config = cfg(None, &[], &[]);
             config.launch.insert(
