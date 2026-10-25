@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "5074d63be3f3a5fcbcf0a5a99d0fe0e63bba49c9",
+    "contentHash": "1217a2357cf71921d2b24ef56b86e7cf"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "agent-runner-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-runner-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9df89f38e2cc57289929a39afd4811b6",
+      "bytes": 30316,
+      "width": 1718,
+      "height": 676,
+      "animated": false,
+      "path": "agent-runner-overview-light-9df89f38e2cc57289929a39afd4811b6.svg"
+    },
+    {
+      "id": "agent-runner-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-runner-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f2d4d0a3294bd28dc6df1996830f887a",
+      "bytes": 30702,
+      "width": 1718,
+      "height": 676,
+      "animated": false,
+      "path": "agent-runner-overview-dark-f2d4d0a3294bd28dc6df1996830f887a.svg"
+    }
+  ]
+}
