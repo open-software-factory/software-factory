@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "fd5b4610458ad76ce8f364220ae750b051c0129f",
+    "contentHash": "5c6460da8a84f28d73d59b9f37ec3222"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "work-tracker-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c00a59135dd077714c48b35eade5567a",
+      "bytes": 17761,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "work-tracker-architecture-light-c00a59135dd077714c48b35eade5567a.svg"
+    },
+    {
+      "id": "work-tracker-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-tracker-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7f99cfba9a3d260f59b73ebacdd3facb",
+      "bytes": 17929,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "work-tracker-architecture-dark-7f99cfba9a3d260f59b73ebacdd3facb.svg"
+    },
+    {
+      "id": "report-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e54474986b9539559e5d37487a7b3f0",
+      "bytes": 14077,
+      "width": 1836,
+      "height": 429,
+      "animated": true,
+      "path": "report-flow-view-light-7e54474986b9539559e5d37487a7b3f0.svg"
+    },
+    {
+      "id": "report-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "261fdb16030af1d3b4ea53af9e4dc954",
+      "bytes": 14200,
+      "width": 1836,
+      "height": 429,
+      "animated": true,
+      "path": "report-flow-view-dark-261fdb16030af1d3b4ea53af9e4dc954.svg"
+    }
+  ]
+}
