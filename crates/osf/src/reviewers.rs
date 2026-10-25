@@ -373,7 +373,7 @@ impl RunHome {
 }
 
 /// The real home directory of the user running `osf`, when it is set.
-fn real_home() -> Option<PathBuf> {
+pub(crate) fn real_home() -> Option<PathBuf> {
     #[cfg(unix)]
     let var = "HOME";
     #[cfg(windows)]

@@ -274,6 +274,20 @@ Inside the development container, skip this: the container forces its own
 hooks path on every git call, so a repository's own `core.hooksPath` has no
 effect there.
 
+## Check your setup
+
+Run `osf doctor` in the repository. It is read-only. It prints one line per check:
+
+```sh
+osf doctor
+osf doctor --format json
+osf doctor --check hooks
+```
+
+It checks the osf version against `.osf/version`, that the settings load, the enabled agents and their credentials, the git hooks, and whether you are inside the factory image. It exits non-zero when a check fails.
+
+Agent binaries and pinned versions are reported as unknown until the launch templates land. That is deliberate, not a pass.
+
 ## Lint a file right after your agent writes it
 
 `osf hook post-tool` runs the hook checkpoint on one file, right after a
