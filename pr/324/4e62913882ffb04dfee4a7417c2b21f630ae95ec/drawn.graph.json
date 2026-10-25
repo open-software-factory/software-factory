@@ -1,0 +1,510 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-25T00:08:49.947Z",
+  "title": "jsdom 30.1.3 bump in console-ui test toolchain",
+  "summary": "A dependency-only change: the console-ui package moves its jsdom devDependency from 30.0.1 to 30.1.3, and the lockfile re-resolves jsdom's transitive tree accordingly. The visible effects are a newer DOM-selector/CSS parsing stack (@asamuzakjp/dom-selector 8→10, @asamuzakjp/css-color 6→7, @csstools tokenizer/parser 4.0.0→4.0.2), newer URL/encoding helpers (whatwg-url 17.3.0, data-urls 8, tr46 7, html-encoding-sniffer 7, w3c-xmlserializer 6), undici 8.12.3, and the removal of symbol-tree. No application source changes; only the test runtime that renders console-ui components under Vitest is affected.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "4e62913882ffb04dfee4a7417c2b21f630ae95ec",
+      "ref": "4e62913882ffb04dfee4a7417c2b21f630ae95ec"
+    },
+    "pullRequest": {
+      "number": 324,
+      "url": "https://github.com/open-software-factory/software-factory/pull/324"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "console-ui",
+      "label": "console-ui package",
+      "subtitle": "React console, tested under jsdom",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The package whose devDependency moved. Its source is untouched; only the test environment it runs in changes."
+    },
+    {
+      "id": "test-runtime",
+      "label": "Test runtime",
+      "subtitle": "Vitest + jsdom DOM emulation",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The DOM implementation the console-ui tests execute against. jsdom 30.1.3 replaces 30.0.1 here."
+    },
+    {
+      "id": "jsdom-deps",
+      "label": "jsdom dependency tree",
+      "subtitle": "Resolved by pnpm-lock.yaml",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The transitive packages jsdom pulls in. Most of the diff lives here: selector, CSS parsing, URL and encoding helpers all move forward a major or minor."
+    },
+    {
+      "id": "toolchain",
+      "label": "Build & test toolchain",
+      "subtitle": "pnpm workspace",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The workspace resolver and the rest of the monorepo's tooling. Unchanged, but it is what turns the package.json edit into a new lockfile resolution."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console-ui-package",
+      "label": "@software-factory/console-ui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "console-ui",
+      "subtitle": "devDependencies: jsdom 30.0.1 → 30.1.3",
+      "summary": "The console UI package. The only edit in its manifest is the jsdom devDependency version; runtime dependencies and source are untouched.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 27,
+          "endLine": 33
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-ui-tests",
+      "label": "console-ui test suite",
+      "kind": "test",
+      "delta": "unchanged",
+      "lane": "console-ui",
+      "subtitle": "@testing-library/react + user-event",
+      "summary": "Component tests that render into a jsdom document. They are the consumer of the bumped dependency and the reason it exists in the tree at all.",
+      "files": [],
+      "badges": [
+        "consumer"
+      ]
+    },
+    {
+      "id": "jsdom",
+      "label": "jsdom",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "test-runtime",
+      "subtitle": "30.0.1 → 30.1.3",
+      "summary": "The DOM emulation layer. The bump pulls a new major of the DOM selector and CSS color stack, drops symbol-tree, and raises the minimum Node engine to ^22.22.2 || ^24.15.0 || >=26.0.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1434,
+          "endLine": 1441
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dom-selector",
+      "label": "@asamuzakjp/dom-selector",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "selector",
+      "subtitle": "8.3.2 → 10.0.5",
+      "summary": "Selector matching engine used by jsdom's querySelector paths. A two-major jump, and the largest single version move in the diff.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 117,
+          "endLine": 118
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "css-color",
+      "label": "@asamuzakjp/css-color",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "selector",
+      "subtitle": "6.0.7 → 7.1.8",
+      "summary": "CSS color resolution for computed styles. Moves a major and drags the @csstools parser/tokenizer family with it.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 114,
+          "endLine": 115
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "csstools",
+      "label": "@csstools css parser family",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "selector",
+      "subtitle": "tokenizer 4.0.1 → 4.0.2, calc/color-parser bumped",
+      "summary": "The CSS tokenizer, parser-algorithms, calc and color-parser packages. All move in lockstep because their peer ranges are pinned to each other.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 166,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "whatwg-url",
+      "label": "whatwg-url",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "url",
+      "subtitle": "17.1.2 → 17.3.0",
+      "summary": "URL implementation behind jsdom's location and anchor handling. The older 16.0.1 copy that data-urls used is gone; everything now resolves to 17.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1933,
+          "endLine": 1934
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "data-urls",
+      "label": "data-urls",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "url",
+      "subtitle": "7.0.0 → 8.0.0",
+      "summary": "Data URL parsing. The major bump is what collapses the duplicate whatwg-url 16.x copy out of the tree.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1300,
+          "endLine": 1301
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tr46",
+      "label": "tr46",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "url",
+      "subtitle": "6.0.0 → 7.0.0",
+      "summary": "IDNA/punycode conversion used by whatwg-url. Major bump, and it raises its own Node engine floor.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1830,
+          "endLine": 1831
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "encoding-helpers",
+      "label": "html-encoding-sniffer / w3c-xmlserializer",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "url",
+      "subtitle": "6.0.0 → 7.0.0 and 5.0.0 → 6.0.0",
+      "summary": "Character-encoding detection and XML serialization. Both take a major bump alongside the URL stack.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1409,
+          "endLine": 1410
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1918,
+          "endLine": 1919
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "undici",
+      "label": "undici",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "jsdom-deps",
+      "group": "network",
+      "subtitle": "8.11.2 → 8.12.3",
+      "summary": "Fetch/HTTP implementation jsdom uses for resource loading. A minor bump within 8.x.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1852,
+          "endLine": 1853
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "symbol-tree",
+      "label": "symbol-tree",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "jsdom-deps",
+      "group": "removed",
+      "subtitle": "3.2.4, dropped",
+      "summary": "Previously a direct jsdom dependency; jsdom 30.1.3 no longer needs it, so the package and its snapshot entry leave the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1803,
+          "endLine": 1803,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-workspace",
+      "label": "pnpm workspace resolver",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "pnpm-lock.yaml",
+      "summary": "Resolves the manifest edit into the concrete dependency graph. Every version change in this diff is its output.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vitest",
+      "label": "Vitest",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "test runner",
+      "summary": "Runs the console-ui suite with jsdom as the environment. Unchanged, but it is the boundary through which the new jsdom reaches the tests.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-ui-package-depends-jsdom",
+      "from": "console-ui-package",
+      "to": "jsdom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 30.1.3",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one line the change is about: the manifest now asks for jsdom 30.1.3 instead of 30.0.1.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 30,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "id": "console-ui-tests-use-jsdom",
+      "from": "console-ui-tests",
+      "to": "jsdom",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test suite renders components into jsdom's document; this is why the bump reaches anything at all.",
+      "files": []
+    },
+    {
+      "id": "vitest-runs-console-ui-tests",
+      "from": "vitest",
+      "to": "console-ui-tests",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Vitest executes the suite with jsdom configured as the environment.",
+      "files": []
+    },
+    {
+      "id": "pnpm-workspace-resolves-console-ui",
+      "from": "pnpm-workspace",
+      "to": "console-ui-package",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workspace reads the manifest and writes the resolved versions into the lockfile.",
+      "files": []
+    },
+    {
+      "id": "jsdom-depends-dom-selector",
+      "from": "jsdom",
+      "to": "dom-selector",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "8.3.2 → 10.0.5",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "jsdom 30.1.3 requires the 10.x selector engine, a two-major move from the 8.x it used before.",
+      "files": []
+    },
+    {
+      "id": "jsdom-depends-css-color",
+      "from": "jsdom",
+      "to": "css-color",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "6.0.7 → 7.1.8",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Computed-style color resolution moves a major.",
+      "files": []
+    },
+    {
+      "id": "css-color-depends-csstools",
+      "from": "css-color",
+      "to": "csstools",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The color parser is built on the @csstools tokenizer and parser-algorithms packages, which move with it.",
+      "files": []
+    },
+    {
+      "id": "jsdom-depends-whatwg-url",
+      "from": "jsdom",
+      "to": "whatwg-url",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "17.1.2 → 17.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "URL handling moves a minor, and the duplicate 16.x copy disappears from the tree.",
+      "files": []
+    },
+    {
+      "id": "data-urls-depends-whatwg-url",
+      "from": "data-urls",
+      "to": "whatwg-url",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "data-urls 8 now resolves to the same whatwg-url 17.3.0 as jsdom, collapsing the duplicate.",
+      "files": []
+    },
+    {
+      "id": "whatwg-url-depends-tr46",
+      "from": "whatwg-url",
+      "to": "tr46",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "6.0.0 → 7.0.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "IDNA conversion moves a major underneath the URL stack.",
+      "files": []
+    },
+    {
+      "id": "jsdom-depends-encoding-helpers",
+      "from": "jsdom",
+      "to": "encoding-helpers",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Encoding sniffing and XML serialization both take a major bump.",
+      "files": []
+    },
+    {
+      "id": "jsdom-depends-undici",
+      "from": "jsdom",
+      "to": "undici",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "8.11.2 → 8.12.3",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Resource loading moves a minor within undici 8.x.",
+      "files": []
+    },
+    {
+      "id": "jsdom-dropped-symbol-tree",
+      "from": "jsdom",
+      "to": "symbol-tree",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer required",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "jsdom 30.1.3 no longer depends on symbol-tree, so it leaves the lockfile entirely.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 101,
+    "deletions": 111,
+    "chips": [
+      {
+        "label": "jsdom",
+        "value": "30.0.1 → 30.1.3",
+        "tone": "modified"
+      },
+      {
+        "label": "Transitive bumps",
+        "value": "13 packages",
+        "tone": "modified"
+      },
+      {
+        "label": "Dropped",
+        "value": "symbol-tree",
+        "tone": "removed"
+      },
+      {
+        "label": "Source changes",
+        "value": "none",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "console-ui-test-stack",
+      "title": "console-ui test stack",
+      "lens": "architecture",
+      "summary": "How the jsdom bump reaches the console-ui tests: manifest → jsdom → its transitive tree, with the workspace resolver and Vitest as the unchanged context.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
