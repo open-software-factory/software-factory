@@ -1,0 +1,226 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-26T00:36:57.006Z",
+  "title": "Bump undici to 8.12.3 in the dsh devcontainer",
+  "summary": "A lockfile-only dependency bump: the `undici` HTTP client pinned inside the `.devcontainer/dsh` npm workspace moves from 8.11.2 to 8.12.3, with its resolved tarball URL and integrity hash updated to match. No source, manifest or runtime wiring changes — the only thing that moves is which undici build the devcontainer installs, so the blast radius is limited to whatever in that container performs HTTP through undici.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "b047fe448d57d63b67041aebf8f2923a4ba6836e",
+      "ref": "b047fe448d57d63b67041aebf8f2923a4ba6836e"
+    },
+    "head": {
+      "sha": "fb506a028c4e4d7adb4806b980417cbb49ca3542",
+      "ref": "fb506a028c4e4d7adb4806b980417cbb49ca3542"
+    },
+    "pullRequest": {
+      "number": 345,
+      "url": "https://github.com/open-software-factory/software-factory/pull/345"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "devcontainer",
+      "label": "dsh devcontainer",
+      "subtitle": "npm workspace under .devcontainer/dsh",
+      "order": 0,
+      "summary": "The container image tooling that installs its own node_modules from this lockfile."
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "subtitle": "registry.npmjs.org",
+      "order": 1,
+      "summary": "Where the pinned tarballs are fetched from at install time."
+    },
+    {
+      "id": "runtime",
+      "label": "Container runtime",
+      "subtitle": "Node >= 22.19.0",
+      "order": 2,
+      "summary": "The Node process inside the container that loads the installed packages."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "dsh-lockfile",
+      "label": "dsh package-lock.json",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "devcontainer",
+      "subtitle": "lockfileVersion 3",
+      "summary": "The npm lockfile for the dsh devcontainer workspace. This change rewrites only the `node_modules/undici` entry: version, resolved URL and integrity hash.",
+      "files": [
+        {
+          "path": ".devcontainer/dsh/package-lock.json",
+          "startLine": 8854,
+          "endLine": 8862
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-workspace",
+      "label": "dsh workspace",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "devcontainer",
+      "subtitle": "package.json + node_modules",
+      "summary": "The devcontainer's npm project. Its dependency graph is unchanged; only the resolved undici artifact differs.",
+      "files": [
+        {
+          "path": ".devcontainer/dsh/package-lock.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "undici-package",
+      "label": "undici",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "devcontainer",
+      "group": "installed-deps",
+      "subtitle": "8.11.2 → 8.12.3",
+      "summary": "The HTTP/1.1 and fetch client library installed into the devcontainer. The bump is a patch-level release; the lockfile now pins 8.12.3 with a new integrity hash.",
+      "files": [
+        {
+          "path": ".devcontainer/dsh/package-lock.json",
+          "startLine": 8856,
+          "endLine": 8862
+        }
+      ],
+      "badges": [
+        "8.12.3"
+      ]
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "npm-registry",
+      "subtitle": "registry.npmjs.org",
+      "summary": "Source of the undici tarball. The resolved URL now points at undici-8.12.3.tgz instead of undici-8.11.2.tgz.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "node-runtime",
+      "label": "Node runtime",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": ">= 22.19.0",
+      "summary": "The Node version the container runs. undici's engine constraint is unchanged by this bump, so the runtime requirement stays the same.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "lockfile-pins-undici",
+      "from": "dsh-lockfile",
+      "to": "undici-package",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "pins 8.12.3",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lockfile entry that this PR rewrites: version, resolved tarball and integrity hash for undici.",
+      "files": [
+        {
+          "path": ".devcontainer/dsh/package-lock.json",
+          "startLine": 8856,
+          "endLine": 8862
+        }
+      ]
+    },
+    {
+      "id": "workspace-installs-from-lockfile",
+      "from": "dsh-workspace",
+      "to": "dsh-lockfile",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "npm install in the devcontainer resolves the dependency tree from this lockfile.",
+      "files": []
+    },
+    {
+      "id": "lockfile-fetches-from-registry",
+      "from": "dsh-lockfile",
+      "to": "npm-registry",
+      "kind": "http",
+      "delta": "modified",
+      "label": "undici-8.12.3.tgz",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The resolved URL the lockfile records for fetching the undici tarball.",
+      "files": [
+        {
+          "path": ".devcontainer/dsh/package-lock.json",
+          "startLine": 8857,
+          "endLine": 8857
+        }
+      ]
+    },
+    {
+      "id": "undici-runs-on-node",
+      "from": "undici-package",
+      "to": "node-runtime",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "node >= 22.19.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "undici's engine constraint, unchanged between 8.11.2 and 8.12.3.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "undici",
+        "value": "8.11.2 → 8.12.3",
+        "tone": "modified"
+      },
+      {
+        "label": "Manifests touched",
+        "value": "lockfile only",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "devcontainer-deps",
+      "title": "Devcontainer dependency resolution",
+      "lens": "architecture",
+      "summary": "How the dsh devcontainer turns its lockfile into an installed undici build.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
