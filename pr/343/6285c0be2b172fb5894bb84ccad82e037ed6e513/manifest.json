@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6285c0be2b172fb5894bb84ccad82e037ed6e513",
+    "contentHash": "9871302b3d097612f644160c0bb8dfd8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "forge-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a69f80580bc3c2f7d5841aaf0472b0db",
+      "bytes": 26948,
+      "width": 1758,
+      "height": 562,
+      "animated": false,
+      "path": "forge-architecture-light-a69f80580bc3c2f7d5841aaf0472b0db.svg"
+    },
+    {
+      "id": "forge-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1261343655d8abfb68fd50f65d1efcb1",
+      "bytes": 27275,
+      "width": 1758,
+      "height": 562,
+      "animated": false,
+      "path": "forge-architecture-dark-1261343655d8abfb68fd50f65d1efcb1.svg"
+    },
+    {
+      "id": "report-step-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "report-step",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6be83dee65538973b53cdc185467b004",
+      "bytes": 13732,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "report-step-light-6be83dee65538973b53cdc185467b004.svg"
+    },
+    {
+      "id": "report-step-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "report-step",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b4eb7f0776f00de649ce41fb97e3895f",
+      "bytes": 13890,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "report-step-dark-b4eb7f0776f00de649ce41fb97e3895f.svg"
+    },
+    {
+      "id": "report-step-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "report-step-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ff01ac59645441253192fd2c5ad955c1",
+      "bytes": 24852,
+      "width": 1981,
+      "height": 907,
+      "animated": true,
+      "path": "report-step-flow-view-light-ff01ac59645441253192fd2c5ad955c1.svg"
+    },
+    {
+      "id": "report-step-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "report-step-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e26ebbd3f88530861eb17497bd9992d5",
+      "bytes": 24996,
+      "width": 1981,
+      "height": 907,
+      "animated": true,
+      "path": "report-step-flow-view-dark-e26ebbd3f88530861eb17497bd9992d5.svg"
+    }
+  ]
+}
