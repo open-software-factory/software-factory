@@ -210,7 +210,7 @@ fn binaries_check() -> Check {
     Check::new(
         "agent-binaries",
         Status::Unknown,
-        "agent binaries and pinned versions are not checked yet; the launch templates are #108",
+        "agent binaries and pinned versions are not checked yet; the agent version pin is not implemented",
         None,
     )
 }

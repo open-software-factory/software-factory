@@ -246,6 +246,68 @@ pub struct AgentsConfig {
     /// The model each named agent runs with, keyed by agent name. An agent
     /// left out uses its own default model.
     pub models: BTreeMap<String, String>,
+    /// Per-agent launch command overrides, keyed by agent name. An agent left
+    /// out runs the command in the one agent list.
+    pub launch: BTreeMap<String, LaunchTemplateConfig>,
+}
+
+/// One agent's launch command and extra environment, set in `[agents.launch.<name>]`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LaunchTemplateConfig {
+    /// The program and its arguments. Replaces the agent's own command.
+    pub command: Vec<String>,
+    /// Extra environment for the run. The agent's credential variables are
+    /// still taken from the one agent list, never from here.
+    pub env: BTreeMap<String, String>,
+}
+
+/// The `[work_tracker]` table of a repository's own `osf.toml`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkTrackerConfig {
+    /// The owner of the GitHub Project.
+    pub owner: String,
+    /// The project's number in its owner's project list.
+    pub project_number: u64,
+    /// The project field that holds the status. Defaults to `Status`.
+    #[serde(default = "default_status_field")]
+    pub status_field: String,
+    /// The status whose items the read leaves out. Defaults to `Done`; an
+    /// empty string reads them too.
+    #[serde(default = "default_skip_status")]
+    pub skip_status: String,
+}
+
+fn default_status_field() -> String {
+    "Status".to_string()
+}
+
+fn default_skip_status() -> String {
+    "Done".to_string()
+}
+
+/// Reads the `[work_tracker]` table of `<root>/osf.toml`, or `None` when
+/// the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[work_tracker]`
+/// table does not match [`WorkTrackerConfig`]'s shape.
+pub fn work_tracker_config(root: &Path) -> Result<Option<WorkTrackerConfig>, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(None);
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(table) = value.get("work_tracker") else {
+        return Ok(None);
+    };
+    table
+        .clone()
+        .try_into()
+        .map(Some)
+        .map_err(|e| ConfigError::new(format!("{}: [work_tracker]: {e}", path.display())))
 }
 
 /// Reads the `[agents]` table of `<root>/osf.toml`, or
@@ -644,13 +706,14 @@ pub fn load(
             let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
-            // `[review]` and `[agents]` are this same file's own tables, read
-            // separately by `review_config` and `agents_config`. Drop them
-            // here so their presence never trips this struct's
-            // `deny_unknown_fields`.
+            // `[review]`, `[agents]` and `[work_tracker]` are this same file's
+            // own tables, read separately by `review_config`, `agents_config`
+            // and `work_tracker_config`. Drop them here so their presence
+            // never trips this struct's `deny_unknown_fields`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
+                table.remove("work_tracker");
             }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
@@ -1732,5 +1795,74 @@ mod tests {
             .expect("osf.toml writes");
         let err = agents_config(&dir).expect_err("an unknown key is refused");
         assert!(err.to_string().contains("reviewer"), "{err}");
+    }
+
+    #[test]
+    fn work_tracker_config_reads_the_owner_project_and_status_field() {
+        let dir = TempDir::new("osf-config-work-tracker");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = work_tracker_config(&dir)
+            .expect("work tracker config loads")
+            .expect("a table");
+        assert_eq!(loaded.owner, "open-software-factory");
+        assert_eq!(loaded.project_number, 7);
+        assert_eq!(loaded.status_field, "Status");
+        assert_eq!(loaded.skip_status, "Done");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\nstatus_field = \"Workflow\"\nskip_status = \"\"\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = work_tracker_config(&dir).expect("loads").expect("a table");
+        assert_eq!(loaded.status_field, "Workflow");
+        assert_eq!(loaded.skip_status, "");
+    }
+
+    #[test]
+    fn a_work_tracker_table_does_not_trip_the_general_config() {
+        let dir = TempDir::new("osf-config-work-tracker-general");
+        let path = dir.join("osf.toml");
+        std::fs::write(
+            &path,
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 7\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = serial_in_dir(&dir, &[], || load(Some(&path), &[], &[], false))
+            .expect("general config loads");
+        assert!(loaded.file.is_some());
+    }
+
+    #[test]
+    fn work_tracker_config_is_none_without_the_table() {
+        let dir = TempDir::new("osf-config-work-tracker-absent");
+        assert!(work_tracker_config(&dir).expect("no table").is_none());
+    }
+
+    #[test]
+    fn an_unknown_work_tracker_field_is_refused() {
+        let dir = TempDir::new("osf-config-work-tracker-unknown");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[work_tracker]\nowner = \"x\"\nproject_number = 1\nstatus = \"Done\"\n",
+        )
+        .expect("osf.toml writes");
+        let err = work_tracker_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("status"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_agents_launch_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-launch-unknown-field");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents.launch.codex]\ncommand = [\"x\"]\ntypo = true\n",
+        )
+        .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown launch key is refused");
+        assert!(err.to_string().contains("typo"), "{err}");
     }
 }
