@@ -40,16 +40,14 @@ builder = "dsh"
 # reviewer's family to differ from the builder's.
 #
 # dsh documents no read-only mode, so it cannot review. The review
-# environment holds OPENAI_API_KEY (passed to codex as CODEX_API_KEY),
-# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each agent's list entry
-# names the only variables its reviewer sees.
-reviewers = ["codex", "claude", "opencode"]
+# environment holds CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each
+# agent's list entry names the only variables its reviewer sees. codex is
+# disabled until its OpenAI key has quota again.
+reviewers = ["claude", "opencode"]
 
 # A model per agent. An agent left out uses its own default model, and dsh
 # and omp take no model flag.
 [agents.models]
-# Probes the API-key path: codex's own default (gpt-6-astra) returned 401
-# against the review environment's key, so name a model the key can use.
-codex = "gpt-6.1-sol"
 claude = "claude-sonnet-5"
-opencode = "openrouter/qwen/qwen3-coder-next"
+# A free model on the opencode provider. It needs no OpenRouter credits.
+opencode = "opencode/glm-5.3-flash-free"

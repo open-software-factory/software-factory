@@ -659,8 +659,8 @@ hosts that job needs. The `build` job names four GitHub hosts:
 names `index.crates.io`, `static.crates.io` and `crates.io`
 for the crates.io registry. The one review job names GitHub and the container registry, and every
 configured provider's host. The current list holds `api.openai.com`,
-`api.anthropic.com`, `openrouter.ai` and `models.opencode.ai`; an enabled
-agent adds its provider's host.
+`api.anthropic.com`, `openrouter.ai`, `opencode.ai`, `api.opencode.ai` and
+`models.opencode.ai`; an enabled agent adds its provider's host.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
@@ -681,11 +681,11 @@ repository's `osf.toml` selects from that list under `[agents]`:
 [agents]
 enabled = ["dsh", "omp", "opencode", "codex", "claude"]
 builder = "dsh"
-reviewers = ["codex", "claude", "opencode"]
+reviewers = ["claude", "opencode"]
 
 [agents.models]
 claude = "claude-sonnet-5"
-opencode = "openrouter/qwen/qwen3-coder-next"
+opencode = "opencode/glm-5.3-flash-free"
 ```
 
 `enabled` defaults to every agent in the list, `builder` to dsh, and
@@ -704,8 +704,10 @@ family.
 | `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only` outside the container, and `--dangerously-bypass-approvals-and-sandbox` inside it; both from `codex exec --help` |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
-| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
+| `opencode` | z-ai, from its model | `opencode/glm-5.3-flash-free` | the free opencode provider, with no OpenRouter credits | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
+
+This repository selects `claude` and `opencode`. `codex` stays enabled but is not a reviewer until its OpenAI key has quota.
 
 A reviewer runs in a read-only mode, and codex inside the review
 container is the one exception: its own sandbox is off there and
