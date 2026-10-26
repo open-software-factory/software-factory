@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6cbeff868b379cdbc827378db476b7a582c96745",
+    "contentHash": "f58767c667c304fcde51a05adad6b3c1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "forge-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44d5e527cd68039ff66fbd20f4383c1c",
+      "bytes": 23070,
+      "width": 1741,
+      "height": 542,
+      "animated": false,
+      "path": "forge-seam-light-44d5e527cd68039ff66fbd20f4383c1c.svg"
+    },
+    {
+      "id": "forge-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dda82bff1d4370096ac6cc735ff213a2",
+      "bytes": 23351,
+      "width": 1741,
+      "height": 542,
+      "animated": false,
+      "path": "forge-seam-dark-dda82bff1d4370096ac6cc735ff213a2.svg"
+    },
+    {
+      "id": "forge-core-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2c7f792fd567098f8747d3cd1e3789d8",
+      "bytes": 12950,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "forge-core-internals-light-2c7f792fd567098f8747d3cd1e3789d8.svg"
+    },
+    {
+      "id": "forge-core-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3868170f9fe0e4b5b4346e4ff483584e",
+      "bytes": 13107,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "forge-core-internals-dark-3868170f9fe0e4b5b4346e4ff483584e.svg"
+    }
+  ]
+}

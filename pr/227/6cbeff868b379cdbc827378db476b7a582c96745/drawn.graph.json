@@ -1,0 +1,530 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-26T00:28:15.567Z",
+  "title": "Provider-neutral Forge seam with a GitHub adapter",
+  "summary": "Introduces a provider-neutral `Forge` trait (branch, pull request, status block, review, check status, head commit, capabilities) plus a pure `report_change` step that runs those calls in one fixed order, an in-memory `FakeForge` double, and a `GitHub` adapter that drives the existing `gh` command line. The `osf` CLI's review-post, status-apply and status-refresh paths now go through the trait instead of calling `gh` directly, and `pr_status` is split into a pure parser (`parse_checks`/`gates_from_checks`) with the process code moved into the adapter.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d3f84149a5ed702fcb302fb290759b47a6e56619",
+      "ref": "d3f84149a5ed702fcb302fb290759b47a6e56619"
+    },
+    "head": {
+      "sha": "6cbeff868b379cdbc827378db476b7a582c96745",
+      "ref": "6cbeff868b379cdbc827378db476b7a582c96745"
+    },
+    "pullRequest": {
+      "number": 227,
+      "url": "https://github.com/open-software-factory/software-factory/pull/227"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "command entry points",
+      "order": 0,
+      "summary": "The binary's subcommands that post reviews and refresh the status block."
+    },
+    {
+      "id": "forge-core",
+      "label": "Forge core",
+      "subtitle": "provider-neutral seam",
+      "order": 1,
+      "summary": "The trait, its data types, the ordered Report step and the in-memory double."
+    },
+    {
+      "id": "adapters",
+      "label": "Adapters",
+      "subtitle": "host implementations",
+      "order": 2,
+      "summary": "The GitHub adapter over the command-line tool, and the pure status parsing it leans on."
+    },
+    {
+      "id": "host",
+      "label": "Code host",
+      "subtitle": "GitHub via gh",
+      "order": 3,
+      "summary": "The external pull request host reached through the installed command-line tool."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-post-cmd",
+      "label": "review post / review run --post-to",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "review_post_cmd, post_run_outcome",
+      "summary": "Builds the review plan, reads the head commit through the forge, and posts through `post_plan`, which now takes a `&dyn Forge` and returns a `PostedReview` or `ForgeError`.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2393,
+          "endLine": 2460
+        },
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 3031,
+          "endLine": 3050
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "status-apply-cmd",
+      "label": "pr status apply",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_apply_cmd",
+      "summary": "Dry run still reads the body through the client; the real path now calls `forge.write_status_block` instead of reading and editing the body itself.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2748,
+          "endLine": 2780
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "status-refresh-cmd",
+      "label": "pr status refresh",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_refresh_cmd",
+      "summary": "Gates now come from `forge.read_check_status` (or a checks JSON file), and the final write goes through `forge.write_status_block`.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2871,
+          "endLine": 2950
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-adapter-factory",
+      "label": "github_adapter()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "the only place that builds GitHub<RealGh>",
+      "summary": "Single construction point for the real adapter, so every command shares one wiring decision.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2539,
+          "endLine": 2542
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "forge-trait",
+      "label": "Forge trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "forge-core",
+      "subtitle": "create_branch, open_pull_request, write_status_block, post_review, read_check_status, head_commit, capabilities",
+      "summary": "The seam between the factory and a code host. Object-safe and Send + Sync; nothing in the module names a provider.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/mod.rs",
+          "startLine": 1,
+          "endLine": 319
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "forge-types",
+      "label": "Forge data types",
+      "kind": "module",
+      "delta": "added",
+      "lane": "forge-core",
+      "group": "types",
+      "subtitle": "PullRequestId, NewReview, PostedReview, ReadOutcome, Capabilities",
+      "summary": "Plain serializable request and result types, including `ReadOutcome` which tells 'found nothing' from 'could not read', and `VerdictCapability`/`ReadCapability` describing what the identity may do.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/mod.rs",
+          "startLine": 10,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "report-change",
+      "label": "report_change",
+      "kind": "function",
+      "delta": "added",
+      "lane": "forge-core",
+      "subtitle": "open PR → status block → capabilities → review → checks",
+      "summary": "Runs the Report step in one fixed order, stopping at the first failed step and naming it. Skips the post when a known verdict list omits the draft verdict; a Comment verdict always posts.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/report.rs",
+          "startLine": 1,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-forge",
+      "label": "FakeForge",
+      "kind": "test",
+      "delta": "added",
+      "lane": "forge-core",
+      "subtitle": "in-memory double, records every call",
+      "summary": "Records each call as plain data, can script per-operation answer sequences and failures, and performs no process, file, network or clock work.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/fake.rs",
+          "startLine": 1,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-adapter",
+      "label": "GitHub<C> adapter",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "impl Forge for GitHub<C: GhClient>",
+      "summary": "Translates each trait method into `gh` invocations through the `GhClient` seam: API POSTs for branch and pull request, body read/apply/edit for the status block, review POST with self-review fallback, and check/login reads for capabilities.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 1,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "real-gh",
+      "label": "RealGh",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapters",
+      "subtitle": "GhClient over the gh process",
+      "summary": "Spawns `gh` with piped stdin/stdout/stderr and returns the raw `GhOutput`; the only place that starts a process for the forge path.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 560,
+          "endLine": 700
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-pure",
+      "label": "pr_status parsing",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "adapters",
+      "subtitle": "parse_checks, gates_from_checks",
+      "summary": "The checks JSON reader is split into a pure `parse_checks` returning triples and `gates_from_checks` building the gate spec; `gates_from_checks_json` remains as a thin wrapper. The process code moved out to the adapter.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 621,
+          "endLine": 690
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-pure",
+      "label": "review plan/fallback",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "adapters",
+      "subtitle": "payload, after_first_attempt, after_fallback_attempt",
+      "summary": "Keeps the pure decision logic for what to send and how to react to a self-review refusal; `fetch_head_sha` and `post_via_gh` are removed, leaving only `fetch_diff` as a host read.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 1,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-host",
+      "label": "GitHub pull request host",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "host",
+      "subtitle": "branches, PRs, reviews, checks",
+      "summary": "The external code host the adapter drives; unchanged by this diff but the target of every forge call.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "review-post-to-forge",
+      "from": "review-post-cmd",
+      "to": "forge-trait",
+      "kind": "call",
+      "delta": "modified",
+      "label": "post_plan(&dyn Forge)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The review post path now hands its plan to the trait instead of shelling out itself.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2640,
+          "endLine": 2680
+        }
+      ]
+    },
+    {
+      "id": "status-apply-to-forge",
+      "from": "status-apply-cmd",
+      "to": "forge-trait",
+      "kind": "call",
+      "delta": "modified",
+      "label": "write_status_block",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The apply command delegates the read-apply-write to the forge.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2760,
+          "endLine": 2780
+        }
+      ]
+    },
+    {
+      "id": "status-refresh-to-forge",
+      "from": "status-refresh-cmd",
+      "to": "forge-trait",
+      "kind": "call",
+      "delta": "modified",
+      "label": "read_check_status, write_status_block",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Refresh reads gates and writes the block through the trait.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2898,
+          "endLine": 2950
+        }
+      ]
+    },
+    {
+      "id": "factory-to-adapter",
+      "from": "github-adapter-factory",
+      "to": "github-adapter",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "GitHub::real()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The single construction point for the real adapter.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2539,
+          "endLine": 2542
+        }
+      ]
+    },
+    {
+      "id": "adapter-impl-forge",
+      "from": "github-adapter",
+      "to": "forge-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Forge",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter is the first implementation of the trait; the trait itself names no provider.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 60,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "report-uses-forge",
+      "from": "report-change",
+      "to": "forge-trait",
+      "kind": "call",
+      "delta": "added",
+      "label": "&dyn Forge",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The ordered Report step drives any Forge implementation.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/report.rs",
+          "startLine": 80,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "fake-impl-forge",
+      "from": "fake-forge",
+      "to": "forge-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Forge",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The in-memory double implements the same trait for tests.",
+      "files": [
+        {
+          "path": "crates/osf/src/forge/fake.rs",
+          "startLine": 180,
+          "endLine": 260
+        }
+      ]
+    },
+    {
+      "id": "adapter-uses-realgh",
+      "from": "github-adapter",
+      "to": "real-gh",
+      "kind": "call",
+      "delta": "added",
+      "label": "GhClient::run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every adapter operation funnels through the client's `run` or its typed read/write helpers.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 60,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "adapter-uses-pr-status",
+      "from": "github-adapter",
+      "to": "pr-status-pure",
+      "kind": "call",
+      "delta": "added",
+      "label": "parse_checks, apply",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter reuses the pure checks parser and the status-block apply function.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 200,
+          "endLine": 260
+        }
+      ]
+    },
+    {
+      "id": "adapter-uses-review",
+      "from": "github-adapter",
+      "to": "review-pure",
+      "kind": "call",
+      "delta": "added",
+      "label": "payload, after_first_attempt",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter reuses the pure review payload and fallback decision logic.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 120,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "realgh-to-host",
+      "from": "real-gh",
+      "to": "github-host",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "gh api / pr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The command-line tool talks to the host; unchanged protocol, now reached only through the adapter.",
+      "files": [
+        {
+          "path": "crates/osf/src/github.rs",
+          "startLine": 560,
+          "endLine": 700
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 4656,
+    "deletions": 291,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "forge-seam",
+      "title": "Forge seam: CLI → trait → adapter → host",
+      "lens": "architecture",
+      "summary": "The changed call paths and the new provider-neutral seam they now cross.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "forge-core-internals",
+      "title": "Forge core internals",
+      "lens": "architecture",
+      "summary": "How the trait, its types, the ordered Report step and the two implementations relate.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "forge-trait",
+          "forge-types",
+          "report-change",
+          "fake-forge",
+          "github-adapter",
+          "pr-status-pure",
+          "review-pure"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
