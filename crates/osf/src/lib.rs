@@ -51,3 +51,4 @@ mod test_support;
 pub mod verify;
 pub mod work_item;
 pub mod work_tracker;
+pub mod work_tracker_command;
