@@ -286,7 +286,7 @@ osf doctor --check hooks
 
 It checks the osf version against `.osf/version`, that the settings load, the enabled agents and their credentials, the git hooks, and whether you are inside the factory image. It exits non-zero when a check fails.
 
-Agent binaries and pinned versions are reported as unknown until the launch templates land. That is deliberate, not a pass.
+Agent binaries and pinned versions are reported as unknown until the agent version pin lands. That is deliberate, not a pass.
 
 ## Read and report a work item
 
@@ -772,6 +772,28 @@ To write each enabled agent's stop and prompt hook settings, run
 `osf hooks install --agents --root <dir>`. It writes one settings file
 per enabled agent under `<dir>`, from the same list, and replaces a file
 already there.
+
+### Change a reviewer's launch command
+
+`[agents.launch.<name>]` replaces the agent's command and adds environment for a run:
+
+```toml
+# One entry per agent, keyed by a name from `osf agents list`.
+[agents.launch."example-agent"]
+command = ["example-agent", "exec", "-"]
+env = { EXAMPLE_HOME = "/opt/example" }
+```
+
+Replace `example-agent` with a name from `osf agents list`.
+
+The name must be in the one agent list and enabled, and the command must not be empty. The program token must not be blank. The command must keep the agent's output and schema contract, because the review reads the answer and validates it. The environment is for non-secret settings. A known provider credential variable is refused in any letter case. Credentials are passed in the environment, never committed in `osf.toml`. The reviewer flags, read-only mode, schema flag and model flag still come from the agent's entry in `crates/osf/src/agents.rs`. The agent's credential still comes from its `credential_env` entry. The override is data, so an adopter can change the command without forking osf.
+
+Only a reviewer run uses the override today. The builder platform and the effective command in `osf agents list` follow.
+
+The launch table must come from trusted content. `osf review run` reads it from `--config-root`, which must point at the base branch, not the change under review.
+
+This slice changes an existing agent's command. Adding a new agent still needs an entry in the agent list.
+
 ### The builder's own family is left out
 
 A reviewer from the same family as the change's own builder is not an
