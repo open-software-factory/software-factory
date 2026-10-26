@@ -1,0 +1,338 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-26T12:10:51.665Z",
+  "title": "Linked references may carry their label after the link",
+  "summary": "The `reference-without-label` writing lint previously only accepted a bracketed description sitting immediately after the reference text, so a reference wrapped in a Markdown link — the form the rule itself recommends — was flagged unless the label lived inside the link text. This change widens the check: a label directly after the link's closing bracket now counts too. The link spans are collected as whole-match ranges instead of capture group 1, and each reference is matched against the span that contains it so the text after the span's end can be inspected. Two tests pin the new pass case and confirm a bare linked reference still fails.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "8f73d6e9164c3b0459a3951be47f48d5b81b64ab",
+      "ref": "8f73d6e9164c3b0459a3951be47f48d5b81b64ab"
+    },
+    "head": {
+      "sha": "d13a3963db0a2985f733baf2a8cf3e5e8534815b",
+      "ref": "d13a3963db0a2985f733baf2a8cf3e5e8534815b"
+    },
+    "pullRequest": {
+      "number": 347,
+      "url": "https://github.com/open-software-factory/software-factory/pull/347"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "lint-rules",
+      "label": "Writing lint rules",
+      "subtitle": "crates/osf/src/lints/writing",
+      "order": 0,
+      "summary": "The rule functions that scan a text unit and emit findings."
+    },
+    {
+      "id": "rule-metadata",
+      "label": "Rule metadata",
+      "subtitle": "RULE_META table",
+      "order": 1,
+      "summary": "Static descriptions of each rule, rendered as documentation."
+    },
+    {
+      "id": "lint-tests",
+      "label": "Lint tests",
+      "subtitle": "mod tests",
+      "order": 2,
+      "summary": "Unit tests that drive the rule functions over sample prose."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "reference-without-label",
+      "label": "reference_without_label",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint-rules",
+      "subtitle": "fn(&TextUnit, &WritingConfig) -> Vec<Finding>",
+      "summary": "The rule under change. It masks code spans, collects Markdown link spans, then walks every `owner/repo#N` or `repo#N` occurrence. A reference now counts as labelled if a `(` follows either the reference itself or the end of the link span that contains it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 152,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "link-span-collection",
+      "label": "link span collection",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint-rules",
+      "group": "reference-without-label",
+      "summary": "Previously captured group 1 of the link regex, which is the link text only. Now uses `find_iter` so each span covers the whole `[text](url)` match, which is what makes the closing bracket's position available to the label check.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 169,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "label-check",
+      "label": "label check",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint-rules",
+      "group": "reference-without-label",
+      "summary": "The `labelled` predicate. It keeps the original `rest.trim_start().starts_with('(')` test on the text after the reference, and ORs in the same test applied to the text after the containing link span's end.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 176,
+          "endLine": 184
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "mask-ranges",
+      "label": "mask_ranges",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "lint-rules",
+      "subtitle": "fn(&str, &[Range<usize>]) -> String",
+      "summary": "Blanks out inline code spans before matching, so references inside backticks are never judged. Untouched by this change but on the path every reference takes.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 152
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "finding",
+      "label": "finding",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "lint-rules",
+      "subtitle": "builds a Finding at a span",
+      "summary": "Constructs the emitted finding for an unlabelled reference. Called only when `labelled` is false, so the widened predicate directly reduces how often it runs.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-meta",
+      "label": "RULE_META",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "rule-metadata",
+      "subtitle": "&[RuleMeta]",
+      "summary": "The static rule table. The `reference-without-label` entry's \"What it does\" prose now says the description may also sit right after the Markdown link that wraps the reference, matching the new behaviour.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 78,
+          "endLine": 86
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "linked-label-test",
+      "label": "a_linked_reference_with_a_label_after_the_link_passes",
+      "kind": "test",
+      "delta": "added",
+      "lane": "lint-tests",
+      "summary": "New test asserting no findings for an issue link and a pull request link each followed by `(the label)`.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 218,
+          "endLine": 236
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "linked-no-label-test",
+      "label": "a_linked_reference_without_a_label_still_fails",
+      "kind": "test",
+      "delta": "added",
+      "lane": "lint-tests",
+      "summary": "New test asserting a linked reference with nothing after the closing bracket still yields `reference-without-label`, guarding against the rule being weakened into a no-op.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 238,
+          "endLine": 247
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rules-of-helper",
+      "label": "rules_of",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "lint-tests",
+      "subtitle": "fn(&str) -> Vec<&str>",
+      "summary": "Test helper that runs the writing rules over a string and returns the fired rule names. Both new tests go through it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "rule-calls-mask",
+      "from": "reference-without-label",
+      "to": "mask-ranges",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Code spans are masked before any reference matching.",
+      "files": []
+    },
+    {
+      "id": "rule-collects-spans",
+      "from": "reference-without-label",
+      "to": "link-span-collection",
+      "kind": "call",
+      "delta": "modified",
+      "label": "whole-match spans",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The rule now takes whole `[text](url)` ranges rather than the link text alone, which is the enabling change for the new label position.",
+      "files": []
+    },
+    {
+      "id": "rule-runs-label-check",
+      "from": "reference-without-label",
+      "to": "label-check",
+      "kind": "call",
+      "delta": "modified",
+      "label": "labelled?",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each reference is tested against both the text after itself and the text after its containing link span.",
+      "files": []
+    },
+    {
+      "id": "label-check-reads-spans",
+      "from": "label-check",
+      "to": "link-span-collection",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The predicate needs the span end to look past the closing bracket.",
+      "files": []
+    },
+    {
+      "id": "rule-emits-finding",
+      "from": "reference-without-label",
+      "to": "finding",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Emitted only for references that remain unlabelled.",
+      "files": []
+    },
+    {
+      "id": "meta-describes-rule",
+      "from": "rule-meta",
+      "to": "reference-without-label",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "documents",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The rule's documentation entry is updated to describe the accepted label positions.",
+      "files": []
+    },
+    {
+      "id": "test-linked-label",
+      "from": "linked-label-test",
+      "to": "rules-of-helper",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "test-linked-no-label",
+      "from": "linked-no-label-test",
+      "to": "rules-of-helper",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "helper-drives-rule",
+      "from": "rules-of-helper",
+      "to": "reference-without-label",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The helper invokes the rule set, so both new tests exercise the modified predicate end to end.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 46,
+    "deletions": 12,
+    "chips": [
+      {
+        "label": "Label positions accepted",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "New tests",
+        "value": "2",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "writing-lint-architecture",
+      "title": "Writing lint: rule, metadata and tests",
+      "lens": "architecture",
+      "summary": "The three files in the change and the unchanged neighbours they touch.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}

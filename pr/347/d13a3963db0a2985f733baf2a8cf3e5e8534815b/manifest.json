@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "d13a3963db0a2985f733baf2a8cf3e5e8534815b",
+    "contentHash": "052a1e67129d789037795a93639b15f8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "writing-lint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-lint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b56e9682365f36998597aa03c3abfdf2",
+      "bytes": 14487,
+      "width": 1312,
+      "height": 740,
+      "animated": false,
+      "path": "writing-lint-architecture-light-b56e9682365f36998597aa03c3abfdf2.svg"
+    },
+    {
+      "id": "writing-lint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-lint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "65b65c32827040ddf55c6f9dbd563a6f",
+      "bytes": 14657,
+      "width": 1312,
+      "height": 740,
+      "animated": false,
+      "path": "writing-lint-architecture-dark-65b65c32827040ddf55c6f9dbd563a6f.svg"
+    }
+  ]
+}
