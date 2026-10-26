@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7fdf322fe5c5fecc691f765657f7c88893f39a3b",
+    "contentHash": "44ebddd81aba4e8a1223676c4eb97df3"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "work-tracker-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-tracker-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "73a7b696a78b64daa86963de396f60f6",
+      "bytes": 25595,
+      "width": 2235,
+      "height": 884,
+      "animated": false,
+      "path": "work-tracker-context-light-73a7b696a78b64daa86963de396f60f6.svg"
+    },
+    {
+      "id": "work-tracker-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-tracker-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4b0fedd8f3c2b35ccf59a6b65dceda4c",
+      "bytes": 25851,
+      "width": 2235,
+      "height": 884,
+      "animated": false,
+      "path": "work-tracker-context-dark-4b0fedd8f3c2b35ccf59a6b65dceda4c.svg"
+    },
+    {
+      "id": "work-tracker-command-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-tracker-command-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "38565b090c5cd79a99444d434fd2c28f",
+      "bytes": 16060,
+      "width": 1397,
+      "height": 428,
+      "animated": false,
+      "path": "work-tracker-command-components-light-38565b090c5cd79a99444d434fd2c28f.svg"
+    },
+    {
+      "id": "work-tracker-command-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-tracker-command-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4c24c554b51e0159bdc56cbf00df636d",
+      "bytes": 16204,
+      "width": 1397,
+      "height": 428,
+      "animated": false,
+      "path": "work-tracker-command-components-dark-4c24c554b51e0159bdc56cbf00df636d.svg"
+    },
+    {
+      "id": "ready-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "ready-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc4655b2b6db12f14b65b82de5ef99cb",
+      "bytes": 19116,
+      "width": 3658,
+      "height": 543,
+      "animated": true,
+      "path": "ready-flow-view-light-bc4655b2b6db12f14b65b82de5ef99cb.svg"
+    },
+    {
+      "id": "ready-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "ready-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c3e0fb2a69a669ea02ca9889cdb2787e",
+      "bytes": 19305,
+      "width": 3658,
+      "height": 543,
+      "animated": true,
+      "path": "ready-flow-view-dark-c3e0fb2a69a669ea02ca9889cdb2787e.svg"
+    },
+    {
+      "id": "report-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "26f74612ee4d10595275dd071a85b694",
+      "bytes": 19377,
+      "width": 3504,
+      "height": 543,
+      "animated": true,
+      "path": "report-flow-view-light-26f74612ee4d10595275dd071a85b694.svg"
+    },
+    {
+      "id": "report-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "351a245f8331503128b78db1704cbb5b",
+      "bytes": 19577,
+      "width": 3504,
+      "height": 543,
+      "animated": true,
+      "path": "report-flow-view-dark-351a245f8331503128b78db1704cbb5b.svg"
+    }
+  ]
+}

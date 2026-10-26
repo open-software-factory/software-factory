@@ -1,0 +1,910 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-26T00:24:30.527Z",
+  "title": "osf work-tracker command group",
+  "summary": "Adds an `osf work-tracker` CLI group with two subcommands: `ready` reads the single GitHub Project item whose status is Ready, and `report` writes a state (in-progress, in-review, failed, blocked+cause) plus a recap file back to one item. A new `[work_tracker]` table in `osf.toml` (owner, project_number, status_field, skip_status) configures the GitHub adapter; the general config loader now strips that table so it does not trip `deny_unknown_fields`. The command layer is thin: it parses arguments, builds a real `GitHubWorkTracker` over the `gh` CLI, and delegates to the existing `work_tracker::ready::pick` and `work_tracker::report::finish_run`.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d3f84149a5ed702fcb302fb290759b47a6e56619",
+      "ref": "d3f84149a5ed702fcb302fb290759b47a6e56619"
+    },
+    "head": {
+      "sha": "7fdf322fe5c5fecc691f765657f7c88893f39a3b",
+      "ref": "7fdf322fe5c5fecc691f765657f7c88893f39a3b"
+    },
+    "pullRequest": {
+      "number": 342,
+      "url": "https://github.com/open-software-factory/software-factory/pull/342"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI surface",
+      "subtitle": "crates/osf/src/main.rs",
+      "order": 0,
+      "summary": "Argument parsing and exit-code mapping for the new subcommand group."
+    },
+    {
+      "id": "command",
+      "label": "Command logic",
+      "subtitle": "work_tracker_command",
+      "order": 1,
+      "summary": "Builds the adapter from config, validates state/cause and item id, delegates reads and writes."
+    },
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml",
+      "order": 2,
+      "summary": "The repository's own osf.toml, including the new [work_tracker] table."
+    },
+    {
+      "id": "tracker",
+      "label": "Work tracker core",
+      "subtitle": "work_tracker + github_work_tracker",
+      "order": 3,
+      "summary": "Existing ready-pick and report logic, and the GitHub adapter that talks to the project."
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "GitHub",
+      "order": 4,
+      "summary": "The GitHub Project board and the gh CLI that reaches it."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-main",
+      "label": "osf main",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "Command::WorkTracker",
+      "summary": "Adds the WorkTracker command variant, its Ready/Report subcommands and argument structs, and dispatches to work_tracker_cmd. Maps usage errors to exit 2, tracker failures to exit 1, and an Unknown pick to exit 1 with a reason on stderr.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 138,
+          "endLine": 188
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-tracker-cmd",
+      "label": "work_tracker_cmd",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "fn work_tracker_cmd(&WorkTrackerAction) -> ExitCode",
+      "summary": "Resolves the repo root, enforces --limit 1, prints the pick as JSON or text, and for report reads the recap file, rejects an empty recap, then calls into the command module.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 985,
+          "endLine": 1080
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "print-pick",
+      "label": "print_pick",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "fn print_pick(&Pick)",
+      "summary": "Renders the four Pick variants as one line each for --format text.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1082,
+          "endLine": 1092
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "wt-command-module",
+      "label": "work_tracker_command",
+      "kind": "module",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "crates/osf/src/work_tracker_command.rs",
+      "summary": "New library module exposing tracker, ready, report, parse_state and work_item. Holds the glue between CLI arguments and the tracker core, and is registered in lib.rs.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 1,
+          "endLine": 100
+        },
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 52,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adapter-config",
+      "label": "adapter_config",
+      "kind": "function",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "fn adapter_config(&Path) -> Result<GitHubWorkTrackerConfig, String>",
+      "summary": "Reads [work_tracker] from osf.toml, errors when the table is absent, and maps status_field and an empty skip_status onto the GitHub adapter config.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 13,
+          "endLine": 29
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "parse-state",
+      "label": "parse_state",
+      "kind": "function",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "fn parse_state(&str, Option<&str>) -> Result<WorkState, String>",
+      "summary": "Validates the four writable states, requires --cause only for blocked, and maps the five blocked causes. Rejects unknown states before looking at the cause.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 60,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-parse",
+      "label": "work_item",
+      "kind": "function",
+      "delta": "added",
+      "lane": "command",
+      "subtitle": "fn work_item(&str) -> Result<WorkItemId, String>",
+      "summary": "Parses a provider-qualified id such as github:owner/repo#42 via WorkItemId::from_str.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 97,
+          "endLine": 101
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "wt-config",
+      "label": "WorkTrackerConfig",
+      "kind": "config",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "owner, project_number, status_field, skip_status",
+      "summary": "New serde struct for the [work_tracker] table with deny_unknown_fields and defaults Status / Done. Read by work_tracker_config, which returns None when the file or table is absent.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 265,
+          "endLine": 316
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-load",
+      "label": "config::load",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "layered osf.toml loader",
+      "summary": "Now also removes the work_tracker table before merging the file layer, alongside review and agents, so the new table never trips the general struct's deny_unknown_fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 706,
+          "endLine": 720
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ready-pick",
+      "label": "ready::pick",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "fn pick(&GitHubWorkTracker) -> Pick",
+      "summary": "Existing read path: returns Item, NothingReady, NoneDispatchable or Unknown. The new command only wraps it.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 38,
+          "endLine": 41
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "finish-run",
+      "label": "report::finish_run",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "fn finish_run(&tracker, id, state, recap)",
+      "summary": "Existing write path: writes the state and then the recap. The new command validates the recap and delegates here.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 50,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-tracker",
+      "label": "GitHubWorkTracker",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "tracker",
+      "subtitle": "GitHubWorkTracker<RealGhRunner>",
+      "summary": "The adapter built by tracker(root) from the mapped config; all GitHub traffic goes through it.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 31,
+          "endLine": 35
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-cli",
+      "label": "gh CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "RealGhRunner",
+      "summary": "Shells out to the GitHub CLI. Reads work without a token; writes need GH_TOKEN or GITHUB_TOKEN from the builder app.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 288,
+          "endLine": 312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-project",
+      "label": "GitHub Project board",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "owner / project_number",
+      "summary": "The project whose Status field drives Ready selection and whose items receive state and recap writes.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "main-to-cmd",
+      "from": "osf-main",
+      "to": "work-tracker-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "dispatch",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 985,
+          "endLine": 986
+        }
+      ]
+    },
+    {
+      "id": "cmd-to-print",
+      "from": "work-tracker-cmd",
+      "to": "print-pick",
+      "kind": "call",
+      "delta": "added",
+      "label": "--format text",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1000,
+          "endLine": 1010
+        }
+      ]
+    },
+    {
+      "id": "cmd-to-module",
+      "from": "work-tracker-cmd",
+      "to": "wt-command-module",
+      "kind": "call",
+      "delta": "added",
+      "label": "ready / report / parse_state / work_item",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1012,
+          "endLine": 1078
+        }
+      ]
+    },
+    {
+      "id": "module-to-adapter-config",
+      "from": "wt-command-module",
+      "to": "adapter-config",
+      "kind": "call",
+      "delta": "added",
+      "label": "tracker(root)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "adapter-config-to-wt-config",
+      "from": "adapter-config",
+      "to": "wt-config",
+      "kind": "data",
+      "delta": "added",
+      "label": "work_tracker_config(root)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 14,
+          "endLine": 16
+        }
+      ]
+    },
+    {
+      "id": "module-to-parse-state",
+      "from": "wt-command-module",
+      "to": "parse-state",
+      "kind": "call",
+      "delta": "added",
+      "label": "report",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "module-to-work-item",
+      "from": "wt-command-module",
+      "to": "work-item-parse",
+      "kind": "call",
+      "delta": "added",
+      "label": "report",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "module-to-github-tracker",
+      "from": "wt-command-module",
+      "to": "github-tracker",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "GitHubWorkTracker::real",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 31,
+          "endLine": 35
+        }
+      ]
+    },
+    {
+      "id": "module-to-ready-pick",
+      "from": "wt-command-module",
+      "to": "ready-pick",
+      "kind": "call",
+      "delta": "added",
+      "label": "ready::pick",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 38,
+          "endLine": 41
+        }
+      ]
+    },
+    {
+      "id": "module-to-finish-run",
+      "from": "wt-command-module",
+      "to": "finish-run",
+      "kind": "call",
+      "delta": "added",
+      "label": "finish_run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_tracker_command.rs",
+          "startLine": 50,
+          "endLine": 56
+        }
+      ]
+    },
+    {
+      "id": "ready-pick-to-github-tracker",
+      "from": "ready-pick",
+      "to": "github-tracker",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "read items",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "finish-run-to-github-tracker",
+      "from": "finish-run",
+      "to": "github-tracker",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "write state, recap",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "github-tracker-to-gh-cli",
+      "from": "github-tracker",
+      "to": "gh-cli",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "gh invocations",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "gh-cli-to-github-project",
+      "from": "gh-cli",
+      "to": "github-project",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "GraphQL / REST",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "config-load-to-wt-config",
+      "from": "config-load",
+      "to": "wt-config",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "strips work_tracker table",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 712,
+          "endLine": 718
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "ready-flow",
+      "title": "osf work-tracker ready",
+      "summary": "Reads the one Ready item from the configured GitHub Project and prints it.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-main"
+        },
+        {
+          "node": "work-tracker-cmd"
+        },
+        {
+          "node": "wt-command-module"
+        },
+        {
+          "node": "adapter-config"
+        },
+        {
+          "node": "github-tracker"
+        },
+        {
+          "node": "ready-pick"
+        },
+        {
+          "node": "gh-cli"
+        }
+      ],
+      "messages": [
+        {
+          "id": "ready-1",
+          "from": "osf-main",
+          "to": "work-tracker-cmd",
+          "label": "WorkTrackerAction::Ready",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 985,
+              "endLine": 986
+            }
+          ]
+        },
+        {
+          "id": "ready-2",
+          "from": "work-tracker-cmd",
+          "to": "wt-command-module",
+          "label": "ready(&root)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1012,
+              "endLine": 1013
+            }
+          ]
+        },
+        {
+          "id": "ready-3",
+          "from": "wt-command-module",
+          "to": "adapter-config",
+          "label": "tracker(root)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ready-4",
+          "from": "adapter-config",
+          "to": "adapter-config",
+          "label": "read [work_tracker] from osf.toml",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_tracker_command.rs",
+              "startLine": 14,
+              "endLine": 16
+            }
+          ]
+        },
+        {
+          "id": "ready-5",
+          "from": "wt-command-module",
+          "to": "github-tracker",
+          "label": "GitHubWorkTracker::real(config)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ready-6",
+          "from": "wt-command-module",
+          "to": "ready-pick",
+          "label": "ready::pick(&tracker)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_tracker_command.rs",
+              "startLine": 38,
+              "endLine": 41
+            }
+          ]
+        },
+        {
+          "id": "ready-7",
+          "from": "ready-pick",
+          "to": "gh-cli",
+          "label": "list project items",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ready-8",
+          "from": "ready-pick",
+          "to": "wt-command-module",
+          "label": "Pick::Item / NothingReady / NoneDispatchable / Unknown",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ready-9",
+          "from": "wt-command-module",
+          "to": "work-tracker-cmd",
+          "label": "Pick",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ready-10",
+          "from": "work-tracker-cmd",
+          "to": "osf-main",
+          "label": "print JSON or text; exit 0, or 1 on Unknown",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "report-flow",
+      "title": "osf work-tracker report",
+      "summary": "Validates the state, cause, item id and recap, then writes the state and recap to the item.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-main"
+        },
+        {
+          "node": "work-tracker-cmd"
+        },
+        {
+          "node": "wt-command-module"
+        },
+        {
+          "node": "parse-state"
+        },
+        {
+          "node": "work-item-parse"
+        },
+        {
+          "node": "finish-run"
+        },
+        {
+          "node": "gh-cli"
+        }
+      ],
+      "messages": [
+        {
+          "id": "report-1",
+          "from": "osf-main",
+          "to": "work-tracker-cmd",
+          "label": "WorkTrackerAction::Report",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-2",
+          "from": "work-tracker-cmd",
+          "to": "wt-command-module",
+          "label": "parse_state(--state, --cause)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1030,
+              "endLine": 1040
+            }
+          ]
+        },
+        {
+          "id": "report-3",
+          "from": "wt-command-module",
+          "to": "parse-state",
+          "label": "validate state and cause",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-4",
+          "from": "wt-command-module",
+          "to": "work-item-parse",
+          "label": "work_item(&args.item)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-5",
+          "from": "work-tracker-cmd",
+          "to": "work-tracker-cmd",
+          "label": "read recap file, reject empty",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1045,
+              "endLine": 1060
+            }
+          ]
+        },
+        {
+          "id": "report-6",
+          "from": "work-tracker-cmd",
+          "to": "wt-command-module",
+          "label": "report(&root, &id, &state, &recap)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-7",
+          "from": "wt-command-module",
+          "to": "finish-run",
+          "label": "finish_run(&tracker, id, state, recap)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_tracker_command.rs",
+              "startLine": 50,
+              "endLine": 56
+            }
+          ]
+        },
+        {
+          "id": "report-8",
+          "from": "finish-run",
+          "to": "gh-cli",
+          "label": "write state, then recap",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-9",
+          "from": "finish-run",
+          "to": "work-tracker-cmd",
+          "label": "Ok / Err",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report-10",
+          "from": "work-tracker-cmd",
+          "to": "osf-main",
+          "label": "reported <id>; exit 0, 1 or 2",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 540,
+    "deletions": 4,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "work-tracker-context",
+      "title": "Work-tracker command in context",
+      "lens": "architecture",
+      "summary": "The new CLI group, its command module, the config table it reads, and the unchanged tracker core and GitHub boundary it drives.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "work-tracker-command-components",
+      "title": "Inside work_tracker_command",
+      "lens": "architecture",
+      "summary": "The module's own functions and what each one hands to the tracker core.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "wt-command-module",
+          "adapter-config",
+          "parse-state",
+          "work-item-parse",
+          "wt-config",
+          "github-tracker",
+          "ready-pick",
+          "finish-run"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "ready-flow-view",
+          "title": "Ready read sequence",
+          "lens": "data-flow",
+          "summary": "How a ready read travels from the CLI to the project board.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "ready-flow"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "report-flow-view",
+          "title": "Report write sequence",
+          "lens": "data-flow",
+          "summary": "How a report validates its inputs and writes state and recap.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "report-flow"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
