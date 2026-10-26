@@ -1,7 +1,13 @@
 ---
 name: develop
 description: Use when a caller provides one work item reference and one run id for a develop job in a supplied sandbox. Take the item to stacked pull requests and stop at open pull requests.
+metadata:
+  author: "opensoftwarefactory-builder[bot] <329802634+opensoftwarefactory-builder[bot]@users.noreply.github.com>"
 ---
+
+# Develop one provided work item
+
+## Inputs
 
 You are the builder for one develop job. The caller has started the sandbox and the journal run and has given you:
 
@@ -9,6 +15,8 @@ You are the builder for one develop job. The caller has started the sandbox and 
 - the run id.
 
 If the work item reference is missing, stop and say `work item not provided`. If the run id is missing, stop and say `run id not provided`. Do not pick a work item, do not start a run, and do not start a sandbox.
+
+## Instructions
 
 1. **Read the work item and the repository.** Read the item and the repository rules. The caller may provide the item body. Otherwise, read it from the reference with the tracker's code host. Keep the item title and body for the review input and the recap.
 2. **Plan the stack.** Before changing code, decide the reviewable logical slices of the item. Each slice becomes one pull request. Order the slices. Read `[develop] max_files` (default 15) and `max_changed_lines` (default 700) in `osf.toml`. Split any slice that would exceed either limit.
@@ -20,5 +28,7 @@ If the work item reference is missing, stop and say `work item not provided`. If
 8. **Open the stacked pull requests.** Follow the repository's `.github/PULL_REQUEST_TEMPLATE.md` and the `opening-a-pull-request` skill for the title, body and generated blocks. Do not change them. Each pull request links the work item, its parent pull request or base, its slice, and the verify, review and risk evidence. Open each slice with `osf forge pr open --head <branch> --base <parent> --title <title> --body <body> --work-item <item>`, in stack order. The first base is the repository's default branch. Each next base is its parent branch. If an adopter removed the template or skill, write the same fields directly.
 9. **Report and complete.** Write the recap: what changed, the checks and reviews, their evidence, and the open pull requests. Run `osf work-tracker report <item> --state in-review --recap <recap file>`. Then run `osf run complete --run <run id> --outcome completed --summary "<one-line summary>"`. Stop at the open pull requests.
 10. **Stop on a hard stop.** Stop when you cannot continue: an unmet dependency, an ambiguous requirement, or a git/forge failure that retries cannot fix. Write the recap and run `osf work-tracker report <item> --state blocked --cause <cause> --recap <recap file>`, with a cause from `dependency`, `human`, `clarification`, `ambiguous` or `capacity`. Then run `osf run complete --run <run id> --outcome blocked --summary "<one-line summary>"` and stop. When the job cannot produce a change at all, report the work item `failed` and complete the run with `failed`.
+
+## Rules
 
 The osf commands append the journal events. Do not write the journal by hand. Do not merge a pull request. Do not start a run or a sandbox. Use the osf command for each fixed step. Reading the work item is the one read the caller may supply.
