@@ -288,6 +288,28 @@ It checks the osf version against `.osf/version`, that the settings load, the en
 
 Agent binaries and pinned versions are reported as unknown until the agent version pin lands. That is deliberate, not a pass.
 
+## Read and report a work item
+
+The develop job reads one item with the 'Ready' status and writes its state and recap. Configure the GitHub Project in `osf.toml`:
+
+```toml
+[work_tracker]
+owner = "open-software-factory"
+project_number = 4
+# status_field = "Status"
+# skip_status = "Done"
+```
+
+The Status field needs the 'Ready' status option, plus In progress, In review, Blocked, Failed and Done. `skip_status` defaults to `Done`. Set it to an empty string to read Done items too.
+
+```sh
+osf work-tracker ready --limit 1 --format json
+osf work-tracker report <item> --state in-review --recap recap.md
+osf work-tracker report <item> --state blocked --cause human --recap recap.md
+```
+
+Reads use the GitHub CLI. A write needs `GH_TOKEN` or `GITHUB_TOKEN`, and it must be the builder app's token, never a person's login. Without a token, a write is refused and a read still works. The app's token must also be able to read the project. A project the app cannot see makes `ready` report unknown. Grant the app access to the board before the first job. The item id is provider-qualified. In `--format json` the id is the `provider`, `repo` and `item` fields. The report command takes `github:owner/repo#N`. The develop skill uses these commands.
+
 ## Lint a file right after your agent writes it
 
 `osf hook post-tool` runs the hook checkpoint on one file, right after a
