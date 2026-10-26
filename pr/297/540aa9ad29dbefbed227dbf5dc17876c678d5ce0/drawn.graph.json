@@ -1,0 +1,305 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-26T00:37:36.100Z",
+  "title": "tree-sitter 0.27.1 pin bump in osf",
+  "summary": "A dependency-only change: the osf crate's exact pin on tree-sitter moves from 0.27.0 to 0.27.1, which drags tree-sitter-language from 0.1.8 to 0.1.9 in the lockfile. No source code changes; the grammar crates (tree-sitter-rust) and every consumer of the parser keep their existing call sites, so the blast radius is the osf crate's parsing surface and the lockfile entries that resolve it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "b047fe448d57d63b67041aebf8f2923a4ba6836e",
+      "ref": "b047fe448d57d63b67041aebf8f2923a4ba6836e"
+    },
+    "head": {
+      "sha": "540aa9ad29dbefbed227dbf5dc17876c678d5ce0",
+      "ref": "540aa9ad29dbefbed227dbf5dc17876c678d5ce0"
+    },
+    "pullRequest": {
+      "number": 297,
+      "url": "https://github.com/open-software-factory/software-factory/pull/297"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace manifests",
+      "subtitle": "Cargo.toml / Cargo.lock",
+      "order": 0,
+      "summary": "Where the version pin and the resolved lockfile entries live."
+    },
+    {
+      "id": "parser-deps",
+      "label": "Parser dependencies",
+      "subtitle": "crates.io crates",
+      "order": 1,
+      "summary": "The tree-sitter runtime and language crates pulled in by the pin."
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "crates/osf",
+      "order": 2,
+      "summary": "The crate that consumes the parser runtime."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-manifest",
+      "label": "crates/osf/Cargo.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "tree-sitter = \"=0.27.1\"",
+      "summary": "The only authored change: the exact-version pin on tree-sitter moves from 0.27.0 to 0.27.1.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "resolved versions + checksums",
+      "summary": "Lockfile re-resolves tree-sitter to 0.27.1 and tree-sitter-language to 0.1.9, updating both checksums.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1801,
+          "endLine": 1820
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter",
+      "label": "tree-sitter",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "parser-deps",
+      "subtitle": "0.27.0 → 0.27.1",
+      "summary": "The parser runtime crate. Patch bump only; its dependency list (cc, regex, …) is unchanged.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1801,
+          "endLine": 1811
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-language",
+      "label": "tree-sitter-language",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "parser-deps",
+      "subtitle": "0.1.8 → 0.1.9",
+      "summary": "Shared language ABI crate, bumped transitively by the tree-sitter update.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1814,
+          "endLine": 1819
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-rust",
+      "label": "tree-sitter-rust",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "parser-deps",
+      "subtitle": "=0.24.2",
+      "summary": "Rust grammar crate, pinned independently and untouched by this change; it links against the runtime.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1821,
+          "endLine": 1826
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-parsing",
+      "label": "osf parsing surface",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "osf-crate",
+      "subtitle": "tree-sitter consumers",
+      "summary": "The osf code that drives the tree-sitter runtime. No call sites change; it simply compiles against 0.27.1.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "manifest-pins-tree-sitter",
+      "from": "osf-manifest",
+      "to": "tree-sitter",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.27.1",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The pin that this change edits; it is the sole reason the lockfile moves.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "lock-resolves-tree-sitter",
+      "from": "cargo-lock",
+      "to": "tree-sitter",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.27.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Lockfile records the new version and checksum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1801,
+          "endLine": 1811
+        }
+      ]
+    },
+    {
+      "id": "lock-resolves-language",
+      "from": "cargo-lock",
+      "to": "tree-sitter-language",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.1.9",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitive bump recorded in the lockfile.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1814,
+          "endLine": 1819
+        }
+      ]
+    },
+    {
+      "id": "tree-sitter-uses-language",
+      "from": "tree-sitter",
+      "to": "tree-sitter-language",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runtime depends on the shared language ABI crate.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1801,
+          "endLine": 1811
+        }
+      ]
+    },
+    {
+      "id": "rust-grammar-uses-runtime",
+      "from": "tree-sitter-rust",
+      "to": "tree-sitter",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Rust grammar links against the runtime; unchanged pin, new runtime underneath.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1821,
+          "endLine": 1826
+        }
+      ]
+    },
+    {
+      "id": "osf-uses-tree-sitter",
+      "from": "osf-parsing",
+      "to": "tree-sitter",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "osf's parsing code calls into the runtime; no source edits in this change.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 5,
+    "deletions": 5,
+    "chips": [
+      {
+        "label": "Version pins changed",
+        "value": "1",
+        "tone": "modified"
+      },
+      {
+        "label": "Lockfile entries",
+        "value": "2",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "dependency-view",
+      "title": "Dependency resolution around the pin",
+      "lens": "architecture",
+      "summary": "How the manifest pin resolves through the lockfile into the parser crates and the osf consumer.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}
