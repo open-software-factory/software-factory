@@ -199,6 +199,9 @@ pub const MODEL_FAMILIES: &[(&str, &str)] = &[
     ("google", "google"),
     ("gemini", "google"),
     ("qwen", "qwen"),
+    ("z-ai/", "z-ai"),
+    ("opencode/glm", "z-ai"),
+    ("glm", "z-ai"),
     ("meta-llama/", "meta"),
     ("llama", "meta"),
     ("mistralai/", "mistral"),
@@ -819,6 +822,11 @@ mod tests {
             opencode.family_for(Some("claude-sonnet-5")),
             Ok("anthropic")
         );
+        assert_eq!(
+            opencode.family_for(Some("opencode/glm-5.3-flash-free")),
+            Ok("z-ai")
+        );
+        assert_eq!(opencode.family_for(Some("z-ai/glm-5.3")), Ok("z-ai"));
         assert_eq!(opencode.family_for(Some("gpt-5")), Ok("openai"));
         assert_eq!(opencode.family_for(Some("openai/gpt-5")), Ok("openai"));
         assert_eq!(opencode.family_for(Some("deepseek-v4")), Ok("deepseek"));

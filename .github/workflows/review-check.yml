@@ -68,7 +68,7 @@ on:
         description: The private key of the verifier app. Only the last job reads it.
         required: true
       OPENAI_API_KEY:
-        description: The key of the codex reviewer. Leave it out when codex is not a selected reviewer.
+        description: The key of the codex reviewer. Unused while codex is disabled; leave it out when codex is not a selected reviewer.
         required: false
       CLAUDE_CODE_OAUTH_TOKEN:
         description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
@@ -235,7 +235,9 @@ jobs:
   review-codex:
     name: review codex
     needs: build
-    if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
+    # Disabled until the OpenAI key has quota again. The osf.toml reviewer list
+    # no longer selects it.
+    if: false && (github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks)
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     # The environment holds this reviewer's key. Only main can deploy to
     # `review`, and a maintainer approves `fork-review`, so a branch cannot
@@ -483,6 +485,8 @@ jobs:
             ghcr.io:443
             pkg-containers.githubusercontent.com:443
             openrouter.ai:443
+            opencode.ai:443
+            api.opencode.ai:443
             models.opencode.ai:443
 
       - name: Require the Linux runner with Docker this workflow assumes
