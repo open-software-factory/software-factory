@@ -97,6 +97,7 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         family: "fake-family".to_string(),
         family_error: None,
         command: fake_harness_command(vars),
+        env: Vec::new(),
         read_only: Some(ReadOnly {
             args: &[],
             env: &[],
