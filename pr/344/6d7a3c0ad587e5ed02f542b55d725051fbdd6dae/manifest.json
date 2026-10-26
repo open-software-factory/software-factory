@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6d7a3c0ad587e5ed02f542b55d725051fbdd6dae",
+    "contentHash": "8d01721ce848ba442f8a98f3b142b61e"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "forge-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f34855bd7588105580fd5cbfc1f2aa97",
+      "bytes": 31963,
+      "width": 1823,
+      "height": 874,
+      "animated": false,
+      "path": "forge-seam-light-f34855bd7588105580fd5cbfc1f2aa97.svg"
+    },
+    {
+      "id": "forge-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f7d33b510ed77196582a0efbcf99d7b6",
+      "bytes": 32357,
+      "width": 1823,
+      "height": 874,
+      "animated": false,
+      "path": "forge-seam-dark-f7d33b510ed77196582a0efbcf99d7b6.svg"
+    },
+    {
+      "id": "adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6da56284db6a5f61a3de4b843cf78175",
+      "bytes": 13635,
+      "width": 955,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-light-6da56284db6a5f61a3de4b843cf78175.svg"
+    },
+    {
+      "id": "adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "24627e4b3e43471c0da1405fa8caff3b",
+      "bytes": 13782,
+      "width": 955,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-dark-24627e4b3e43471c0da1405fa8caff3b.svg"
+    }
+  ]
+}
