@@ -152,7 +152,9 @@ fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
 
 /// `owner/repo#N` or `repo#N` must carry a bracketed description; a link is
 /// expected. Judged per occurrence: a reference matched once inside a link
-/// and again bare, in the same sentence, is linked only the first time.
+/// and again bare, in the same sentence, is linked only the first time. The
+/// label may sit straight after the reference, inside the link's text, or
+/// after the link's closing bracket: `[ref](url) (the label)`.
 fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static REF: OnceLock<Regex> = OnceLock::new();
     static LINK: OnceLock<Regex> = OnceLock::new();
@@ -164,22 +166,23 @@ fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     let raw = &s.text;
     let code_ranges: Vec<Range<usize>> = code_pattern.find_iter(raw).map(|m| m.range()).collect();
     let masked = mask_ranges(raw, &code_ranges);
-    let link_spans: Vec<Range<usize>> = link_pattern
-        .captures_iter(&masked)
-        .filter_map(|c| c.get(1))
-        .map(|g| g.range())
-        .collect();
+    let link_spans: Vec<Range<usize>> =
+        link_pattern.find_iter(&masked).map(|m| m.range()).collect();
 
     ref_pattern
         .find_iter(&masked)
         .flat_map(|m| {
             let reference = m.as_str().to_string();
+            let link = link_spans
+                .iter()
+                .find(|span| span.start <= m.start() && m.end() <= span.end);
             let labelled = raw
                 .get(m.end()..)
-                .is_some_and(|rest| rest.trim_start().starts_with('('));
-            let linked = link_spans
-                .iter()
-                .any(|span| span.start <= m.start() && m.end() <= span.end);
+                .is_some_and(|rest| rest.trim_start().starts_with('('))
+                || link
+                    .and_then(|span| raw.get(span.end..))
+                    .is_some_and(|rest| rest.trim_start().starts_with('('));
+            let linked = link.is_some();
             let label = (!labelled).then(|| {
                 finding(
                     s,

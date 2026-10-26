@@ -78,9 +78,9 @@ pub const RULE_META: &[RuleMeta] = &[
         House,
         Comprehension,
         "house",
-        "### What it does\n\
+         "### What it does\n\
          Flags `open-software-factory/software-factory#123` (or `repo#123`) with no bracketed description \
-         straight after it.\n\
+         straight after it, or right after the Markdown link that wraps it.\n\
          ### Why it is bad\n\
          A bare reference number tells the reader nothing about what it is. \
          They must go and look it up before they can follow the text.\n\

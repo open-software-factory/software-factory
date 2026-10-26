@@ -215,6 +215,37 @@ mod tests {
         );
     }
 
+    /// A label that sits after a Markdown link's closing bracket counts: the
+    /// linked reference is the best form for a reader, so it must not error.
+    #[test]
+    fn a_linked_reference_with_a_label_after_the_link_passes() {
+        assert_eq!(
+            rules_of(
+                "Fixed in [open-software-factory/software-factory#29](https://github.com/open-software-factory/software-factory/issues/29) (the label) today."
+            ),
+            Vec::<&str>::new()
+        );
+        // The same shape around a pull request reference.
+        assert_eq!(
+            rules_of(
+                "Fixed in [open-software-factory/software-factory#27](https://github.com/open-software-factory/software-factory/pull/27) (the review fix) today."
+            ),
+            Vec::<&str>::new()
+        );
+    }
+
+    /// A linked reference with no label at all is still an error; the fix
+    /// only reaches a label after the link, it does not drop the rule.
+    #[test]
+    fn a_linked_reference_without_a_label_still_fails() {
+        assert_eq!(
+            rules_of(
+                "Fixed in [open-software-factory/software-factory#125](https://example.com/125) today."
+            ),
+            vec!["reference-without-label"]
+        );
+    }
+
     /// A reference matched twice in one sentence, once inside a real
     /// Markdown link and once bare, must flag only the bare occurrence.
     #[test]
