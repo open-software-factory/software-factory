@@ -246,6 +246,20 @@ pub struct AgentsConfig {
     /// The model each named agent runs with, keyed by agent name. An agent
     /// left out uses its own default model.
     pub models: BTreeMap<String, String>,
+    /// Per-agent launch command overrides, keyed by agent name. An agent left
+    /// out runs the command in the one agent list.
+    pub launch: BTreeMap<String, LaunchTemplateConfig>,
+}
+
+/// One agent's launch command and extra environment, set in `[agents.launch.<name>]`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LaunchTemplateConfig {
+    /// The program and its arguments. Replaces the agent's own command.
+    pub command: Vec<String>,
+    /// Extra environment for the run. The agent's credential variables are
+    /// still taken from the one agent list, never from here.
+    pub env: BTreeMap<String, String>,
 }
 
 /// Reads the `[agents]` table of `<root>/osf.toml`, or
@@ -1732,5 +1746,17 @@ mod tests {
             .expect("osf.toml writes");
         let err = agents_config(&dir).expect_err("an unknown key is refused");
         assert!(err.to_string().contains("reviewer"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_agents_launch_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-launch-unknown-field");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents.launch.codex]\ncommand = [\"x\"]\ntypo = true\n",
+        )
+        .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown launch key is refused");
+        assert!(err.to_string().contains("typo"), "{err}");
     }
 }

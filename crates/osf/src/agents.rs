@@ -252,6 +252,19 @@ pub struct Agent {
     pub review: Option<Review>,
 }
 
+/// Provider credential variables a launch template must never carry. The
+/// one agent list's `credential_env` names are added at check time; these
+/// are the aliases a provider documents, so a template cannot smuggle one
+/// in under another name. Compared without regard to letter case.
+pub const KNOWN_CREDENTIAL_VARS: &[&str] = &[
+    "DEEPSEEK_API_KEY",
+    "OPENROUTER_API_KEY",
+    "CODEX_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+];
+
 /// Every agent osf can drive, in the order this project lists them.
 pub const AGENTS: &[Agent] = &[
     // dsh keeps every conversation under a `sessions` folder in its home
@@ -548,6 +561,15 @@ pub fn project_settings() -> Vec<&'static str> {
     names
 }
 
+/// One agent's effective launch command: its own, or the `[agents.launch]` override.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LaunchTemplate {
+    /// The program and its arguments, in order.
+    pub command: Vec<String>,
+    /// Extra environment for the run, as sorted name-value pairs.
+    pub env: Vec<(String, String)>,
+}
+
 /// The agents a repository selected in `osf.toml`, checked against [`AGENTS`].
 #[derive(Debug)]
 pub struct Selection {
@@ -558,6 +580,7 @@ pub struct Selection {
     /// The agents that review, in the order they run.
     pub reviewers: Vec<&'static Agent>,
     models: BTreeMap<&'static str, String>,
+    launch: BTreeMap<&'static str, LaunchTemplate>,
 }
 
 impl Selection {
@@ -565,6 +588,12 @@ impl Selection {
     #[must_use]
     pub fn model(&self, agent: &Agent) -> Option<&str> {
         self.models.get(agent.name).map(String::as_str)
+    }
+
+    /// The launch override `osf.toml` sets for `agent`, or `None` for its own command.
+    #[must_use]
+    pub fn launch(&self, agent: &Agent) -> Option<&LaunchTemplate> {
+        self.launch.get(agent.name)
     }
 }
 
@@ -636,11 +665,58 @@ pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
         }
         models.insert(agent.name, model.clone());
     }
+    let credentials: std::collections::BTreeSet<String> = KNOWN_CREDENTIAL_VARS
+        .iter()
+        .chain(
+            AGENTS
+                .iter()
+                .filter_map(|agent| agent.review.as_ref())
+                .flat_map(|review| review.credential_env.iter()),
+        )
+        .map(|name| name.to_ascii_lowercase())
+        .collect();
+    let mut launch = BTreeMap::new();
+    for (name, template) in &cfg.launch {
+        let agent = find(name, "launch")?;
+        require_enabled(&enabled, agent, "launch")?;
+        // The dotted path mirrors the table an adopter edits, so the
+        // message names the exact key.
+        if let Some(key) = template
+            .env
+            .keys()
+            .find(|key| credentials.contains(&key.to_ascii_lowercase()))
+        {
+            return Err(format!(
+                "[agents] launch.{name}.env: \"{key}\" is a credential variable; pass it in the environment, not in osf.toml"
+            ));
+        }
+        if template
+            .command
+            .first()
+            .is_none_or(|program| program.trim().is_empty())
+        {
+            return Err(format!(
+                "[agents] launch.{name}: command is empty; name the program and its arguments"
+            ));
+        }
+        launch.insert(
+            agent.name,
+            LaunchTemplate {
+                command: template.command.clone(),
+                env: template
+                    .env
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect(),
+            },
+        );
+    }
     Ok(Selection {
         enabled,
         builder,
         reviewers,
         models,
+        launch,
     })
 }
 
@@ -676,7 +752,7 @@ pub fn write_hooks(root: &Path, agents: &[&Agent]) -> Result<Vec<PathBuf>, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::AgentsConfig;
+    use crate::config::{AgentsConfig, LaunchTemplateConfig};
 
     #[test]
     fn the_list_is_exactly_the_five_agents_osf_drives() {
@@ -1006,6 +1082,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
                 .collect(),
+            launch: BTreeMap::new(),
         }
     }
 
@@ -1057,6 +1134,162 @@ mod tests {
         let claude = AGENTS.iter().find(|a| a.name == "claude").expect("claude");
         assert_eq!(s.model(codex), Some("o4-mini"));
         assert_eq!(s.model(claude), None);
+    }
+
+    fn a_runnable_reviewer() -> &'static Agent {
+        AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| r.read_only.is_some() || r.in_container.is_some())
+            })
+            .expect("a reviewer that can run")
+    }
+
+    #[test]
+    fn a_launch_override_replaces_the_command_and_adds_env() {
+        let agent = a_runnable_reviewer();
+        let other = AGENTS
+            .iter()
+            .find(|a| a.name != agent.name)
+            .expect("another agent");
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            agent.name.to_string(),
+            LaunchTemplateConfig {
+                command: vec!["my-command".to_string(), "--x".to_string()],
+                env: BTreeMap::from([("A".to_string(), "B".to_string())]),
+            },
+        );
+        config.launch.insert(
+            other.name.to_string(),
+            LaunchTemplateConfig {
+                command: vec!["other-command".to_string()],
+                ..Default::default()
+            },
+        );
+        let selection = resolve(&config).expect("resolves");
+        let template = selection.launch(agent).expect("the override");
+        assert_eq!(template.command, vec!["my-command", "--x"]);
+        assert_eq!(template.env, vec![("A".to_string(), "B".to_string())]);
+        assert!(
+            selection.launch(other).is_some(),
+            "the second override is kept"
+        );
+        let untouched = AGENTS
+            .iter()
+            .find(|a| a.name != agent.name && a.name != other.name)
+            .expect("a third agent");
+        assert!(selection.launch(untouched).is_none(), "no override is none");
+    }
+
+    #[test]
+    fn a_launch_override_needs_a_known_agent() {
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            "nope".to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                ..Default::default()
+            },
+        );
+        let error = resolve(&config).expect_err("unknown agent");
+        assert!(error.contains("unknown agent"), "{error}");
+        assert!(error.contains("nope"), "{error}");
+        assert!(error.contains("launch"), "{error}");
+    }
+
+    #[test]
+    fn a_launch_override_needs_an_enabled_agent() {
+        let agent = a_runnable_reviewer();
+        let mut config = cfg(Some(&["dsh"]), &[], &[]);
+        config.launch.insert(
+            agent.name.to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                ..Default::default()
+            },
+        );
+        let error = resolve(&config).expect_err("disabled agent");
+        assert!(error.contains("not in the enabled agents"), "{error}");
+        assert!(error.contains(agent.name), "{error}");
+        assert!(error.contains("launch"), "{error}");
+    }
+
+    #[test]
+    fn a_launch_override_needs_a_command_with_a_program() {
+        let agent = a_runnable_reviewer();
+        for command in [Vec::new(), vec![String::new()], vec!["  ".to_string()]] {
+            let mut config = cfg(None, &[], &[]);
+            config.launch.insert(
+                agent.name.to_string(),
+                LaunchTemplateConfig {
+                    command,
+                    ..Default::default()
+                },
+            );
+            let error = resolve(&config).expect_err("no program");
+            assert!(error.contains("command is empty"), "{error}");
+            assert!(error.contains(agent.name), "{error}");
+            assert!(error.contains("launch."), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_launch_override_refuses_a_declared_credential_variable() {
+        let credential_agent = AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| !r.credential_env.is_empty())
+            })
+            .expect("an agent with a credential variable");
+        let credential = credential_agent
+            .review
+            .as_ref()
+            .expect("a review")
+            .credential_env
+            .first()
+            .expect("a credential variable");
+        let mut config = cfg(None, &[], &[]);
+        config.launch.insert(
+            credential_agent.name.to_string(),
+            LaunchTemplateConfig {
+                command: vec!["x".to_string()],
+                env: BTreeMap::from([((*credential).to_string(), "secret".to_string())]),
+            },
+        );
+        let error = resolve(&config).expect_err("credential in config");
+        assert!(error.contains("credential variable"), "{error}");
+        assert!(error.contains(credential_agent.name), "{error}");
+        assert!(error.contains(credential), "{error}");
+    }
+
+    #[test]
+    fn a_launch_override_refuses_known_credential_aliases_in_any_case() {
+        let credential_agent = AGENTS
+            .iter()
+            .find(|a| {
+                a.review
+                    .as_ref()
+                    .is_some_and(|r| !r.credential_env.is_empty())
+            })
+            .expect("an agent with a credential variable");
+        for key in ["ANTHROPIC_API_KEY", "codex_api_key"] {
+            let mut config = cfg(None, &[], &[]);
+            config.launch.insert(
+                credential_agent.name.to_string(),
+                LaunchTemplateConfig {
+                    command: vec!["x".to_string()],
+                    env: BTreeMap::from([(key.to_string(), "secret".to_string())]),
+                },
+            );
+            let error = resolve(&config).expect_err("credential alias in config");
+            assert!(error.contains(key), "{error}");
+            assert!(error.contains("credential variable"), "{error}");
+        }
     }
 
     #[test]
