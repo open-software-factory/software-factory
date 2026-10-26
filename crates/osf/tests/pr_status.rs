@@ -5,7 +5,7 @@
 //! client.
 
 use osf::marker;
-use osf::pr_status::{self, GhClient, RenderInput, StatusError};
+use osf::pr_status::{self, GhClient, GhOutput, RenderInput, StatusError};
 use std::cell::RefCell;
 
 const TIER_JSON: &str = r#"{"tier":"normal","reasons":["3 files, 120 lines, no high-blast-radius path","touches no deploy file"]}"#;
@@ -646,6 +646,10 @@ impl FakeGh {
 }
 
 impl GhClient for FakeGh {
+    fn run(&self, _args: &[String], _stdin: Option<&str>) -> Result<GhOutput, StatusError> {
+        unreachable!("apply_via_gh only reads and writes the body")
+    }
+
     fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
         self.calls.borrow_mut().push(format!("view {repo}#{pr}"));
         if self.view_fails {
