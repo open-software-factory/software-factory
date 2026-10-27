@@ -2322,6 +2322,67 @@ fn warn_only_prints_the_verdict_but_never_fails() {
     assert!(stdout.contains("verdict: fail"), "{stdout}");
 }
 
+/// `--fail-on-findings` still fails the push on a kept must-fix finding.
+#[test]
+fn fail_on_findings_fails_on_a_blocker() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("fail-on-findings-blocker", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-fail-on-findings-blocker");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--fail-on-findings",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "a must-fix finding fails the gate: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: fail"), "{stdout}");
+}
+
+/// `--fail-on-findings` lets a could-not-run through, because pre-push has no
+/// work item for the spec-review lens, but it says so in full.
+#[test]
+fn fail_on_findings_passes_a_could_not_run() {
+    let repo = review_repo("fail-on-findings-could-not-run", "");
+    let home = common::isolated_home("review-run-fail-on-findings-could-not-run");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--fail-on-findings",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
+    assert!(stdout.contains("does not stop this push"), "{stdout}");
+}
+
 /// `--warn-only` also swallows a could-not-run verdict, the same as a fail.
 #[test]
 fn warn_only_never_fails_on_could_not_run_either() {

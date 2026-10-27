@@ -335,10 +335,12 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 
 ## Review at pre-push and the pull request
 
-A moon task named `review` runs `osf review run` at pre-push. It prints
-the verdict, and the push always continues. Pre-push runs inside your
-own workspace, so you could change its result there. The real gate is a
-separate job.
+A moon task named `review` runs `osf review run --fail-on-findings` at
+pre-push. A kept must-fix finding stops the push, so the builder fixes it
+before it opens the pull request. A review that could not run prints its
+reasons but does not stop the push: pre-push has no work item for the
+spec-review lens. Pre-push runs inside your own workspace, so you could
+change its result there. It is not the merge gate; the separate job is.
 
 GitHub always reads a `pull_request_target` workflow from the default
 branch. That is why `.github/workflows/review.yml` is the real gate, and

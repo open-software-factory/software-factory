@@ -676,6 +676,11 @@ struct ReviewRunArgs {
     /// anything.
     #[arg(long = "warn-only")]
     warn_only: bool,
+    /// Fail on a kept must-fix finding, but not on a review that could not
+    /// run. At pre-push there is no work item for the spec lens, so a
+    /// could-not-run lens must not stop a push; its reasons still print.
+    #[arg(long = "fail-on-findings", conflicts_with = "warn_only")]
+    fail_on_findings: bool,
     /// A family that built this change, repeatable. Overrides detection
     /// from the reviewed range's own `Code-Generator:` trailers entirely; a
     /// roster entry from a named family is left out of every lens the same
@@ -2346,7 +2351,12 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         }
     };
     match review_run::run(&req, &state_dir) {
-        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
+        Ok(outcome) => finish_review(
+            &outcome,
+            args.sarif_out.as_deref(),
+            args.post_to.as_deref(),
+            args.fail_on_findings,
+        ),
         Err(e) => {
             eprintln!("osf review run: {e}");
             2
@@ -2396,6 +2406,7 @@ fn finish_review(
     outcome: &review_run::RunOutcome,
     sarif_out: Option<&Path>,
     post_to: Option<&str>,
+    fail_on_findings: bool,
 ) -> u8 {
     for line in &outcome.lines {
         println!("{line}");
@@ -2419,6 +2430,10 @@ fn finish_review(
     match outcome.verdict {
         reducer::Verdict::Pass => 0,
         reducer::Verdict::Fail => 1,
+        reducer::Verdict::CouldNotRun if fail_on_findings => {
+            println!("review: could not run, which does not stop this push");
+            0
+        }
         reducer::Verdict::CouldNotRun => 2,
     }
 }
@@ -2481,7 +2496,12 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         binding: Some(&binding),
     };
     match review_run::reduce_saved(&req, &runs, &state_dir) {
-        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
+        Ok(outcome) => finish_review(
+            &outcome,
+            args.sarif_out.as_deref(),
+            args.post_to.as_deref(),
+            false,
+        ),
         Err(e) => {
             eprintln!("osf review reduce: {e}");
             2
