@@ -575,7 +575,7 @@ fn the_codex_job_runs_in_the_review_container() {
     );
     assert_eq!(
         provider_secrets(&body),
-        vec!["OPENAI_API_KEY".to_string()],
+        vec!["OSF_REVIEW_OPENAI_API_KEY".to_string()],
         "the codex job reads exactly one provider secret"
     );
     let envs: Vec<&str> = body
@@ -1066,7 +1066,7 @@ fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_
         assert!(body.contains("description:"), "secret {name} is described");
         assert_eq!(
             body.contains("required: true"),
-            name == "VERIFIER_APP_PRIVATE_KEY",
+            name == "OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY",
             "only the verifier key is required: {name}"
         );
     }
@@ -1212,12 +1212,13 @@ fn the_verifier_identity_is_minted_in_the_last_job_only() {
     assert!(
         last.contains("create-github-app-token")
             && last.contains("app-id: ${{ inputs.verifier-app-id }}")
-            && last.contains("private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}")
+            && last.contains("private-key: ${{ secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY }}")
             && last.contains("permission-pull-requests: write"),
         "{last}"
     );
     assert_eq!(
-        text.matches("secrets.VERIFIER_APP_PRIVATE_KEY").count(),
+        text.matches("secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY")
+            .count(),
         1,
         "only the last job reads the verifier key"
     );
@@ -1297,7 +1298,7 @@ fn the_caller_is_thin_and_runs_from_the_base_branch() {
         caller.contains("runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '\"ubuntu-latest\"' }}"),
         "the runner comes from the adopter's variable, with the hosted default"
     );
-    assert!(caller.contains("verifier-app-id: ${{ vars.VERIFIER_APP_ID }}"));
+    assert!(caller.contains("verifier-app-id: ${{ vars.OSF_REVIEW_VERIFIER_APP_ID }}"));
 }
 
 /// A pull request's base can be any branch, and a contributor who can push a

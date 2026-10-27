@@ -948,12 +948,12 @@ jobs:
     uses: <owner>/<repo>/.github/workflows/review-check.yml@<40-character SHA>
     with:
       osf-ref: <the same 40-character SHA>
-      verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
+      verifier-app-id: ${{ vars.OSF_REVIEW_VERIFIER_APP_ID }}
     secrets:
-      VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY: ${{ secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY }}
+      OSF_REVIEW_OPENAI_API_KEY: ${{ secrets.OSF_REVIEW_OPENAI_API_KEY }}
+      OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN }}
+      OSF_REVIEW_OPENROUTER_API_KEY: ${{ secrets.OSF_REVIEW_OPENROUTER_API_KEY }}
 ```
 
 Map each secret by name, as above, and leave out the key of a reviewer that

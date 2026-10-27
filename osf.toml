@@ -39,8 +39,8 @@ builder = "dsh"
 # The agents that review, in the order they run. Decision 0016 needs each
 # reviewer's family to differ from the builder's.
 #
-# dsh documents no read-only mode, so it cannot review. The review
-# environment holds CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each
+# dsh documents no read-only mode, so it cannot review. The review job reads
+# OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN and OSF_REVIEW_OPENROUTER_API_KEY. Each
 # agent's list entry names the only variables its reviewer sees. codex is
 # disabled until its OpenAI key has quota again.
 reviewers = ["claude", "opencode"]
