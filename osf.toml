@@ -30,9 +30,11 @@ repository_visibility = "public"
 must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
 
 [review]
-# Thirteen lenses, two reviewers, three rounds each: enough parallelism to
-# finish inside the thirty-minute whole-run limit.
-concurrency = 8
+# Thirteen lenses, two reviewers, three rounds each. The models take about
+# ten minutes a call, so the whole run needs an hour; 30 minutes truncated
+# every lens to could-not-run.
+concurrency = 16
+total_timeout_seconds = 3600
 
 [agents]
 # Selects from the one list of agents in crates/osf/src/agents.rs. A name
