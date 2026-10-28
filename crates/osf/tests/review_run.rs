@@ -153,7 +153,6 @@ fn review_repo_without_trailer(name: &str, osf_toml: &str) -> TempRepo {
     let repo = TempRepo::new(name);
     write_lens_overrides(&repo);
     repo.write("osf.toml", osf_toml);
-    repo.write(".gitignore", ".osf/out/\n.osf/review-rounds.json\n");
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
     repo.commit("base");
@@ -247,7 +246,6 @@ fn review_repo_built_by(name: &str, osf_toml: &str, trailer_model: &str) -> Temp
     let repo = TempRepo::new(name);
     write_lens_overrides(&repo);
     repo.write("osf.toml", osf_toml);
-    repo.write(".gitignore", ".osf/out/\n.osf/review-rounds.json\n");
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
     repo.commit("base");
@@ -366,6 +364,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
 struct Fakes {
     bin: TempDir,
     osf_toml: String,
+    inject_credentials: bool,
 }
 
 impl Fakes {
@@ -378,7 +377,16 @@ impl Fakes {
         Fakes {
             bin,
             osf_toml: agents_toml(prefix, &names),
+            inject_credentials: true,
         }
+    }
+
+    /// The same fakes, but with no credential and no login file, so the
+    /// credential preflight is what decides the run.
+    fn without_credentials(prefix: &str, reviewers: &[(&str, Fake)]) -> Fakes {
+        let mut fakes = Fakes::new(prefix, reviewers);
+        fakes.inject_credentials = false;
+        fakes
     }
 
     /// `osf.toml` text that also pins opencode to a qwen model, so its family is known.
@@ -437,7 +445,7 @@ impl Fakes {
         // The fake agents answer without a real provider. Give them a
         // credential so the preflight lets them start; the preflight itself
         // has its own tests.
-        if std::env::var_os("OSF_TEST_NO_FAKE_CREDS").is_none() {
+        if self.inject_credentials && std::env::var_os("OSF_TEST_NO_FAKE_CREDS").is_none() {
             for var in [
                 "CLAUDE_CODE_OAUTH_TOKEN",
                 "OPENAI_API_KEY",
@@ -2401,6 +2409,39 @@ fn the_pre_push_budget_lets_a_push_through_after_the_limit() {
         );
     }
     assert_eq!(codes, vec![Some(1), Some(1), Some(1), Some(0)]);
+}
+
+/// A missing credential is decided before any reviewer process starts, so
+/// the run cannot wait out a timeout and then retry.
+#[test]
+fn a_missing_credential_stops_the_review_before_any_process() {
+    let fakes = Fakes::without_credentials("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("preflight-missing", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-preflight-missing");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}
+stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(text.contains("could-not-run"), "{text}");
+    let journal = journal_lines_of(&home, "codex");
+    assert!(
+        journal.contains("CODEX_API_KEY") || journal.contains(".codex/auth.json"),
+        "{journal}"
+    );
 }
 
 /// A review that could not run is a verification that did not happen, so it

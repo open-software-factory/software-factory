@@ -2257,10 +2257,9 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
     ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
 }
 
-/// `osf review run`'s own exit code, ignoring `--warn-only`: 0 pass, 1 fail,
-/// 2 could-not-run or misconfigured. Kept separate from [`review_run_cmd`]
-/// so `--warn-only` has one place to override the result, rather than a
-/// forced zero threaded through every early return below.
+/// `osf review run`'s own exit code: 0 pass, 1 fail, 2 could-not-run or
+/// misconfigured. A kept must-fix or should-fix finding, or a review that
+/// could not run, fails.
 fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
     let root = Path::new(".");
     let config_root = args
@@ -2352,6 +2351,7 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
             args.sarif_out.as_deref(),
             args.post_to.as_deref(),
             true,
+            &config_root,
         ),
         Err(e) => {
             eprintln!("osf review run: {e}");
@@ -2403,6 +2403,7 @@ fn finish_review(
     sarif_out: Option<&Path>,
     post_to: Option<&str>,
     count_rounds: bool,
+    config_root: &Path,
 ) -> u8 {
     for line in &outcome.lines {
         println!("{line}");
@@ -2449,7 +2450,13 @@ fn finish_review(
             reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
         }
     };
-    let config = config::review_config(Path::new(".")).unwrap_or_default();
+    let config = match config::review_config(config_root) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("osf review run: {e}");
+            return 2;
+        }
+    };
     if review_run::round_allows_push(
         Path::new("."),
         kind,
@@ -2462,8 +2469,8 @@ fn finish_review(
     }
 }
 
-/// `osf review reduce`'s own exit code, ignoring `--warn-only`; the same
-/// codes as [`review_run_exit_code`].
+/// `osf review reduce`'s own exit code; the same codes as
+/// [`review_run_exit_code`].
 fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
     let root = Path::new(".");
     let config_root = args
@@ -2525,6 +2532,7 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
             args.sarif_out.as_deref(),
             args.post_to.as_deref(),
             false,
+            &config_root,
         ),
         Err(e) => {
             eprintln!("osf review reduce: {e}");

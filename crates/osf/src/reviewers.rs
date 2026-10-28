@@ -999,6 +999,42 @@ mod tests {
         r
     }
 
+    #[test]
+    fn missing_credentials_names_the_key_and_the_login_path() {
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_KEY".to_string()];
+        r.login_paths = vec![".preflight/auth.json".to_string()];
+        let reason = r
+            .missing_credentials(Some(home.as_ref()))
+            .expect("no credential");
+        assert!(reason.contains("OSF_TEST_PREFLIGHT_KEY"), "{reason}");
+        assert!(reason.contains(".preflight/auth.json"), "{reason}");
+        let file = home.join(".preflight/auth.json");
+        std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&file, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
+    }
+
+    #[test]
+    fn a_set_credential_variable_alone_passes_the_preflight() {
+        std::env::set_var("OSF_TEST_PREFLIGHT_SET", "value");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_SET".to_string()];
+        r.login_paths = vec![".nope/auth.json".to_string()];
+        assert_eq!(r.missing_credentials(None), None);
+        std::env::remove_var("OSF_TEST_PREFLIGHT_SET");
+    }
+
+    #[test]
+    fn a_templated_reviewer_is_not_judged_by_the_preflight() {
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.templated = true;
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_UNSET".to_string()];
+        r.login_paths = vec![".nope/auth.json".to_string()];
+        assert_eq!(r.missing_credentials(None), None);
+    }
+
     /// A stand-in real home holding two harnesses' logins and an unrelated file.
     #[cfg(unix)]
     fn stand_in_home() -> crate::test_support::TempDir {

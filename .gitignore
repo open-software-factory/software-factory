@@ -24,7 +24,6 @@ target-linux/
 # moon cache and osf task output
 .moon/cache/
 .osf/out/
-.osf/review-rounds.json
 
 # Installed dependencies
 node_modules/
