@@ -29,6 +29,11 @@ repository_visibility = "public"
 #   - Zendesk: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
 
+[review]
+# Thirteen lenses, two reviewers, three rounds each: enough parallelism to
+# finish inside the thirty-minute whole-run limit.
+concurrency = 8
+
 [agents]
 # Selects from the one list of agents in crates/osf/src/agents.rs. A name
 # that list does not hold is a configuration error. Each agent's command,
@@ -40,7 +45,7 @@ builder = "dsh"
 # reviewer's family to differ from the builder's.
 #
 # dsh documents no read-only mode, so it cannot review. The review
-# environment holds CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each
+# environment holds CLAUDE_CODE_OAUTH_TOKEN and OPENCODE_API_KEY. Each
 # agent's list entry names the only variables its reviewer sees. codex is
 # disabled until its OpenAI key has quota again.
 reviewers = ["claude", "opencode"]
