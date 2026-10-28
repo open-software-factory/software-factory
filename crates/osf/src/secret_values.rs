@@ -14,6 +14,50 @@ const MIN_LEN: usize = 8;
 /// The variables that carry a code-host token.
 const CODE_HOST_TOKENS: &[&str] = &["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN"];
 
+/// Review credentials that reach osf without an agent's `credential_env`,
+/// such as an auth file body the workflow writes.
+const REVIEW_SECRET_VARS: &[&str] = &["OSF_REVIEW_OPENCODE_AUTH_JSON"];
+
+/// Every string leaf of a JSON login file, which is where an agent such as
+/// opencode keeps its provider key.
+fn login_values() -> Vec<String> {
+    let Some(home) = crate::reviewers::real_home() else {
+        return Vec::new();
+    };
+    agents::AGENTS
+        .iter()
+        .filter_map(|agent| agent.review.as_ref())
+        .flat_map(|review| review.login_paths.iter())
+        .filter_map(|path| std::fs::read_to_string(home.join(path)).ok())
+        .flat_map(|text| json_leaves(&text))
+        .filter(|value| value.len() >= MIN_LEN)
+        .collect()
+}
+
+fn json_leaves(text: &str) -> Vec<String> {
+    fn walk(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(text) => out.push(text.clone()),
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for item in map.values() {
+                    walk(item, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+        walk(&value, &mut out);
+    }
+    out
+}
+
 /// What replaces a secret's value.
 pub const MARKER: &str = "[removed: a secret this job holds]";
 
@@ -29,10 +73,12 @@ pub fn held() -> Vec<String> {
         .filter_map(|a| a.review.as_ref())
         .flat_map(|r| r.credential_env.iter().copied());
     let mut values: Vec<String> = provider
+        .chain(REVIEW_SECRET_VARS.iter().copied())
         .chain(CODE_HOST_TOKENS.iter().copied())
         .filter_map(|name| std::env::var(name).ok())
         .filter(|value| value.len() >= MIN_LEN)
         .collect();
+    values.extend(login_values());
     values.sort_unstable();
     values.dedup();
     values
