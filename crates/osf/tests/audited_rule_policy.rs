@@ -163,7 +163,7 @@ fn skill_enforcement_uses_both_audited_families_without_hiding_syntax_errors() {
 fn commit_gate_does_not_enforce_audited_quantity_rule() {
     let repo = TempRepo::new("audit-commit-policy");
     let home = isolated_home("audit-commit-policy");
-    repo.write("MSG", "Count 12 axes over 3 rounds in 41 minutes.\n");
+    repo.write("MSG", "Count 12 axes over 3 rounds in 41 minutes\n");
     let out = run_osf(
         &repo.dir,
         &home,
@@ -197,7 +197,7 @@ fn commit_gate_does_not_enforce_audited_quantity_rule() {
     // The same message with a kept finding must report it, and still not the quantity rule.
     repo.write(
         "MSG",
-        "Count 12 axes over 3 rounds in 41 minutes.\n\nFixed in #125 today.\n",
+        "Count 12 axes over 3 rounds in 41 minutes\n\nFixed in #125 today.\n",
     );
     let out = run_osf(
         &repo.dir,

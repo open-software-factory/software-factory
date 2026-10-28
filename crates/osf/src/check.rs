@@ -366,6 +366,7 @@ fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
         return Ok(Vec::new());
     }
     let rules = scan_rules(opts)?;
+    let known = lints::load_known_names(&[], None)?;
     let mut findings = Vec::new();
     for hash in &hashes {
         let message = crate::git::commit_message(opts.dir, hash).map_err(|e| e.to_string())?;
@@ -373,6 +374,7 @@ fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
             rules
                 .scan_text(&message, Context::Commit)
                 .into_iter()
+                .chain(lints::writing::commit_gate_findings(&message, &known))
                 .map(|f| (hash.clone(), f)),
         );
     }

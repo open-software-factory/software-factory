@@ -710,6 +710,25 @@ pub const RULE_META: &[RuleMeta] = &[
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
     ),
+    rule_meta!(
+        "commit-subject-missing",
+        House,
+        Comprehension,
+        "house",
+        "### What it does\n\
+         Flags a commit message that has no subject: it is empty, blank, or \
+         only `#` comment lines. It runs only on a commit message.\n\
+         ### Why it is bad\n\
+         The contributing guide asks for a subject in the present tense. A \
+         message with no subject gives the reader of the log nothing to scan.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: a message that holds only a comment line.\n\
+         Good: Add a status subcommand"
+    ),
 ];
 
 #[must_use]

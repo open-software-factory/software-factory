@@ -70,8 +70,31 @@ pub fn rule_ids() -> Vec<&'static str> {
             "undefined-name",
             "undefined-name-at-start",
             "recap-ending",
+            "commit-subject-missing",
         ])
         .collect()
+}
+
+/// Whether a commit message has a subject: a line that is neither blank nor
+/// a `#` comment line. A comment line is one git strips from a message an
+/// editor wrote, so the message file the `commit-msg` hook reads still holds
+/// them. A subject git saved verbatim with a leading `#` is read as a
+/// comment too.
+fn has_commit_subject(text: &str) -> bool {
+    text.lines()
+        .any(|line| !line.trim().is_empty() && !line.starts_with('#'))
+}
+
+pub fn commit_subject_rules(text: &str, out: &mut Vec<Finding>) {
+    if !has_commit_subject(text) {
+        out.push(Finding::new(
+            "commit-subject-missing",
+            Level::Error,
+            1,
+            "write a subject line; the message has none".to_string(),
+            "no subject".to_string(),
+        ));
+    }
 }
 
 pub fn headings_in_short_text(doc: &Doc, cfg: &WritingConfig, out: &mut Vec<Finding>) {
