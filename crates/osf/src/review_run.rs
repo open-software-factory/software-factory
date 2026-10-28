@@ -258,7 +258,7 @@ pub fn round_allows_push(
     root: &Path,
     kind: RoundKind,
     review_limit: u32,
-    could_not_run_limit: u32,
+    _could_not_run_limit: u32,
 ) -> Result<bool, String> {
     match kind {
         RoundKind::Pass => {
@@ -275,9 +275,10 @@ pub fn round_allows_push(
         RoundKind::CouldNotRun => {
             let mut counts = RoundCounts::load(root)?;
             counts.could_not_run = counts.could_not_run.saturating_add(1);
-            let allowed = counts.could_not_run > could_not_run_limit;
             counts.save(root)?;
-            Ok(allowed)
+            // A review that did not happen is never a pass. The count stops
+            // the loop and names the problem; it does not let the push go.
+            Ok(false)
         }
     }
 }
