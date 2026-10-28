@@ -2457,15 +2457,18 @@ fn finish_review(
             return 2;
         }
     };
-    if review_run::round_allows_push(
+    match review_run::round_allows_push(
         Path::new("."),
         kind,
         config.in_sandbox_rounds,
         config.could_not_run_rounds,
     ) {
-        0
-    } else {
-        base
+        Ok(true) => 0,
+        Ok(false) => base,
+        Err(e) => {
+            eprintln!("osf review run: {e}");
+            2
+        }
     }
 }
 

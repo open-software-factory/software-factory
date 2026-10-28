@@ -202,48 +202,46 @@ pub enum RoundKind {
 }
 
 impl RoundCounts {
-    fn path(root: &Path) -> PathBuf {
+    fn path(root: &Path) -> Result<PathBuf, String> {
         use std::hash::{Hash as _, Hasher as _};
         // The count decides whether a push may proceed, so it lives in the
         // journal state, outside the worktree the builder can edit. The
         // worktree path is the key, so each develop run has its own count.
+        let dir = crate::journal::state_dir()?;
         let rooted = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         rooted.hash(&mut hasher);
         let name = format!("{:016x}.json", hasher.finish());
-        match crate::journal::state_dir() {
-            Ok(dir) => dir.join("review-rounds").join(name),
-            Err(_) => root.join(".osf").join("out").join("review-rounds.json"),
-        }
+        Ok(dir.join("review-rounds").join(name))
     }
 
-    fn load(root: &Path) -> Self {
-        std::fs::read(Self::path(root))
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
-    }
-
-    fn save(&self, root: &Path) {
-        let path = Self::path(root);
-        if let Some(parent) = path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("osf review run: cannot create {}: {e}", parent.display());
-                return;
-            }
-        }
-        match serde_json::to_vec_pretty(self) {
+    fn load(root: &Path) -> Result<Self, String> {
+        let path = Self::path(root)?;
+        match std::fs::read(&path) {
             Ok(bytes) => {
-                if let Err(e) = std::fs::write(&path, bytes) {
-                    eprintln!("osf review run: cannot write {}: {e}", path.display());
-                }
+                serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
             }
-            Err(e) => eprintln!("osf review run: cannot encode round counts: {e}"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(e) => Err(format!("{}: {e}", path.display())),
         }
     }
 
-    fn clear(root: &Path) {
-        let _ = std::fs::remove_file(Self::path(root));
+    fn save(&self, root: &Path) -> Result<(), String> {
+        let path = Self::path(root)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        }
+        let bytes = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
+        std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    fn clear(root: &Path) -> Result<(), String> {
+        let path = Self::path(root)?;
+        match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(format!("{}: {e}", path.display())),
+        }
     }
 }
 
@@ -252,31 +250,34 @@ impl RoundCounts {
 /// A pass clears the counts. A failed round increments its own count, and
 /// lets the push through once that count is past its limit. When it is not,
 /// the push keeps failing, and the next round fixes the findings.
-#[must_use]
+///
+/// # Errors
+/// Returns an error when the journal state directory cannot be resolved, or
+/// when the count file cannot be read, written or removed.
 pub fn round_allows_push(
     root: &Path,
     kind: RoundKind,
     review_limit: u32,
     could_not_run_limit: u32,
-) -> bool {
+) -> Result<bool, String> {
     match kind {
         RoundKind::Pass => {
-            RoundCounts::clear(root);
-            true
+            RoundCounts::clear(root)?;
+            Ok(true)
         }
         RoundKind::Findings => {
-            let mut counts = RoundCounts::load(root);
+            let mut counts = RoundCounts::load(root)?;
             counts.review = counts.review.saturating_add(1);
             let allowed = counts.review > review_limit;
-            counts.save(root);
-            allowed
+            counts.save(root)?;
+            Ok(allowed)
         }
         RoundKind::CouldNotRun => {
-            let mut counts = RoundCounts::load(root);
+            let mut counts = RoundCounts::load(root)?;
             counts.could_not_run = counts.could_not_run.saturating_add(1);
             let allowed = counts.could_not_run > could_not_run_limit;
-            counts.save(root);
-            allowed
+            counts.save(root)?;
+            Ok(allowed)
         }
     }
 }
