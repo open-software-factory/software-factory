@@ -259,7 +259,14 @@ fn changed_files(dir: &Path, base: &str) -> Result<(BTreeSet<String>, Vec<String
     for f in crate::git::diff_name_only(dir, "HEAD").map_err(|e| e.to_string())? {
         files.insert(f);
     }
-    let untracked = crate::git::untracked_files(dir).map_err(|e| e.to_string())?;
+    // osf's own untracked output, such as its review-round counter or a
+    // SARIF file, is not part of the change a person made. Counting it would
+    // let one review round change which lenses the next round selects.
+    let untracked: Vec<String> = crate::git::untracked_files(dir)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|path| !path.starts_with(".osf/"))
+        .collect();
     for f in &untracked {
         files.insert(f.clone());
     }

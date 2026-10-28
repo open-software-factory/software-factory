@@ -226,10 +226,20 @@ pub const DEFAULT_REVIEW_CONCURRENCY: usize = 8;
 pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 1800;
 
 /// The whole reviewer run's timeout, in seconds, `review_config` reports when `[review]` names none.
-pub const DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS: u64 = 2700;
+pub const DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS: u64 = 1800;
 
 /// The largest value `review_config` accepts for either review timeout, in seconds.
 pub const MAX_REVIEW_TIMEOUT_SECS: u64 = 86_400;
+
+/// How many failed pre-push review rounds may stop a push before it is let
+/// through with the findings recorded. A round that finds nothing, or a
+/// review that could not run, does not use this budget.
+pub const DEFAULT_REVIEW_IN_SANDBOX_ROUNDS: u32 = 3;
+
+/// How many could-not-run review rounds may stop a push before it is let
+/// through. Kept separate so a missing credential cannot hide behind the
+/// finding budget, and cannot loop forever.
+pub const DEFAULT_REVIEW_COULD_NOT_RUN_ROUNDS: u32 = 3;
 
 /// The `[agents]` section of a repository's own `osf.toml`: which of the
 /// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
@@ -367,6 +377,12 @@ pub struct ReviewConfig {
     /// A file, relative to the trusted config root, that replaces the
     /// prompt osf ships. Left out, the shipped prompt is used.
     pub prompt_file: Option<String>,
+    /// How many failed pre-push rounds may stop a push before it proceeds
+    /// with the findings recorded.
+    pub in_sandbox_rounds: u32,
+    /// How many could-not-run pre-push rounds may stop a push before it
+    /// proceeds.
+    pub could_not_run_rounds: u32,
 }
 
 impl Default for ReviewConfig {
@@ -380,6 +396,8 @@ impl Default for ReviewConfig {
             builder_family_aliases: Vec::new(),
             hot_paths: Vec::new(),
             prompt_file: None,
+            in_sandbox_rounds: DEFAULT_REVIEW_IN_SANDBOX_ROUNDS,
+            could_not_run_rounds: DEFAULT_REVIEW_COULD_NOT_RUN_ROUNDS,
         }
     }
 }
@@ -452,6 +470,18 @@ pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
             path.display(),
             MAX_REVIEW_TIMEOUT_SECS,
             config.total_timeout_seconds
+        )));
+    }
+    if config.in_sandbox_rounds == 0 {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: in_sandbox_rounds must be a whole number greater than zero, found 0",
+            path.display()
+        )));
+    }
+    if config.could_not_run_rounds == 0 {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: could_not_run_rounds must be a whole number greater than zero, found 0",
+            path.display()
         )));
     }
     if let Some(ceiling) = config.cost_ceiling {
@@ -1555,7 +1585,7 @@ mod tests {
             loaded.total_timeout_seconds,
             DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS
         );
-        assert_eq!(loaded.total_timeout_seconds, 2700);
+        assert_eq!(loaded.total_timeout_seconds, 1800);
     }
 
     #[test]

@@ -209,13 +209,13 @@ mod tests {
             .filter_map(|a| a.review.as_ref())
             .flat_map(|r| r.credential_env.iter().copied())
             .collect();
-        for expected in [
-            "CODEX_API_KEY",
-            "CLAUDE_CODE_OAUTH_TOKEN",
-            "OPENROUTER_API_KEY",
-        ] {
+        for expected in ["CODEX_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] {
             assert!(names.contains(&expected), "{expected}: {names:?}");
         }
+        assert!(
+            !names.contains(&"OPENROUTER_API_KEY"),
+            "opencode signs in through its own auth file, not OpenRouter: {names:?}"
+        );
         assert!(CODE_HOST_TOKENS.contains(&"GH_TOKEN"));
     }
 }

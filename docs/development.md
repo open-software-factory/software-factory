@@ -335,12 +335,13 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 
 ## Review at pre-push and the pull request
 
-A moon task named `review` runs `osf review run --fail-on-findings` at
-pre-push. A kept must-fix finding stops the push, so the builder fixes it
-before it opens the pull request. A review that could not run prints its
-reasons but does not stop the push: pre-push has no work item for the
-spec-review lens. Pre-push runs inside your own workspace, so you could
-change its result there. It is not the merge gate; the separate job is.
+A moon task named `review` runs `osf review run` at pre-push. It reads the work item body from `.osf/out/work-item.txt`, which
+the develop skill writes before it reviews. A kept must-fix or should-fix
+finding stops the push, so the builder fixes it before it opens the pull
+request. A review that could not run stops the push too: a verification
+that did not happen is not a pass.
+Pre-push runs inside your own workspace, so you could change its result
+there. It is not the merge gate; the separate job is.
 
 GitHub always reads a `pull_request_target` workflow from the default
 branch. That is why `.github/workflows/review.yml` is the real gate, and
@@ -955,7 +956,7 @@ jobs:
       VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OSF_REVIEW_OPENCODE_AUTH_JSON: ${{ secrets.OSF_REVIEW_OPENCODE_AUTH_JSON }}
 ```
 
 Map each secret by name, as above, and leave out the key of a reviewer that

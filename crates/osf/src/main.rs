@@ -631,9 +631,6 @@ struct ReviewReduceArgs {
     /// `owner/repo#N`. A failed post makes the run could-not-run.
     #[arg(long = "post-to")]
     post_to: Option<String>,
-    /// Never fail on the review's own verdict.
-    #[arg(long = "warn-only")]
-    warn_only: bool,
     /// A family that built this change, repeatable. Overrides detection.
     #[arg(long = "builder-family")]
     builder_family: Vec<String>,
@@ -670,17 +667,6 @@ struct ReviewRunArgs {
     /// never see a clean exit code with no review evidence behind it.
     #[arg(long = "post-to")]
     post_to: Option<String>,
-    /// Never fail on the review's own verdict: still prints the verdict and
-    /// writes SARIF, but always exits 0. For a checkpoint that only warns,
-    /// such as pre-push, where the exit code cannot be trusted to gate
-    /// anything.
-    #[arg(long = "warn-only")]
-    warn_only: bool,
-    /// Fail on a kept must-fix finding, but not on a review that could not
-    /// run. At pre-push there is no work item for the spec lens, so a
-    /// could-not-run lens must not stop a push; its reasons still print.
-    #[arg(long = "fail-on-findings", conflicts_with = "warn_only")]
-    fail_on_findings: bool,
     /// A family that built this change, repeatable. Overrides detection
     /// from the reviewed range's own `Code-Generator:` trailers entirely; a
     /// roster entry from a named family is left out of every lens the same
@@ -2355,7 +2341,7 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
             &outcome,
             args.sarif_out.as_deref(),
             args.post_to.as_deref(),
-            args.fail_on_findings,
+            true,
         ),
         Err(e) => {
             eprintln!("osf review run: {e}");
@@ -2406,7 +2392,7 @@ fn finish_review(
     outcome: &review_run::RunOutcome,
     sarif_out: Option<&Path>,
     post_to: Option<&str>,
-    fail_on_findings: bool,
+    count_rounds: bool,
 ) -> u8 {
     for line in &outcome.lines {
         println!("{line}");
@@ -2427,14 +2413,40 @@ fn finish_review(
     if outcome.journal_error.is_some() || !posted {
         return 2;
     }
-    match outcome.verdict {
+    let blocking = outcome.findings.iter().any(|kept| {
+        matches!(
+            kept.finding.action,
+            osf::answer::Action::MustFix | osf::answer::Action::ShouldFix
+        )
+    });
+    let code = match outcome.verdict {
         reducer::Verdict::Pass => 0,
         reducer::Verdict::Fail => 1,
-        reducer::Verdict::CouldNotRun if fail_on_findings => {
-            println!("review: could not run, which does not stop this push");
-            0
-        }
         reducer::Verdict::CouldNotRun => 2,
+    };
+    let base = if blocking { 1 } else { code };
+    if !count_rounds {
+        return base;
+    }
+    let kind = if blocking {
+        review_run::RoundKind::Findings
+    } else {
+        match outcome.verdict {
+            reducer::Verdict::Pass => review_run::RoundKind::Pass,
+            reducer::Verdict::Fail => review_run::RoundKind::Findings,
+            reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
+        }
+    };
+    let config = config::review_config(Path::new(".")).unwrap_or_default();
+    if review_run::round_allows_push(
+        Path::new("."),
+        kind,
+        config.in_sandbox_rounds,
+        config.could_not_run_rounds,
+    ) {
+        0
+    } else {
+        base
     }
 }
 
@@ -2553,13 +2565,11 @@ fn review_work_item_cmd(args: &ReviewWorkItemArgs) -> ExitCode {
 }
 
 fn review_reduce_cmd(args: &ReviewReduceArgs) -> ExitCode {
-    let code = review_reduce_exit_code(args);
-    ExitCode::from(if args.warn_only { 0 } else { code })
+    ExitCode::from(review_reduce_exit_code(args))
 }
 
 fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
-    let code = review_run_exit_code(args);
-    ExitCode::from(if args.warn_only { 0 } else { code })
+    ExitCode::from(review_run_exit_code(args))
 }
 
 /// Splits `--post-to`'s `owner/repo#N` into the repository and the pull

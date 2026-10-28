@@ -265,7 +265,7 @@ A review is a check with the evidence grade reported. The code host's setting th
 
 ## The review check
 
-`osf review run` reviews a change through review lenses. A review lens is one area a reviewer judges on its own, such as security or data migration, with its own criteria and severity guide. The review runs on every change. A moon task named `review` runs it at pre-push, with `--warn-only`, so a finding there never stops a push. At the pull request, the base-branch workflow runs `osf review run` for each reviewer, then `osf review reduce`, with the work item from `osf review work-item`.
+`osf review run` reviews a change through review lenses. A review lens is one area a reviewer judges on its own, such as security or data migration, with its own criteria and severity guide. The review runs on every change. A moon task named `review` runs it at pre-push, fail-closed: a kept must-fix or should-fix finding, or a review that could not run, stops the push until the configured round limit is reached. At the pull request, the base-branch workflow runs `osf review run` for each reviewer, then `osf review reduce`, with the work item from `osf review work-item`.
 
 - Six must-run lenses run on every change: correctness, spec and acceptance, test quality, security, privacy and data protection, and data migration and compatibility.
 - Every other lens runs whenever its trigger fires, at any risk tier.

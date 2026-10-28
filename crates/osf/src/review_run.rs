@@ -179,6 +179,97 @@ pub struct RunOutcome {
     pub journal_error: Option<String>,
 }
 
+/// The pre-push review budget: how many failed rounds have already tried to
+/// stop this push. Kept in the worktree, because the same worktree is the
+/// same develop run.
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct RoundCounts {
+    #[serde(default)]
+    pub review: u32,
+    #[serde(default)]
+    pub could_not_run: u32,
+}
+
+/// What one finished round found, for the pre-push budget.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RoundKind {
+    /// Nothing to fix: the push may go and the budget resets.
+    Pass,
+    /// A kept must-fix or should-fix finding.
+    Findings,
+    /// The review could not run.
+    CouldNotRun,
+}
+
+impl RoundCounts {
+    fn path(root: &Path) -> PathBuf {
+        root.join(".osf").join("out").join("review-rounds.json")
+    }
+
+    fn load(root: &Path) -> Self {
+        std::fs::read(Self::path(root))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    }
+
+    fn save(&self, root: &Path) {
+        let path = Self::path(root);
+        if let Some(parent) = path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("osf review run: cannot create {}: {e}", parent.display());
+                return;
+            }
+        }
+        match serde_json::to_vec_pretty(self) {
+            Ok(bytes) => {
+                if let Err(e) = std::fs::write(&path, bytes) {
+                    eprintln!("osf review run: cannot write {}: {e}", path.display());
+                }
+            }
+            Err(e) => eprintln!("osf review run: cannot encode round counts: {e}"),
+        }
+    }
+
+    fn clear(root: &Path) {
+        let _ = std::fs::remove_file(Self::path(root));
+    }
+}
+
+/// Applies the pre-push budget and returns whether the push may proceed.
+///
+/// A pass clears the counts. A failed round increments its own count, and
+/// lets the push through once that count is past its limit. When it is not,
+/// the push keeps failing, and the next round fixes the findings.
+#[must_use]
+pub fn round_allows_push(
+    root: &Path,
+    kind: RoundKind,
+    review_limit: u32,
+    could_not_run_limit: u32,
+) -> bool {
+    match kind {
+        RoundKind::Pass => {
+            RoundCounts::clear(root);
+            true
+        }
+        RoundKind::Findings => {
+            let mut counts = RoundCounts::load(root);
+            counts.review = counts.review.saturating_add(1);
+            let allowed = counts.review > review_limit;
+            counts.save(root);
+            allowed
+        }
+        RoundKind::CouldNotRun => {
+            let mut counts = RoundCounts::load(root);
+            counts.could_not_run = counts.could_not_run.saturating_add(1);
+            let allowed = counts.could_not_run > could_not_run_limit;
+            counts.save(root);
+            allowed
+        }
+    }
+}
+
 /// One attempt of one reviewer at one lens, as saved. The family and model
 /// are not saved: [`reduce`] reads them from the trusted roster.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -429,7 +520,11 @@ impl Setup {
 fn setup(req: &Request) -> Result<Setup, String> {
     let catalogue = lenses::load(req.config_root, None)?;
     let report = changeset_risk::assess(req.root, req.config_root, req.base)?;
-    let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
+    let mut changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
+    // osf's own settings and output are not part of the change. A review
+    // round writes its counter under .osf/out, and that write must not
+    // change which lenses the next round selects.
+    changed.retain(|path| !path.starts_with(".osf"));
     let signals = report.signals();
     let selected: Vec<String> = lenses::select(&catalogue, &changed, &signals, report.tier)
         .iter()
@@ -728,6 +823,45 @@ fn scrub_run(req: &Request, run: &mut ReviewerRun) {
     }
 }
 
+/// The credential preflight and why this reviewer may sit the change out.
+fn preflight_and_not_run(
+    reviewer: &Reviewer,
+    allow_same_family: bool,
+    setup: &Setup,
+) -> (Option<String>, Option<String>) {
+    let preflight = reviewer.missing_credentials(crate::reviewers::real_home().as_deref());
+    let not_run = if let Some(reason) = &reviewer.family_error {
+        Some(format!("could not run: {reason}"))
+    } else if let Some(reason) = &preflight {
+        Some(format!("could not run: {reason}"))
+    } else if allow_same_family {
+        None
+    } else {
+        setup.skip_reason(reviewer)
+    };
+    (preflight, not_run)
+}
+
+/// One reviewer that no attempt can help: every lens is recorded as
+/// could-not-run with the same reason, and no worker starts.
+fn preflight_reviewer_run(
+    reviewer: &Reviewer,
+    lenses: &[&Lens],
+    reason: &str,
+    binding: Option<Binding>,
+) -> ReviewerRun {
+    let reason = format!("could not run: {reason}");
+    ReviewerRun {
+        reviewer: reviewer.name.clone(),
+        lenses: lenses
+            .iter()
+            .map(|lens| could_not_run_lens(lens, reason.clone()))
+            .collect(),
+        binding,
+        not_run: None,
+    }
+}
+
 fn run_reviewer_unscrubbed(
     req: &Request,
     setup: &Setup,
@@ -745,13 +879,7 @@ fn run_reviewer_unscrubbed(
             head: &binding.head,
         }),
     };
-    let not_run = if let Some(reason) = &reviewer.family_error {
-        Some(format!("could not run: {reason}"))
-    } else if allow_same_family {
-        None
-    } else {
-        setup.skip_reason(reviewer)
-    };
+    let (preflight, not_run) = preflight_and_not_run(reviewer, allow_same_family, setup);
     let idle = not_run.is_some();
     // Written once per reviewer run, and removed when this run ends.
     let change = if idle {
@@ -765,9 +893,16 @@ fn run_reviewer_unscrubbed(
     }
     let reviewer = &reviewer;
     let lenses = setup.selected_lenses();
-
     // An idle reviewer, or a shared folder that failed, starts no worker.
     let change = match change {
+        None if preflight.is_some() => {
+            return preflight_reviewer_run(
+                reviewer,
+                &lenses,
+                preflight.as_deref().unwrap_or("no credential"),
+                req.binding.cloned(),
+            );
+        }
         None => {
             return ReviewerRun {
                 reviewer: reviewer.name.clone(),

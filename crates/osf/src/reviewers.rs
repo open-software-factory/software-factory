@@ -73,6 +73,10 @@ pub struct Reviewer {
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
+    /// Whether a launch template supplied this reviewer's command. A
+    /// template may carry its own authentication, which osf cannot see, so
+    /// the credential preflight does not judge it.
+    pub templated: bool,
 }
 
 impl Reviewer {
@@ -89,6 +93,49 @@ impl Reviewer {
     #[must_use]
     pub fn is_excluded_by(&self, builder_families: &std::collections::BTreeSet<String>) -> bool {
         self.family_error.is_none() && builder_families.contains(&self.family)
+    }
+
+    /// Why this reviewer has no way to sign in, when it has none at all.
+    ///
+    /// A credential variable counts when its value is non-empty. A login
+    /// file counts when any one of its paths exists under `real_home`. When
+    /// neither is true the reviewer cannot answer, and no retry can change
+    /// that: a missing key or login is deterministic. `None` means the
+    /// reviewer has a credential, or needs none.
+    #[must_use]
+    pub fn missing_credentials(&self, real_home: Option<&Path>) -> Option<String> {
+        if std::env::var_os("OSF_TEST_NO_PREFLIGHT").is_some() || self.templated {
+            return None;
+        }
+        if self
+            .credential_env
+            .iter()
+            .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()))
+        {
+            return None;
+        }
+        if self.login_paths.is_empty() {
+            return None;
+        }
+        let missing: Vec<&str> = self
+            .login_paths
+            .iter()
+            .map(String::as_str)
+            .filter(|path| !real_home.is_some_and(|home| home.join(path).exists()))
+            .collect();
+        if missing.len() != self.login_paths.len() {
+            return None;
+        }
+
+        let mut parts = Vec::new();
+        if !self.credential_env.is_empty() {
+            parts.push(format!(
+                "credential variable {} is empty or not set",
+                self.credential_env.join(" or ")
+            ));
+        }
+        parts.push(format!("login path {} is missing", missing.join(" or ")));
+        Some(parts.join("; "))
     }
 
     /// `agent` as a reviewer running `model`, with `in_container`'s
@@ -110,6 +157,7 @@ impl Reviewer {
             name: agent.name.to_string(),
             family,
             family_error,
+            templated: template.is_some(),
             command: template
                 .map_or_else(|| owned(agent.command), |template| template.command.clone()),
             env: template
@@ -932,6 +980,7 @@ mod tests {
             credential_env: Vec::new(),
             login_paths: Vec::new(),
             review_dir: None,
+            templated: false,
         }
     }
 

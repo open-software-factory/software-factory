@@ -386,7 +386,9 @@ pub const AGENTS: &[Agent] = &[
             schema_as: SchemaArg::Path,
             answer_pointer: "",
             model_flag: Some("--model"),
-            credential_env: &["OPENROUTER_API_KEY"],
+            // opencode signs in through its own auth file, including for the
+            // free provider model. It does not read the OpenRouter key.
+            credential_env: &[],
             login_paths: &[".local/share/opencode/auth.json"],
         }),
     },

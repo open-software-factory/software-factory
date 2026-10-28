@@ -153,6 +153,7 @@ fn review_repo_without_trailer(name: &str, osf_toml: &str) -> TempRepo {
     let repo = TempRepo::new(name);
     write_lens_overrides(&repo);
     repo.write("osf.toml", osf_toml);
+    repo.write(".gitignore", ".osf/out/\n.osf/review-rounds.json\n");
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
     repo.commit("base");
@@ -246,6 +247,7 @@ fn review_repo_built_by(name: &str, osf_toml: &str, trailer_model: &str) -> Temp
     let repo = TempRepo::new(name);
     write_lens_overrides(&repo);
     repo.write("osf.toml", osf_toml);
+    repo.write(".gitignore", ".osf/out/\n.osf/review-rounds.json\n");
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
     repo.commit("base");
@@ -432,6 +434,30 @@ impl Fakes {
         let mut all: Vec<(&str, &str)> =
             env.iter().copied().filter(|(k, _)| *k != "PATH").collect();
         all.push(("PATH", &path));
+        // The fake agents answer without a real provider. Give them a
+        // credential so the preflight lets them start; the preflight itself
+        // has its own tests.
+        if std::env::var_os("OSF_TEST_NO_FAKE_CREDS").is_none() {
+            for var in [
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "OPENAI_API_KEY",
+                "OPENROUTER_API_KEY",
+                "CODEX_API_KEY",
+            ] {
+                if !all.iter().any(|(name, _)| *name == var) {
+                    all.push((var, "test-credential"));
+                }
+            }
+            for login in [".local/share/opencode/auth.json", ".codex/auth.json"] {
+                let file = home.join(login);
+                if !file.exists() {
+                    if let Some(parent) = file.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&file, "{}");
+                }
+            }
+        }
         common::run_osf_with_env(dir, home, &all, args)
     }
 }
@@ -2294,34 +2320,6 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
     );
 }
 
-/// `--warn-only` still runs the review and still prints the verdict, but
-/// the process always exits 0, whatever that verdict is.
-#[test]
-fn warn_only_prints_the_verdict_but_never_fails() {
-    let fakes = Fakes::new(
-        "",
-        &[
-            ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
-        ],
-    );
-    let repo = review_repo("warn-only-blocker", &fakes.osf_toml);
-    let home = common::isolated_home("review-run-warn-only-blocker");
-    let output = fakes.run(
-        &repo.dir,
-        &home,
-        &["review", "run", "--base", "origin/main", "--warn-only"],
-    );
-    assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("verdict: fail"), "{stdout}");
-}
-
 /// `--fail-on-findings` still fails the push on a kept must-fix finding.
 #[test]
 fn fail_on_findings_fails_on_a_blocker() {
@@ -2337,13 +2335,7 @@ fn fail_on_findings_fails_on_a_blocker() {
     let output = fakes.run(
         &repo.dir,
         &home,
-        &[
-            "review",
-            "run",
-            "--base",
-            "origin/main",
-            "--fail-on-findings",
-        ],
+        &["review", "run", "--base", "origin/main"],
     );
     assert!(
         !output.status.success(),
@@ -2355,46 +2347,75 @@ fn fail_on_findings_fails_on_a_blocker() {
     assert!(stdout.contains("verdict: fail"), "{stdout}");
 }
 
-/// `--fail-on-findings` lets a could-not-run through, because pre-push has no
-/// work item for the spec-review lens, but it says so in full.
+/// `--fail-on-findings` also fails on a kept should-fix finding, which the
+/// verdict alone does not veto.
 #[test]
-fn fail_on_findings_passes_a_could_not_run() {
+fn fail_on_findings_fails_on_a_should_fix() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("should-fix.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("fail-on-findings-should-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-fail-on-findings-should-fix");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        !output.status.success(),
+        "a should-fix finding fails the gate: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The pre-push budget: three failed rounds stop a push, and the fourth
+/// lets it through with the findings recorded.
+#[test]
+fn the_pre_push_budget_lets_a_push_through_after_the_limit() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("pre-push-budget", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-pre-push-budget");
+    let mut codes = Vec::new();
+    for _ in 0..4 {
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        codes.push(output.status.code());
+        assert!(
+            output.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(codes, vec![Some(1), Some(1), Some(1), Some(0)]);
+}
+
+/// A review that could not run is a verification that did not happen, so it
+/// fails the gate like a finding does.
+#[test]
+fn fail_on_findings_fails_a_could_not_run() {
     let repo = review_repo("fail-on-findings-could-not-run", "");
     let home = common::isolated_home("review-run-fail-on-findings-could-not-run");
     let output = common::run_osf(
         &repo.dir,
         &home,
-        &[
-            "review",
-            "run",
-            "--base",
-            "origin/main",
-            "--fail-on-findings",
-        ],
+        &["review", "run", "--base", "origin/main"],
     );
     assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
-    assert!(stdout.contains("does not stop this push"), "{stdout}");
-}
-
-/// `--warn-only` also swallows a could-not-run verdict, the same as a fail.
-#[test]
-fn warn_only_never_fails_on_could_not_run_either() {
-    let repo = review_repo("warn-only-could-not-run", "");
-    let home = common::isolated_home("review-run-warn-only-could-not-run");
-    let output = common::run_osf(
-        &repo.dir,
-        &home,
-        &["review", "run", "--base", "origin/main", "--warn-only"],
-    );
-    assert!(
-        output.status.success(),
+        !output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
