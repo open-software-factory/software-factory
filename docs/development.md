@@ -956,7 +956,7 @@ jobs:
       VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      OSF_REVIEW_OPENCODE_AUTH_JSON: ${{ secrets.OSF_REVIEW_OPENCODE_AUTH_JSON }}
+      OSF_REVIEW_OPENCODE_API_KEY: ${{ secrets.OSF_REVIEW_OPENCODE_API_KEY }}
 ```
 
 Map each secret by name, as above, and leave out the key of a reviewer that

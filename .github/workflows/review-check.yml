@@ -73,8 +73,8 @@ on:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
         required: false
-      OSF_REVIEW_OPENCODE_AUTH_JSON:
-        description: The opencode auth file contents for the opencode reviewer. Leave it out when opencode is not a selected reviewer.
+      OSF_REVIEW_OPENCODE_API_KEY:
+        description: The opencode provider key for the opencode reviewer. Leave it out when opencode is not a selected reviewer.
         required: false
 
 permissions:
@@ -537,14 +537,9 @@ jobs:
           name: work-item
           path: work-item
 
-      - name: Write the opencode auth file
-        env:
-          OSF_REVIEW_OPENCODE_AUTH_JSON: ${{ secrets.OSF_REVIEW_OPENCODE_AUTH_JSON }}
-        run: |
-          printf '%s' "$OSF_REVIEW_OPENCODE_AUTH_JSON" > out/opencode-auth.json
-          chmod a+r out/opencode-auth.json
-
       - name: Run this reviewer, reading the pull request's tree as data
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OSF_REVIEW_OPENCODE_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -553,8 +548,8 @@ jobs:
           -v "${{ github.workspace }}/work-item:/work-item:ro"
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
-          -v "${{ github.workspace }}/out/opencode-auth.json:/home/dev/.local/share/opencode/auth.json:ro"
           -w /pr
+          -e OPENCODE_API_KEY
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
           --reviewer opencode
