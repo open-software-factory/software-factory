@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "80d661698c0d0146932ef856ade42291a91336d9",
+    "contentHash": "4be88785902bec0fd91ed5a66f8b411c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "review-gate-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1fbd2e7c46c93582d1c6ad6100035149",
+      "bytes": 24434,
+      "width": 1708,
+      "height": 874,
+      "animated": false,
+      "path": "review-gate-context-light-1fbd2e7c46c93582d1c6ad6100035149.svg"
+    },
+    {
+      "id": "review-gate-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9b64113869a5c7bb63749848f3912137",
+      "bytes": 24764,
+      "width": 1708,
+      "height": 874,
+      "animated": false,
+      "path": "review-gate-context-dark-9b64113869a5c7bb63749848f3912137.svg"
+    },
+    {
+      "id": "review-run-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-run-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "984e8086d0a431b02e23755ec29efc23",
+      "bytes": 14892,
+      "width": 870,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-internals-light-984e8086d0a431b02e23755ec29efc23.svg"
+    },
+    {
+      "id": "review-run-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-run-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d469ea29b63cdb2ebd6649ee652eca53",
+      "bytes": 15096,
+      "width": 870,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-internals-dark-d469ea29b63cdb2ebd6649ee652eca53.svg"
+    },
+    {
+      "id": "pre-push-review-gate-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "pre-push-review-gate-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "01c9dcf19c4380e3598f9fae33b9db9b",
+      "bytes": 15516,
+      "width": 1866,
+      "height": 451,
+      "animated": true,
+      "path": "pre-push-review-gate-flow-light-01c9dcf19c4380e3598f9fae33b9db9b.svg"
+    },
+    {
+      "id": "pre-push-review-gate-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "pre-push-review-gate-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eee8569a21bc2758a4f7dcf23efbdd00",
+      "bytes": 15663,
+      "width": 1866,
+      "height": 451,
+      "animated": true,
+      "path": "pre-push-review-gate-flow-dark-eee8569a21bc2758a4f7dcf23efbdd00.svg"
+    }
+  ]
+}
