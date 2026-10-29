@@ -2454,6 +2454,29 @@ fn the_pre_push_budget_lets_a_push_through_after_the_limit() {
     assert_eq!(codes, vec![Some(1), Some(1), Some(1), Some(0)]);
 }
 
+/// Past the could-not-run limit the gate reports blocked, and it never lets
+/// the push through on a review that did not happen.
+#[test]
+fn a_could_not_run_streak_ends_blocked_with_a_message() {
+    let repo = review_repo("cnr-limit", "");
+    let home = common::isolated_home("review-run-cnr-limit");
+    let mut last = String::new();
+    for _ in 0..4 {
+        let output = common::run_osf(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        last = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert!(last.contains("could not run 4 rounds"), "{last}");
+}
+
 /// A missing credential is decided before any reviewer process starts, so
 /// the run cannot wait out a timeout and then retry.
 #[test]

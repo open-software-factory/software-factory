@@ -14,10 +14,6 @@ const MIN_LEN: usize = 8;
 /// The variables that carry a code-host token.
 const CODE_HOST_TOKENS: &[&str] = &["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN"];
 
-/// Review credentials that reach osf without an agent's `credential_env`,
-/// such as an auth file body the workflow writes.
-const REVIEW_SECRET_VARS: &[&str] = &["OSF_REVIEW_OPENCODE_AUTH_JSON"];
-
 /// Every string leaf of a JSON login file, which is where an agent such as
 /// opencode keeps its provider key.
 fn login_values() -> Vec<String> {
@@ -73,7 +69,6 @@ pub fn held() -> Vec<String> {
         .filter_map(|a| a.review.as_ref())
         .flat_map(|r| r.credential_env.iter().copied());
     let mut values: Vec<String> = provider
-        .chain(REVIEW_SECRET_VARS.iter().copied())
         .chain(CODE_HOST_TOKENS.iter().copied())
         .filter_map(|name| std::env::var(name).ok())
         .filter(|value| value.len() >= MIN_LEN)
