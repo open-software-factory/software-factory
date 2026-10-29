@@ -2381,6 +2381,49 @@ fn fail_on_findings_fails_on_a_should_fix() {
     );
 }
 
+/// The pull-request reduce step fails on a kept should-fix finding, the
+/// same rule as the push.
+#[test]
+fn the_pull_request_reduce_step_fails_on_a_kept_should_fix() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("should-fix.json")))]);
+    let repo = review_repo("reduce-should-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-reduce-should-fix");
+    let saved = TempDir::new("review-run-reduce-should-fix-saved");
+    let file = saved.join("codex.json").to_string_lossy().into_owned();
+    let run = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        run.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let reduced = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "reduce", "--base", "origin/main", &file],
+    );
+    assert_eq!(
+        reduced.status.code(),
+        Some(1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&reduced.stdout),
+        String::from_utf8_lossy(&reduced.stderr)
+    );
+}
+
 /// The pre-push budget: three failed rounds stop a push, and the fourth
 /// lets it through with the findings recorded.
 #[test]

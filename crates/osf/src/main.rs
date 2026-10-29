@@ -631,11 +631,6 @@ struct ReviewReduceArgs {
     /// `owner/repo#N`. A failed post makes the run could-not-run.
     #[arg(long = "post-to")]
     post_to: Option<String>,
-    /// Deprecated and ignored. The review is fail-closed; accepted so a
-    /// caller pinned to an older osf still parses.
-    #[arg(long = "warn-only", hide = true)]
-    #[allow(dead_code)]
-    warn_only: bool,
     /// A family that built this change, repeatable. Overrides detection.
     #[arg(long = "builder-family")]
     builder_family: Vec<String>,
@@ -672,11 +667,6 @@ struct ReviewRunArgs {
     /// never see a clean exit code with no review evidence behind it.
     #[arg(long = "post-to")]
     post_to: Option<String>,
-    /// Deprecated and ignored. The review is fail-closed; accepted so a hook
-    /// pinned to an older osf still parses.
-    #[arg(long = "warn-only", hide = true)]
-    #[allow(dead_code)]
-    warn_only: bool,
     /// A family that built this change, repeatable. Overrides detection
     /// from the reviewed range's own `Code-Generator:` trailers entirely; a
     /// roster entry from a named family is left out of every lens the same
@@ -2435,12 +2425,12 @@ fn finish_review(
         reducer::Verdict::Fail => 1,
         reducer::Verdict::CouldNotRun => 2,
     };
-    if !count_rounds {
-        // The pull-request check and the per-reviewer CI jobs keep the
-        // documented rule: only a must-fix finding fails them.
-        return code;
-    }
+    // A kept must-fix or should-fix finding fails both the push and the
+    // pull-request check. Open questions are for a person to decide.
     let base = if blocking { 1 } else { code };
+    if !count_rounds {
+        return base;
+    }
     let kind = if blocking {
         review_run::RoundKind::Findings
     } else {

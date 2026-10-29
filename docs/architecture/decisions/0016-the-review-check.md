@@ -218,7 +218,7 @@ The final job runs `osf review reduce` over the saved answers and posts the resu
 
 The review check is required once the rebuilt workflow is verified. It posts its result as a check run and as a review under the reviewer identity. A pull request from a fork is reviewed only when the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off. When it is on, the same one review job uses the same repository-level credentials. A maintainer's approval gates those jobs only when the adopter has made that environment with required reviewers, which [open-software-factory/software-factory#213 (protect the fork-review environment)](https://github.com/open-software-factory/software-factory/issues/213) tracks. The `build` job has no environment and runs first.
 
-A must-fix finding fails the final job at the pull request. At pre-push it stops the push, until the configured round limit is reached.
+A must-fix or should-fix finding fails the final job at the pull request and stops the pre-push push, until the configured round limit is reached.
 
 [open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. Main has only `osf review post`, and the `osf.toml` on main has no `[agents]` section, until that pull request merges.
 
