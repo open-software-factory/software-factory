@@ -857,11 +857,14 @@ fn preflight_and_not_run(
     };
     // A reviewer already left out for a more specific reason, such as no
     // read-only mode, is not judged again by the credential preflight.
-    let preflight = if reviewer.family_error.is_some() || skipped.is_some() {
-        None
-    } else {
-        reviewer.missing_credentials(crate::reviewers::real_home().as_deref())
-    };
+    // A reviewer with no read-only mode is left out for that reason. Its
+    // worker reports it, so the preflight must not take its place.
+    let preflight =
+        if reviewer.family_error.is_some() || skipped.is_some() || reviewer.read_only.is_none() {
+            None
+        } else {
+            reviewer.missing_credentials(crate::reviewers::real_home().as_deref())
+        };
     let not_run = if let Some(reason) = &reviewer.family_error {
         Some(format!("could not run: {reason}"))
     } else if skipped.is_some() {
