@@ -1,0 +1,429 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-30T12:48:53.306Z",
+  "title": "Bump create-github-app-token to v3.3.0 in review-check",
+  "summary": "A single-line dependency bump in the review-check workflow: the step that mints the verifier's GitHub App token now pins actions/create-github-app-token at v3.3.0 instead of v3.2.0. Nothing about the workflow's structure, inputs or downstream consumers changes — the same app id and private key are exchanged for the same short-lived installation token, which the later verification steps keep using.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "f4a481bf638191c86a9b9532438a92f39c245e81",
+      "ref": "f4a481bf638191c86a9b9532438a92f39c245e81"
+    },
+    "pullRequest": {
+      "number": 300,
+      "url": "https://github.com/open-software-factory/software-factory/pull/300"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "What starts the workflow",
+      "order": 0
+    },
+    {
+      "id": "workflow",
+      "label": "review-check workflow",
+      "subtitle": "GitHub Actions jobs",
+      "order": 1
+    },
+    {
+      "id": "actions",
+      "label": "Actions & secrets",
+      "subtitle": "Third-party steps and credentials",
+      "order": 2
+    },
+    {
+      "id": "github",
+      "label": "GitHub API",
+      "subtitle": "App installation and checks",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-event",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "opened / synchronize",
+      "summary": "The pull request activity that dispatches the review-check workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "workflow definition",
+      "summary": "The workflow file touched by this change; only the pinned version of the token-minting action moved.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 643,
+          "endLine": 649
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verifier-token-step",
+      "label": "Mint the verifier's own token",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "id: verifier-token",
+      "summary": "The step whose `uses` reference was bumped from create-github-app-token v3.2.0 to v3.3.0. Its inputs (app-id, private-key) are unchanged.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 643,
+          "endLine": 649
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "create-app-token-action",
+      "label": "actions/create-github-app-token",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "actions",
+      "subtitle": "v3.2.0 → v3.3.0",
+      "summary": "The third-party action that performs the JWT signing and installation-token exchange. This change only moves the pinned commit to the v3.3.0 release.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 646,
+          "endLine": 646
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verifier-app-key",
+      "label": "OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "actions",
+      "subtitle": "repository secret",
+      "summary": "The private key the action uses to sign the app JWT; passed through untouched.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "verifier-app-id",
+      "label": "verifier-app-id",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "actions",
+      "subtitle": "workflow input",
+      "summary": "The GitHub App id supplied as a workflow input; passed through untouched.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "github-app-auth",
+      "label": "GitHub App auth API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "github",
+      "subtitle": "/app/installations/{id}/access_tokens",
+      "summary": "GitHub's endpoint that exchanges a signed app JWT for a short-lived installation token.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "verifier-token-output",
+      "label": "steps.verifier-token.outputs.token",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "subtitle": "installation token",
+      "summary": "The minted token consumed by the later verification steps in the same job.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "downstream-steps",
+      "label": "Downstream verification steps",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "subtitle": "consume the token",
+      "summary": "The remaining steps of the job that authenticate with the minted token; unaffected by the version bump.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-triggers-workflow",
+      "from": "pr-event",
+      "to": "review-check-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "dispatch",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-token-step",
+      "from": "review-check-workflow",
+      "to": "verifier-token-step",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "job step",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "token-step-uses-action",
+      "from": "verifier-token-step",
+      "to": "create-app-token-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "uses @ v3.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 646,
+          "endLine": 646
+        }
+      ]
+    },
+    {
+      "id": "action-reads-app-id",
+      "from": "create-app-token-action",
+      "to": "verifier-app-id",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "app-id",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "action-reads-private-key",
+      "from": "create-app-token-action",
+      "to": "verifier-app-key",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "private-key",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "action-calls-github",
+      "from": "create-app-token-action",
+      "to": "github-app-auth",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "JWT → installation token",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "action-emits-token",
+      "from": "create-app-token-action",
+      "to": "verifier-token-output",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "token",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "token-feeds-downstream",
+      "from": "verifier-token-output",
+      "to": "downstream-steps",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "authenticated calls",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "mint-verifier-token",
+      "title": "Minting the verifier's installation token",
+      "summary": "How the bumped step turns the verifier app's credentials into a short-lived token for the rest of the job.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-check-workflow",
+          "label": "review-check.yml"
+        },
+        {
+          "node": "verifier-token-step",
+          "label": "verifier-token step"
+        },
+        {
+          "node": "create-app-token-action",
+          "label": "create-github-app-token"
+        },
+        {
+          "node": "github-app-auth",
+          "label": "GitHub App auth"
+        },
+        {
+          "node": "downstream-steps",
+          "label": "downstream steps"
+        }
+      ],
+      "messages": [
+        {
+          "id": "run-step",
+          "from": "review-check-workflow",
+          "to": "verifier-token-step",
+          "label": "run step",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "invoke-action",
+          "from": "verifier-token-step",
+          "to": "create-app-token-action",
+          "label": "uses @ v3.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 646,
+              "endLine": 646
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "ActionInputs",
+              "shape": "{ app_id: string; private_key: string; owner: string; repositories: string }",
+              "sample": {
+                "app_id": "123456",
+                "private_key": "***",
+                "owner": "open-software-factory",
+                "repositories": "software-factory"
+              },
+              "before": {
+                "app_id": "123456",
+                "private_key": "***",
+                "owner": "open-software-factory",
+                "repositories": "software-factory"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "exchange-jwt",
+          "from": "create-app-token-action",
+          "to": "github-app-auth",
+          "label": "POST access_tokens",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "return-token",
+          "from": "github-app-auth",
+          "to": "create-app-token-action",
+          "label": "installation token",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "emit-output",
+          "from": "create-app-token-action",
+          "to": "verifier-token-step",
+          "label": "outputs.token",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "hand-off",
+          "from": "verifier-token-step",
+          "to": "downstream-steps",
+          "label": "token for later steps",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-check-architecture",
+      "title": "review-check workflow and its token dependency",
+      "lens": "architecture",
+      "summary": "The workflow, the token-minting step, the pinned action and the GitHub App auth endpoint it talks to.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "mint-verifier-token-view",
+      "title": "Token minting sequence",
+      "lens": "data-flow",
+      "summary": "The ordered exchange from workflow step to installation token.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "mint-verifier-token"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
