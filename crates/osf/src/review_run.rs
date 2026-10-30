@@ -180,8 +180,8 @@ pub struct RunOutcome {
 }
 
 /// The pre-push review budget: how many failed rounds have already tried to
-/// stop this push. Kept in the worktree, because the same worktree is the
-/// same develop run.
+/// stop this push. Keyed by the worktree path, so each develop run has its
+/// own count, and kept in the journal state so the builder cannot edit it.
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct RoundCounts {
     #[serde(default)]
@@ -541,11 +541,11 @@ impl Setup {
 fn setup(req: &Request) -> Result<Setup, String> {
     let catalogue = lenses::load(req.config_root, None)?;
     let report = changeset_risk::assess(req.root, req.config_root, req.base)?;
-    let mut changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
-    // osf's own settings and output are not part of the change. A review
-    // round writes its counter under .osf/out, and that write must not
-    // change which lenses the next round selects.
-    changed.retain(|path| !path.starts_with(".osf"));
+    // The review's own output under .osf/out never reaches this list:
+    // git::changed_files reads tracked, committed paths, and .osf/out is
+    // ignored. A tracked change under .osf/, such as the moon task or the
+    // lens overrides, stays in the list so a lens that triggers on it fires.
+    let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
     let signals = report.signals();
     let selected: Vec<String> = lenses::select(&catalogue, &changed, &signals, report.tier)
         .iter()

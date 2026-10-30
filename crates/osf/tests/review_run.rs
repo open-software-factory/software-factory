@@ -2454,6 +2454,74 @@ fn the_pre_push_budget_lets_a_push_through_after_the_limit() {
     assert_eq!(codes, vec![Some(1), Some(1), Some(1), Some(0)]);
 }
 
+/// A pass clears the counts, so the next failure counts from one again, and
+/// the counts live under the journal state, never in the worktree.
+#[test]
+fn a_pass_clears_the_round_counts_kept_in_the_journal_state() {
+    let answer = TempDir::new("review-run-pass-clears-answer");
+    let answer_path = answer.join("answer.json");
+    let blocker = std::fs::read_to_string(fixture("blocker.json")).expect("blocker fixture reads");
+    let valid = std::fs::read_to_string(fixture("valid.json")).expect("valid fixture reads");
+    std::fs::write(&answer_path, &blocker).expect("answer writes");
+    let answer_arg = answer_path.to_string_lossy().into_owned();
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&answer_arg)),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("pass-clears", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-pass-clears");
+    let run = || {
+        fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        )
+    };
+
+    let failed = run();
+    assert_eq!(
+        failed.status.code(),
+        Some(1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&failed.stdout),
+        String::from_utf8_lossy(&failed.stderr)
+    );
+    let rounds = home.join(".osf").join("state").join("review-rounds");
+    assert!(
+        rounds.is_dir(),
+        "the round counts live under the journal state"
+    );
+    assert!(
+        !repo.dir.join(".osf/out/review-rounds.json").exists(),
+        "no round count lives in the worktree"
+    );
+
+    std::fs::write(&answer_path, &valid).expect("answer writes");
+    let passed = run();
+    assert_eq!(
+        passed.status.code(),
+        Some(0),
+        "a clean review passes: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&passed.stdout),
+        String::from_utf8_lossy(&passed.stderr)
+    );
+    let remaining = std::fs::read_dir(&rounds).map_or(0, std::fs::ReadDir::count);
+    assert_eq!(remaining, 0, "a pass removes the round counts");
+
+    std::fs::write(&answer_path, &blocker).expect("answer writes");
+    let failed_again = run();
+    assert_eq!(
+        failed_again.status.code(),
+        Some(1),
+        "a failure after a pass counts from one again: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&failed_again.stdout),
+        String::from_utf8_lossy(&failed_again.stderr)
+    );
+}
+
 /// Past the could-not-run limit the gate reports blocked, and it never lets
 /// the push through on a review that did not happen.
 #[test]
