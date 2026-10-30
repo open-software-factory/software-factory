@@ -35,5 +35,5 @@ jobs:
       osf-repository: ${{ github.repository }}
       osf-ref: ${{ github.workflow_sha }}
       runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"' }}
-      verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
+      verifier-app-id: ${{ vars.OSF_REVIEW_VERIFIER_APP_ID }}
       allow-forks: ${{ vars.OSF_REVIEW_FORKS == 'true' }}

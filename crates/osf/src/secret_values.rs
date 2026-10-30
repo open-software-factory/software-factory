@@ -212,7 +212,7 @@ mod tests {
         for expected in [
             "CODEX_API_KEY",
             "CLAUDE_CODE_OAUTH_TOKEN",
-            "OPENROUTER_API_KEY",
+            "OPENCODE_API_KEY",
         ] {
             assert!(names.contains(&expected), "{expected}: {names:?}");
         }
