@@ -590,7 +590,7 @@ required.
   `OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY`. The one review job mints a
   short-lived token from this app, to post the review.
 - The repository-level reviewer credentials: `OSF_REVIEW_OPENAI_API_KEY`,
-  `OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN`, `OSF_REVIEW_OPENROUTER_API_KEY`,
+  `OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN`, `OSF_REVIEW_OPENCODE_API_KEY`,
   `OSF_REVIEW_DEEPSEEK_API_KEY` and `OSF_REVIEW_CODEX_AUTH_JSON`. One
   review job runs `osf review run` over every configured reviewer. Each
   reviewer container receives only the one variable its agent's
@@ -953,7 +953,7 @@ jobs:
       OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY: ${{ secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY }}
       OSF_REVIEW_OPENAI_API_KEY: ${{ secrets.OSF_REVIEW_OPENAI_API_KEY }}
       OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN }}
-      OSF_REVIEW_OPENROUTER_API_KEY: ${{ secrets.OSF_REVIEW_OPENROUTER_API_KEY }}
+      OSF_REVIEW_OPENCODE_API_KEY: ${{ secrets.OSF_REVIEW_OPENCODE_API_KEY }}
 ```
 
 Map each secret by name, as above, and leave out the key of a reviewer that
@@ -1014,7 +1014,7 @@ variable, and the aggregate verdict follows the quorum policy.
 | `OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY` | yes | The one review job, which mints the verifier token. |
 | `OSF_REVIEW_OPENAI_API_KEY` | no | The codex reviewer container. |
 | `OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN` | no | The claude reviewer container. |
-| `OSF_REVIEW_OPENROUTER_API_KEY` | no | The opencode reviewer container. |
+| `OSF_REVIEW_OPENCODE_API_KEY` | no | The opencode reviewer container. |
 | `OSF_REVIEW_DEEPSEEK_API_KEY` | no | The DeepSeek Harness reviewer container. |
 | `OSF_REVIEW_CODEX_AUTH_JSON` | no | The codex reviewer container, for subscription auth. |
 

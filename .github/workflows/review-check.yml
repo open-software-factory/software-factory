@@ -23,12 +23,11 @@ name: review check
 # answers, decides, and posts: it alone mints the verifier app's token.
 #
 # The reviewer keys and the verifier app's private key are repository-level
-# `OSF_REVIEW_*` secrets in the repository that holds the calling workflow. The
-# jobs that read them still name the `review` environment, so its limit to the
-# main branch still applies. A caller passes them with `secrets: inherit`, or
-# maps each one by its `OSF_REVIEW_` name. A reviewer key is not required,
-# because a reviewer can be disabled; a reviewer whose key is empty runs,
-# cannot sign in, and counts as could-not-run.
+# `OSF_REVIEW_*` secrets in the repository that holds the calling workflow. A
+# caller passes them with `secrets: inherit`, or maps each one by its
+# `OSF_REVIEW_` name. A reviewer key is not required, because a reviewer can be
+# disabled; a reviewer whose key is empty runs, cannot sign in, and counts as
+# could-not-run.
 #
 # This check is advisory. It posts a check run and a review, and no branch
 # protection or ruleset requires it. It becomes a required check when the key
@@ -57,7 +56,7 @@ on:
         type: string
         required: true
       allow-forks:
-        description: Review a fork's pull request too, once a maintainer approves the fork-review environment.
+        description: Review a fork's pull request too, when the caller enables it.
         type: boolean
         required: false
         default: false
@@ -71,8 +70,8 @@ on:
       OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN:
         description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
         required: false
-      OSF_REVIEW_OPENROUTER_API_KEY:
-        description: The key of the opencode reviewer. Leave it out when opencode is not a selected reviewer.
+      OSF_REVIEW_OPENCODE_API_KEY:
+        description: The opencode provider key for the opencode reviewer. Leave it out when opencode is not a selected reviewer.
         required: false
 
 permissions:
@@ -240,7 +239,6 @@ jobs:
     # The environment holds this reviewer's key. Only main can deploy to
     # `review`, and a maintainer approves `fork-review`, so a branch cannot
     # widen what a review run can see.
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -358,7 +356,6 @@ jobs:
     needs: build
     if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -465,7 +462,6 @@ jobs:
     needs: build
     if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -537,7 +533,7 @@ jobs:
 
       - name: Run this reviewer, reading the pull request's tree as data
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OSF_REVIEW_OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OSF_REVIEW_OPENCODE_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -547,7 +543,7 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
           -w /pr
-          -e OPENROUTER_API_KEY
+          -e OPENCODE_API_KEY
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
           --reviewer opencode
@@ -581,7 +577,6 @@ jobs:
     needs: [build, review-codex, review-claude, review-opencode]
     if: ${{ always() && needs.build.result == 'success' && (github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks) }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read

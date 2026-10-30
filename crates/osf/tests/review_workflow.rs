@@ -1075,7 +1075,7 @@ fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_
         "a setting enters as an input, never as an ambient variable"
     );
     assert!(
-        text.contains("`secrets: inherit`") && text.contains("`review` environment"),
+        text.contains("`secrets: inherit`") && text.contains("repository-level"),
         "the header says how a caller passes them and where they live"
     );
 }
@@ -1182,26 +1182,15 @@ fn the_later_jobs_read_the_callers_base_and_the_head_as_data() {
 #[test]
 fn the_environment_names_are_fixed_in_every_job_that_holds_a_key() {
     let text = workflow_text();
-    let expected = "    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}";
-    for id in reviewer_and_last_job_ids(&text) {
-        let body = job_body(&text, &id);
-        assert!(
-            body.contains(expected),
-            "job {id} lacks the fixed environment"
-        );
-    }
-    for id in ["build", "review-fork-disabled"] {
-        let body = job_body(&text, id);
-        assert!(
-            !body.contains("environment:") && provider_secrets(&body).is_empty(),
-            "job {id} holds no environment and no key"
-        );
-    }
     assert_eq!(
         text.matches("environment:").count(),
-        reviewer_and_last_job_ids(&text).len(),
-        "one environment for each reviewer job and the last job, and no other job"
+        0,
+        "the review environment is gone"
     );
+    for id in ["build", "review-fork-disabled"] {
+        let body = job_body(&text, id);
+        assert!(provider_secrets(&body).is_empty(), "job {id} holds no key");
+    }
 }
 
 #[test]
