@@ -2420,25 +2420,24 @@ fn finish_review(
             osf::answer::Action::MustFix | osf::answer::Action::ShouldFix
         )
     });
-    let code = match outcome.verdict {
+    // A kept must-fix or should-fix finding fails both the push and the
+    // pull-request check. Open questions are for a person to decide. The
+    // reducer's verdict still decides the class of round: a could-not-run
+    // review spends the could-not-run budget, never the finding budget, even
+    // when another lens kept a finding.
+    let base = match outcome.verdict {
+        reducer::Verdict::Pass if blocking => 1,
         reducer::Verdict::Pass => 0,
         reducer::Verdict::Fail => 1,
         reducer::Verdict::CouldNotRun => 2,
     };
-    // A kept must-fix or should-fix finding fails both the push and the
-    // pull-request check. Open questions are for a person to decide.
-    let base = if blocking { 1 } else { code };
     if !count_rounds {
         return base;
     }
-    let kind = if blocking {
-        review_run::RoundKind::Findings
-    } else {
-        match outcome.verdict {
-            reducer::Verdict::Pass => review_run::RoundKind::Pass,
-            reducer::Verdict::Fail => review_run::RoundKind::Findings,
-            reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
-        }
+    let kind = match outcome.verdict {
+        reducer::Verdict::Pass if !blocking => review_run::RoundKind::Pass,
+        reducer::Verdict::Pass | reducer::Verdict::Fail => review_run::RoundKind::Findings,
+        reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
     };
     let config = match config::review_config(config_root) {
         Ok(config) => config,
