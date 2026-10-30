@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "8ed2ab796ebada561df9e6426638fe0d04107ab5",
+    "contentHash": "346d59e2dc5f8f909db9760c32a39f65"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "review-gate-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19f92c6ae3f2bb1b10e72f81d87f95f1",
+      "bytes": 24491,
+      "width": 1775,
+      "height": 760,
+      "animated": false,
+      "path": "review-gate-context-light-19f92c6ae3f2bb1b10e72f81d87f95f1.svg"
+    },
+    {
+      "id": "review-gate-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "76f0ea4eaac26bae33c2322801aab50e",
+      "bytes": 24797,
+      "width": 1775,
+      "height": 760,
+      "animated": false,
+      "path": "review-gate-context-dark-76f0ea4eaac26bae33c2322801aab50e.svg"
+    },
+    {
+      "id": "round-budget-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "round-budget-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "79e8bbc624723c85846a4e493a51a96b",
+      "bytes": 9824,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "round-budget-detail-light-79e8bbc624723c85846a4e493a51a96b.svg"
+    },
+    {
+      "id": "round-budget-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "round-budget-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fd176669c27566c39abc24c9e733ff4c",
+      "bytes": 9926,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "round-budget-detail-dark-fd176669c27566c39abc24c9e733ff4c.svg"
+    },
+    {
+      "id": "preflight-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "preflight-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d2248c918f0a27a547b2672883e42f31",
+      "bytes": 9730,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "preflight-detail-light-d2248c918f0a27a547b2672883e42f31.svg"
+    },
+    {
+      "id": "preflight-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "preflight-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fcb8eb91f3284e7f884dbe6dd98f3b54",
+      "bytes": 9832,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "preflight-detail-dark-fcb8eb91f3284e7f884dbe6dd98f3b54.svg"
+    }
+  ]
+}
