@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6c197a061b79b4f58a6b14930a6a0c6dab16cc02",
+    "contentHash": "88635e7db7aa27d25a57764d0441df6f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "review-secret-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-secret-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f6ee483eff177fdf3cc72d5e299e82c2",
+      "bytes": 22231,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "review-secret-wiring-light-f6ee483eff177fdf3cc72d5e299e82c2.svg"
+    },
+    {
+      "id": "review-secret-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-secret-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "34e46ec44a829e33bc4273086e37314a",
+      "bytes": 22507,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "review-secret-wiring-dark-34e46ec44a829e33bc4273086e37314a.svg"
+    },
+    {
+      "id": "reviewer-credential-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reviewer-credential-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ef4c4a11acc55b14c20e895f631fece3",
+      "bytes": 10924,
+      "width": 1168,
+      "height": 319,
+      "animated": true,
+      "path": "reviewer-credential-flow-view-light-ef4c4a11acc55b14c20e895f631fece3.svg"
+    },
+    {
+      "id": "reviewer-credential-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reviewer-credential-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "86825218744b6c9814ac9eb1607461ae",
+      "bytes": 11038,
+      "width": 1168,
+      "height": 319,
+      "animated": true,
+      "path": "reviewer-credential-flow-view-dark-86825218744b6c9814ac9eb1607461ae.svg"
+    }
+  ]
+}

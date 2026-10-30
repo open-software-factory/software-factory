@@ -1,0 +1,707 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-30T12:27:01.963Z",
+  "title": "Review secrets move to repository-level OSF_REVIEW_* names",
+  "summary": "The reusable review workflow stops relying on the `review`/`fork-review` GitHub environments and instead reads repository-level secrets, all renamed with an `OSF_REVIEW_` prefix. The opencode reviewer's credential is renamed from `OPENROUTER_API_KEY` to `OPENCODE_API_KEY` in the agent table, and the caller workflow's verifier app id variable becomes `OSF_REVIEW_VERIFIER_APP_ID`. Tests and docs are updated to match the new names and the removal of the environment gate.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "bc4cc60f2535d57edb05eaaf68538c2074a8ea90",
+      "ref": "bc4cc60f2535d57edb05eaaf68538c2074a8ea90"
+    },
+    "head": {
+      "sha": "6c197a061b79b4f58a6b14930a6a0c6dab16cc02",
+      "ref": "6c197a061b79b4f58a6b14930a6a0c6dab16cc02"
+    },
+    "pullRequest": {
+      "number": 351,
+      "url": "https://github.com/open-software-factory/software-factory/pull/351"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "caller",
+      "label": "Caller repository",
+      "subtitle": "adopter's workflow and settings",
+      "order": 0
+    },
+    {
+      "id": "reusable",
+      "label": "Reusable review workflow",
+      "subtitle": "review-check.yml jobs",
+      "order": 1
+    },
+    {
+      "id": "secrets",
+      "label": "Repository secrets",
+      "subtitle": "OSF_REVIEW_* names",
+      "order": 2
+    },
+    {
+      "id": "reviewers",
+      "label": "Reviewer containers",
+      "subtitle": "osf review run",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "caller-workflow",
+      "label": "review.yml caller",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "caller",
+      "subtitle": "thin caller, runs from base branch",
+      "summary": "The adopter's thin caller passes the verifier app id and secrets into the reusable workflow. Its verifier app id variable is renamed to OSF_REVIEW_VERIFIER_APP_ID.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 35,
+          "endLine": 39
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "caller-vars",
+      "label": "Caller variables",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "caller",
+      "subtitle": "vars.OSF_REVIEW_*",
+      "summary": "Repository variables the caller reads: the runner label, the fork toggle, and now OSF_REVIEW_VERIFIER_APP_ID.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 35,
+          "endLine": 39
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-check",
+      "label": "review-check.yml",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "subtitle": "workflow_call, secrets declared",
+      "summary": "The reusable workflow declares the secrets it reads under their new OSF_REVIEW_* names and no longer names a GitHub environment on any job.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 56,
+          "endLine": 77
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "build job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "reusable",
+      "subtitle": "builds the review image",
+      "summary": "Builds the review container image. Holds no secrets and no environment, before or after.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-jobs",
+      "label": "reviewer jobs",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "subtitle": "codex, claude, opencode",
+      "summary": "Each reviewer job runs its container with exactly one provider secret. The environment line is removed from all three, and each secret reference is renamed.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 239,
+          "endLine": 239
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 317,
+          "endLine": 317
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 423,
+          "endLine": 423
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 533,
+          "endLine": 543
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "last-job",
+      "label": "last job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "subtitle": "collects answers, mints verifier token",
+      "summary": "Collects reviewer answers, decides, and posts. It alone mints the verifier app token, now from OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY, and no longer names an environment.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 577,
+          "endLine": 577
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 646,
+          "endLine": 646
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-secrets",
+      "label": "OSF_REVIEW_* secrets",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "secrets",
+      "subtitle": "repository-level",
+      "summary": "The secrets now live at repository level rather than in the review environment. The opencode provider key is renamed from OPENROUTER_API_KEY to OSF_REVIEW_OPENCODE_API_KEY.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 590,
+          "endLine": 594
+        },
+        {
+          "path": "docs/development.md",
+          "startLine": 1014,
+          "endLine": 1018
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-table",
+      "label": "AGENTS table",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "credential_env per agent",
+      "summary": "The static agent table names the environment variable each reviewer container reads. The opencode entry now lists OPENCODE_API_KEY instead of OPENROUTER_API_KEY.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 386,
+          "endLine": 391
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "secret-values",
+      "label": "secret_values",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "redaction of known secret names",
+      "summary": "Redacts known credential variable names from captured output; its test list now expects OPENCODE_API_KEY.",
+      "files": [
+        {
+          "path": "crates/osf/src/secret_values.rs",
+          "startLine": 212,
+          "endLine": 216
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run",
+      "label": "osf review run",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "reviewers",
+      "subtitle": "inside the review container",
+      "summary": "Runs the selected reviewers inside the container, reading only the one credential variable its agent entry names.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 543,
+          "endLine": 549
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-tests",
+      "label": "review_workflow tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "reusable",
+      "subtitle": "asserts secret names and no environment",
+      "summary": "Integration tests over the workflow text: they now assert the OSF_REVIEW_* secret names, that no job names an environment, and the renamed verifier app id variable.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 575,
+          "endLine": 575
+        },
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1066,
+          "endLine": 1075
+        },
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1182,
+          "endLine": 1201
+        },
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1287,
+          "endLine": 1287
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-docs",
+      "label": "development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "secrets",
+      "subtitle": "adopter setup guide",
+      "summary": "Documents the repository-level secret names, the caller snippet, and the secret table; the opencode row now reads OSF_REVIEW_OPENCODE_API_KEY.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 590,
+          "endLine": 594
+        },
+        {
+          "path": "docs/development.md",
+          "startLine": 948,
+          "endLine": 959
+        },
+        {
+          "path": "docs/development.md",
+          "startLine": 1014,
+          "endLine": 1018
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "reviewer list and comment",
+      "summary": "Selects the reviewers and carries a comment naming the credential variables; the comment now names OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN and OSF_REVIEW_OPENROUTER_API_KEY.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 39,
+          "endLine": 45
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "caller-to-review-check",
+      "from": "caller-workflow",
+      "to": "review-check",
+      "kind": "call",
+      "delta": "modified",
+      "label": "workflow_call + secrets",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The caller invokes the reusable workflow, passing secrets by their OSF_REVIEW_* names or with secrets: inherit.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 35,
+          "endLine": 39
+        }
+      ]
+    },
+    {
+      "id": "caller-vars-to-caller",
+      "from": "caller-vars",
+      "to": "caller-workflow",
+      "kind": "data",
+      "delta": "modified",
+      "label": "OSF_REVIEW_VERIFIER_APP_ID",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The verifier app id now comes from the renamed repository variable.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "review-check-to-build",
+      "from": "review-check",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow builds the review image first.",
+      "files": []
+    },
+    {
+      "id": "review-check-to-reviewer-jobs",
+      "from": "review-check",
+      "to": "reviewer-jobs",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reviewer jobs run after build, each with one provider secret and no environment.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 239,
+          "endLine": 239
+        }
+      ]
+    },
+    {
+      "id": "review-check-to-last-job",
+      "from": "review-check",
+      "to": "last-job",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The last job runs after all reviewers and posts the result.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 577,
+          "endLine": 577
+        }
+      ]
+    },
+    {
+      "id": "repo-secrets-to-reviewer-jobs",
+      "from": "repo-secrets",
+      "to": "reviewer-jobs",
+      "kind": "data",
+      "delta": "modified",
+      "label": "one key per reviewer",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each reviewer job reads exactly one repository-level secret: OSF_REVIEW_OPENAI_API_KEY, OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN, or OSF_REVIEW_OPENCODE_API_KEY.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 317,
+          "endLine": 317
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 423,
+          "endLine": 423
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 533,
+          "endLine": 533
+        }
+      ]
+    },
+    {
+      "id": "repo-secrets-to-last-job",
+      "from": "repo-secrets",
+      "to": "last-job",
+      "kind": "data",
+      "delta": "modified",
+      "label": "verifier private key",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Only the last job reads OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY, to mint the verifier app token.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 646,
+          "endLine": 646
+        }
+      ]
+    },
+    {
+      "id": "reviewer-jobs-to-review-run",
+      "from": "reviewer-jobs",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "docker run osf review run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each reviewer job starts the container and runs osf review run for its reviewer.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 543,
+          "endLine": 549
+        }
+      ]
+    },
+    {
+      "id": "agent-table-to-review-run",
+      "from": "agent-table",
+      "to": "review-run",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "credential_env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent entry decides which single variable the container receives; opencode now names OPENCODE_API_KEY.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 386,
+          "endLine": 391
+        }
+      ]
+    },
+    {
+      "id": "secret-values-to-review-run",
+      "from": "secret-values",
+      "to": "review-run",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Redaction covers the renamed credential variable names.",
+      "files": [
+        {
+          "path": "crates/osf/src/secret_values.rs",
+          "startLine": 212,
+          "endLine": 216
+        }
+      ]
+    },
+    {
+      "id": "workflow-tests-to-review-check",
+      "from": "workflow-tests",
+      "to": "review-check",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Tests read the workflow text and assert the new secret names and the absence of any environment.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1182,
+          "endLine": 1201
+        }
+      ]
+    },
+    {
+      "id": "dev-docs-to-repo-secrets",
+      "from": "dev-docs",
+      "to": "repo-secrets",
+      "kind": "other",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The setup guide is the source of truth for the secret names adopters must create.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 1014,
+          "endLine": 1018
+        }
+      ]
+    },
+    {
+      "id": "osf-toml-to-agent-table",
+      "from": "osf-toml",
+      "to": "agent-table",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reviewer list selects which agent entries run; the comment names their credential variables.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 39,
+          "endLine": 45
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reviewer-credential-flow",
+      "title": "One reviewer job gets its one key",
+      "summary": "How a repository-level secret reaches a single reviewer container after the rename.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "repo-secrets",
+          "label": "OSF_REVIEW_* secrets"
+        },
+        {
+          "node": "reviewer-jobs",
+          "label": "reviewer job"
+        },
+        {
+          "node": "review-run",
+          "label": "osf review run"
+        },
+        {
+          "node": "agent-table",
+          "label": "AGENTS entry"
+        }
+      ],
+      "messages": [
+        {
+          "id": "resolve-secret",
+          "from": "repo-secrets",
+          "to": "reviewer-jobs",
+          "label": "secrets.OSF_REVIEW_OPENCODE_API_KEY",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Resolved at repository level; no environment gate in between.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 533,
+              "endLine": 533
+            }
+          ]
+        },
+        {
+          "id": "export-env",
+          "from": "reviewer-jobs",
+          "to": "review-run",
+          "label": "-e OPENCODE_API_KEY",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The container variable is renamed from OPENROUTER_API_KEY to OPENCODE_API_KEY.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 543,
+              "endLine": 549
+            }
+          ]
+        },
+        {
+          "id": "read-credential",
+          "from": "review-run",
+          "to": "agent-table",
+          "label": "credential_env lookup",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The opencode entry now lists OPENCODE_API_KEY.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 386,
+              "endLine": 391
+            }
+          ]
+        },
+        {
+          "id": "sign-in",
+          "from": "review-run",
+          "to": "review-run",
+          "label": "sign in with provider key",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "An empty key means the reviewer runs but cannot sign in, and counts as could-not-run.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 7,
+    "additions": 43,
+    "deletions": 59,
+    "chips": [
+      {
+        "label": "Secret names renamed",
+        "value": "5",
+        "tone": "modified"
+      },
+      {
+        "label": "Environment gates removed",
+        "value": "4",
+        "tone": "removed"
+      },
+      {
+        "label": "opencode key",
+        "value": "OPENROUTER → OPENCODE",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-secret-wiring",
+      "title": "Review secret wiring",
+      "lens": "architecture",
+      "summary": "Caller, reusable workflow, repository secrets and reviewer containers, with the renamed names marked.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "reviewer-credential-flow-view",
+      "title": "Reviewer credential flow",
+      "lens": "data-flow",
+      "summary": "The ordered path from a repository secret to the reviewer process.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "reviewer-credential-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
