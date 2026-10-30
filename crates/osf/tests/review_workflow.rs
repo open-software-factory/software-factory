@@ -575,7 +575,7 @@ fn the_codex_job_runs_in_the_review_container() {
     );
     assert_eq!(
         provider_secrets(&body),
-        vec!["OPENAI_API_KEY".to_string()],
+        vec!["OSF_REVIEW_OPENAI_API_KEY".to_string()],
         "the codex job reads exactly one provider secret"
     );
     let envs: Vec<&str> = body
@@ -1066,7 +1066,7 @@ fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_
         assert!(body.contains("description:"), "secret {name} is described");
         assert_eq!(
             body.contains("required: true"),
-            name == "VERIFIER_APP_PRIVATE_KEY",
+            name == "OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY",
             "only the verifier key is required: {name}"
         );
     }
@@ -1075,7 +1075,7 @@ fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_
         "a setting enters as an input, never as an ambient variable"
     );
     assert!(
-        text.contains("`secrets: inherit`") && text.contains("`review` environment"),
+        text.contains("`secrets: inherit`") && text.contains("repository-level"),
         "the header says how a caller passes them and where they live"
     );
 }
@@ -1182,26 +1182,15 @@ fn the_later_jobs_read_the_callers_base_and_the_head_as_data() {
 #[test]
 fn the_environment_names_are_fixed_in_every_job_that_holds_a_key() {
     let text = workflow_text();
-    let expected = "    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}";
-    for id in reviewer_and_last_job_ids(&text) {
-        let body = job_body(&text, &id);
-        assert!(
-            body.contains(expected),
-            "job {id} lacks the fixed environment"
-        );
-    }
-    for id in ["build", "review-fork-disabled"] {
-        let body = job_body(&text, id);
-        assert!(
-            !body.contains("environment:") && provider_secrets(&body).is_empty(),
-            "job {id} holds no environment and no key"
-        );
-    }
     assert_eq!(
         text.matches("environment:").count(),
-        reviewer_and_last_job_ids(&text).len(),
-        "one environment for each reviewer job and the last job, and no other job"
+        0,
+        "the review environment is gone"
     );
+    for id in ["build", "review-fork-disabled"] {
+        let body = job_body(&text, id);
+        assert!(provider_secrets(&body).is_empty(), "job {id} holds no key");
+    }
 }
 
 #[test]
@@ -1212,12 +1201,13 @@ fn the_verifier_identity_is_minted_in_the_last_job_only() {
     assert!(
         last.contains("create-github-app-token")
             && last.contains("app-id: ${{ inputs.verifier-app-id }}")
-            && last.contains("private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}")
+            && last.contains("private-key: ${{ secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY }}")
             && last.contains("permission-pull-requests: write"),
         "{last}"
     );
     assert_eq!(
-        text.matches("secrets.VERIFIER_APP_PRIVATE_KEY").count(),
+        text.matches("secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY")
+            .count(),
         1,
         "only the last job reads the verifier key"
     );
@@ -1297,7 +1287,7 @@ fn the_caller_is_thin_and_runs_from_the_base_branch() {
         caller.contains("runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '\"ubuntu-latest\"' }}"),
         "the runner comes from the adopter's variable, with the hosted default"
     );
-    assert!(caller.contains("verifier-app-id: ${{ vars.VERIFIER_APP_ID }}"));
+    assert!(caller.contains("verifier-app-id: ${{ vars.OSF_REVIEW_VERIFIER_APP_ID }}"));
 }
 
 /// A pull request's base can be any branch, and a contributor who can push a

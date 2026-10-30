@@ -250,7 +250,11 @@ mod tests {
             .filter_map(|a| a.review.as_ref())
             .flat_map(|r| r.credential_env.iter().copied())
             .collect();
-        for expected in ["CODEX_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] {
+        for expected in [
+            "CODEX_API_KEY",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "OPENCODE_API_KEY",
+        ] {
             assert!(names.contains(&expected), "{expected}: {names:?}");
         }
         assert!(

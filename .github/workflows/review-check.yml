@@ -22,15 +22,12 @@ name: review check
 # host plus the hosts it needs to run. The last job collects the saved
 # answers, decides, and posts: it alone mints the verifier app's token.
 #
-# The reviewer keys and the verifier app's private key are `workflow_call`
-# secrets, because GitHub resolves a secret in a called workflow only when the
-# caller passes it, and an environment secret the caller does not pass becomes an
-# empty string with no error. They still live as environment secrets of the
-# `review` environment in the repository that holds the calling workflow, and
-# the jobs that read them still name that environment, so its limit to the main
-# branch still applies. A caller passes them by name, or with `secrets: inherit`.
-# A reviewer key is not required, because a reviewer can be disabled; a
-# reviewer whose key is empty runs, cannot sign in, and counts as could-not-run.
+# The reviewer keys and the verifier app's private key are repository-level
+# `OSF_REVIEW_*` secrets in the repository that holds the calling workflow. A
+# caller passes them with `secrets: inherit`, or maps each one by its
+# `OSF_REVIEW_` name. A reviewer key is not required, because a reviewer can be
+# disabled; a reviewer whose key is empty runs, cannot sign in, and counts as
+# could-not-run.
 #
 # This check is advisory. It posts a check run and a review, and no branch
 # protection or ruleset requires it. It becomes a required check when the key
@@ -59,18 +56,18 @@ on:
         type: string
         required: true
       allow-forks:
-        description: Review a fork's pull request too, once a maintainer approves the fork-review environment.
+        description: Review a fork's pull request too, when the caller enables it.
         type: boolean
         required: false
         default: false
     secrets:
-      VERIFIER_APP_PRIVATE_KEY:
+      OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY:
         description: The private key of the verifier app. Only the last job reads it.
         required: true
-      OPENAI_API_KEY:
+      OSF_REVIEW_OPENAI_API_KEY:
         description: The key of the codex reviewer. Unused while codex is disabled; leave it out when codex is not a selected reviewer.
         required: false
-      CLAUDE_CODE_OAUTH_TOKEN:
+      OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN:
         description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
         required: false
       OSF_REVIEW_OPENCODE_API_KEY:
@@ -242,7 +239,6 @@ jobs:
     # The environment holds this reviewer's key. Only main can deploy to
     # `review`, and a maintainer approves `fork-review`, so a branch cannot
     # widen what a review run can see.
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -321,7 +317,7 @@ jobs:
       - name: Run this reviewer, reading the pull request's tree as data
         env:
           # `codex exec` signs in with CODEX_API_KEY; it does not read OPENAI_API_KEY.
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.OSF_REVIEW_OPENAI_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -360,7 +356,6 @@ jobs:
     needs: build
     if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -428,7 +423,7 @@ jobs:
 
       - name: Run this reviewer, reading the pull request's tree as data
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.OSF_REVIEW_CLAUDE_CODE_OAUTH_TOKEN }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -467,7 +462,6 @@ jobs:
     needs: build
     if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -583,7 +577,6 @@ jobs:
     needs: [build, review-codex, review-claude, review-opencode]
     if: ${{ always() && needs.build.result == 'success' && (github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks) }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
       packages: read
@@ -653,7 +646,7 @@ jobs:
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ inputs.verifier-app-id }}
-          private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+          private-key: ${{ secrets.OSF_REVIEW_VERIFIER_APP_PRIVATE_KEY }}
           permission-pull-requests: write
           permission-contents: read
 
