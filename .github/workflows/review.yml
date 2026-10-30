@@ -27,7 +27,6 @@ jobs:
       packages: read
       issues: read
       pull-requests: read
-    environment: review
     uses: ./.github/workflows/review-check.yml
     # The called jobs read the keys from the `review` environment, and GitHub
     # gives a called workflow an environment secret only when the caller passes it.
