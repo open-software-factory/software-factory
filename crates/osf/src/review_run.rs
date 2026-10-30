@@ -850,15 +850,26 @@ fn preflight_and_not_run(
     allow_same_family: bool,
     setup: &Setup,
 ) -> (Option<String>, Option<String>) {
-    let preflight = reviewer.missing_credentials(crate::reviewers::real_home().as_deref());
-    let not_run = if let Some(reason) = &reviewer.family_error {
-        Some(format!("could not run: {reason}"))
-    } else if let Some(reason) = &preflight {
-        Some(format!("could not run: {reason}"))
-    } else if allow_same_family {
+    let skipped = if allow_same_family {
         None
     } else {
         setup.skip_reason(reviewer)
+    };
+    // A reviewer already left out for a more specific reason, such as no
+    // read-only mode, is not judged again by the credential preflight.
+    let preflight = if reviewer.family_error.is_some() || skipped.is_some() {
+        None
+    } else {
+        reviewer.missing_credentials(crate::reviewers::real_home().as_deref())
+    };
+    let not_run = if let Some(reason) = &reviewer.family_error {
+        Some(format!("could not run: {reason}"))
+    } else if skipped.is_some() {
+        skipped
+    } else {
+        preflight
+            .as_ref()
+            .map(|reason| format!("could not run: {reason}"))
     };
     (preflight, not_run)
 }
