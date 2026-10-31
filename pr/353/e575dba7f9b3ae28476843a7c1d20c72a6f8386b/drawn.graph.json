@@ -1,0 +1,415 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-31T01:36:48.282Z",
+  "title": "Fail-closed pre-push review with a round budget",
+  "summary": "The pre-push review stops being advisory. `--warn-only` is removed, so `osf review run` now fails a push on a kept must-fix or should-fix finding and on a review that could not run. To keep a broken reviewer from looping forever, a new round budget (`in_sandbox_rounds`, `could_not_run_rounds`, both default 3) is counted in the journal state directory, keyed by worktree, and lets a findings round through once past its limit while a could-not-run streak ends blocked with a message. A credential preflight decides a reviewer with no key and no login file before any worker starts, and the secret scrubber now also reads agent login files. The moon `review` task drops `--warn-only`, passes the work item, and the whole-run timeout default drops to 1800s.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "e575dba7f9b3ae28476843a7c1d20c72a6f8386b",
+      "ref": "e575dba7f9b3ae28476843a7c1d20c72a6f8386b"
+    },
+    "pullRequest": {
+      "number": 353,
+      "url": "https://github.com/open-software-factory/software-factory/pull/353"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "command entry points",
+      "order": 0
+    },
+    {
+      "id": "review-core",
+      "label": "Review run",
+      "subtitle": "crates/osf review pipeline",
+      "order": 1
+    },
+    {
+      "id": "state",
+      "label": "Journal state",
+      "subtitle": "outside the worktree",
+      "order": 2
+    },
+    {
+      "id": "checkpoints",
+      "label": "Checkpoints",
+      "subtitle": "moon tasks and CI",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-run-cmd",
+      "label": "review run / reduce",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "review_run_exit_code, finish_review",
+      "summary": "`--warn-only` is gone from both subcommands. `finish_review` now takes a `count_rounds` flag and the config root: it computes a base exit code from the verdict plus any kept must-fix/should-fix finding, and for `review run` consults the round budget before returning. `review reduce` passes `count_rounds = false`, so the pull-request path fails on a kept finding but never touches the budget.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2247,
+          "endLine": 2460
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-config",
+      "label": "ReviewConfig",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "in_sandbox_rounds, could_not_run_rounds",
+      "summary": "Two new `[review]` fields with defaults of 3, rejected when zero. The whole-run timeout default drops from 2700 to 1800 seconds.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 226,
+          "endLine": 400
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "round-budget",
+      "label": "round_allows_push",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "RoundCounts, RoundKind",
+      "summary": "The new budget. A pass clears the counts; a findings round increments and allows the push once past the limit; a could-not-run round increments and returns an error naming the limit once past its own. Counts are keyed by a hash of the canonical worktree path.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 182,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run",
+      "label": "review_run::run",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "setup, run_reviewer_unscrubbed",
+      "summary": "The reviewer loop now calls a credential preflight before starting a worker, and a reviewer with no credential is recorded as could-not-run for every lens without spawning a process.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 845,
+          "endLine": 975
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "preflight",
+      "label": "missing_credentials",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "Reviewer::missing_credentials",
+      "summary": "Decides whether a reviewer has any way to sign in: a non-empty credential variable, or at least one existing login path under the real home. A templated reviewer is never judged, since its template may carry its own auth.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 98,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "secret-scrub",
+      "label": "secret_values::held",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "login_values, json_leaves",
+      "summary": "The scrubber now also collects every string leaf of each agent's JSON login file, so a provider key kept in an auth file is redacted like an environment variable.",
+      "files": [
+        {
+          "path": "crates/osf/src/secret_values.rs",
+          "startLine": 17,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset_risk::changed_files",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "untracked filter",
+      "summary": "Untracked paths under `.osf/` are dropped from the changed-file set, so osf's own review output cannot change which lenses the next round selects.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 259,
+          "endLine": 272
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal-state",
+      "label": "journal state dir",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "state",
+      "subtitle": "review-rounds/<hash>.json",
+      "summary": "Where the round counts live, outside the worktree the builder can edit. A pass removes the file.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 205,
+          "endLine": 240
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-review-task",
+      "label": "moon review task",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "checkpoints",
+      "subtitle": "osf-pre-push, osf-slot-review",
+      "summary": "Drops `--warn-only`, passes `--work-item .osf/out/work-item.txt`, and its comment now states that a kept finding or a could-not-run review fails the push. Still not tagged for the pull-request checkpoint.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 139,
+          "endLine": 152
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml [review]",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "checkpoints",
+      "subtitle": "concurrency 16, timeout 1800",
+      "summary": "Pins the repository's own review settings and renames the opencode secret to `OSF_REVIEW_OPENCODE_API_KEY`.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 32,
+          "endLine": 49
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-review",
+      "label": "CI review workflow",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "checkpoints",
+      "subtitle": "base-branch review.yml",
+      "summary": "The merge authority. Unchanged here, but the same kept-finding rule now applies to its reduce step.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0020-who-can-post-a-review-result.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cmd-calls-run",
+      "from": "review-run-cmd",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "review_run::run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2336,
+          "endLine": 2346
+        }
+      ]
+    },
+    {
+      "id": "cmd-reads-config",
+      "from": "review-run-cmd",
+      "to": "review-config",
+      "kind": "data",
+      "delta": "modified",
+      "label": "review_config",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2430,
+          "endLine": 2440
+        }
+      ]
+    },
+    {
+      "id": "cmd-consults-budget",
+      "from": "review-run-cmd",
+      "to": "round-budget",
+      "kind": "call",
+      "delta": "added",
+      "label": "round_allows_push",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The connection the change is about: the exit code of a pre-push review is now decided by the round budget, not by the verdict alone.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2440,
+          "endLine": 2460
+        }
+      ]
+    },
+    {
+      "id": "budget-reads-state",
+      "from": "round-budget",
+      "to": "journal-state",
+      "kind": "data",
+      "delta": "added",
+      "label": "load / save / clear",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 205,
+          "endLine": 240
+        }
+      ]
+    },
+    {
+      "id": "run-uses-preflight",
+      "from": "review-run",
+      "to": "preflight",
+      "kind": "call",
+      "delta": "added",
+      "label": "preflight_and_not_run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 848,
+          "endLine": 880
+        }
+      ]
+    },
+    {
+      "id": "run-uses-scrub",
+      "from": "review-run",
+      "to": "secret-scrub",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scrub_run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 845
+        }
+      ]
+    },
+    {
+      "id": "run-uses-risk",
+      "from": "review-run",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assess",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 542,
+          "endLine": 552
+        }
+      ]
+    },
+    {
+      "id": "moon-runs-cmd",
+      "from": "moon-review-task",
+      "to": "review-run-cmd",
+      "kind": "other",
+      "delta": "modified",
+      "label": "osf review run --if-enabled",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 149,
+          "endLine": 152
+        }
+      ]
+    },
+    {
+      "id": "moon-reads-toml",
+      "from": "moon-review-task",
+      "to": "osf-toml",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "[review] settings",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-runs-cmd",
+      "from": "ci-review",
+      "to": "review-run-cmd",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "review run + reduce",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 752,
+    "deletions": 79,
+    "chips": []
+  },
+  "views": []
+}
