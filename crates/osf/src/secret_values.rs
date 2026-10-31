@@ -7,6 +7,7 @@
 
 use crate::agents;
 use std::fmt::Write as _;
+use std::path::Path;
 
 /// A value shorter than this is not treated as a secret: removing it would damage ordinary text.
 const MIN_LEN: usize = 8;
@@ -20,6 +21,12 @@ fn login_values() -> Vec<String> {
     let Some(home) = crate::reviewers::real_home() else {
         return Vec::new();
     };
+    login_values_in(&home)
+}
+
+/// Same as `login_values`, for the given home, so a test can supply one
+/// without changing the process's own home directory.
+fn login_values_in(home: &Path) -> Vec<String> {
     agents::AGENTS
         .iter()
         .filter_map(|agent| agent.review.as_ref())
@@ -262,5 +269,38 @@ mod tests {
             "opencode signs in through its own auth file, not OpenRouter: {names:?}"
         );
         assert!(CODE_HOST_TOKENS.contains(&"GH_TOKEN"));
+    }
+
+    #[test]
+    fn a_nested_login_file_value_is_scrubbed() {
+        let home = crate::test_support::TempDir::new("osf-secret-login-nested");
+        let path = home.join(".local/share/opencode/auth.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir creates");
+        std::fs::write(
+            &path,
+            "{\"opencode\":{\"provider\":{\"api_key\":\"login-secret-0123456789\"}}}",
+        )
+        .expect("login file writes");
+        let values = login_values_in(&home);
+        assert!(
+            values.contains(&"login-secret-0123456789".to_string()),
+            "a nested string leaf is a held secret: {values:?}"
+        );
+        let out = scrub("key: login-secret-0123456789", &values);
+        assert!(!out.contains("login-secret-0123456789"), "{out}");
+        assert!(out.contains(MARKER), "{out}");
+    }
+
+    #[test]
+    fn a_non_utf8_login_file_is_skipped_without_panicking() {
+        let home = crate::test_support::TempDir::new("osf-secret-login-bytes");
+        let path = home.join(".codex/auth.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&path, [0xff_u8, 0xfe, b'{', b'}']).expect("login file writes");
+        let values = login_values_in(&home);
+        assert!(
+            values.is_empty(),
+            "a login file that is not UTF-8 contributes no value and does not panic: {values:?}"
+        );
     }
 }

@@ -1725,7 +1725,13 @@ mod tests {
 
     #[test]
     fn a_zero_review_timing_is_refused_naming_the_setting() {
-        for key in ["concurrency", "timeout_seconds", "total_timeout_seconds"] {
+        for key in [
+            "concurrency",
+            "timeout_seconds",
+            "total_timeout_seconds",
+            "in_sandbox_rounds",
+            "could_not_run_rounds",
+        ] {
             let dir = TempDir::new(&format!("osf-config-test-review-zero-{key}"));
             std::fs::write(dir.join("osf.toml"), format!("[review]\n{key} = 0\n"))
                 .expect("osf.toml writes");
@@ -1738,7 +1744,13 @@ mod tests {
 
     #[test]
     fn a_wrongly_typed_review_timing_is_refused_naming_the_setting() {
-        for key in ["concurrency", "timeout_seconds", "total_timeout_seconds"] {
+        for key in [
+            "concurrency",
+            "timeout_seconds",
+            "total_timeout_seconds",
+            "in_sandbox_rounds",
+            "could_not_run_rounds",
+        ] {
             for (label, value) in [
                 ("string", "\"many\""),
                 ("negative", "-1"),

@@ -2328,9 +2328,9 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
     );
 }
 
-/// `--fail-on-findings` still fails the push on a kept must-fix finding.
+/// A kept must-fix finding fails the push.
 #[test]
-fn fail_on_findings_fails_on_a_blocker() {
+fn a_kept_blocker_fails_the_push() {
     let fakes = Fakes::new(
         "",
         &[
@@ -2338,8 +2338,8 @@ fn fail_on_findings_fails_on_a_blocker() {
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
-    let repo = review_repo("fail-on-findings-blocker", &fakes.osf_toml);
-    let home = common::isolated_home("review-run-fail-on-findings-blocker");
+    let repo = review_repo("kept-blocker", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-kept-blocker");
     let output = fakes.run(
         &repo.dir,
         &home,
@@ -2355,10 +2355,10 @@ fn fail_on_findings_fails_on_a_blocker() {
     assert!(stdout.contains("verdict: fail"), "{stdout}");
 }
 
-/// `--fail-on-findings` also fails on a kept should-fix finding, which the
-/// verdict alone does not veto.
+/// A kept should-fix finding fails the push too, which the verdict alone
+/// does not veto.
 #[test]
-fn fail_on_findings_fails_on_a_should_fix() {
+fn a_kept_should_fix_fails_the_push() {
     let fakes = Fakes::new(
         "",
         &[
@@ -2366,8 +2366,8 @@ fn fail_on_findings_fails_on_a_should_fix() {
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
-    let repo = review_repo("fail-on-findings-should-fix", &fakes.osf_toml);
-    let home = common::isolated_home("review-run-fail-on-findings-should-fix");
+    let repo = review_repo("kept-should-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-kept-should-fix");
     let output = fakes.run(
         &repo.dir,
         &home,
@@ -2581,9 +2581,9 @@ stderr: {}",
 /// A review that could not run is a verification that did not happen, so it
 /// fails the gate like a finding does.
 #[test]
-fn fail_on_findings_fails_a_could_not_run() {
-    let repo = review_repo("fail-on-findings-could-not-run", "");
-    let home = common::isolated_home("review-run-fail-on-findings-could-not-run");
+fn a_could_not_run_fails_the_push() {
+    let repo = review_repo("could-not-run-fails", "");
+    let home = common::isolated_home("review-run-could-not-run-fails");
     let output = common::run_osf(
         &repo.dir,
         &home,

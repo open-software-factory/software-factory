@@ -99,9 +99,11 @@ impl Reviewer {
     ///
     /// A credential variable counts when its value is non-empty. A login
     /// file counts when any one of its paths exists under `real_home`. When
-    /// neither is true the reviewer cannot answer, and no retry can change
-    /// that: a missing key or login is deterministic. `None` means the
-    /// reviewer has a credential, or needs none.
+    /// no credential variable is set and every login path is missing, the
+    /// reviewer cannot answer, and no retry can change that: a missing key
+    /// or login is deterministic. `None` means a named credential is set, a
+    /// login file exists, the reviewer is templated, or it names neither a
+    /// credential variable nor a login path.
     #[must_use]
     pub fn missing_credentials(&self, real_home: Option<&Path>) -> Option<String> {
         if self.templated {
@@ -114,7 +116,7 @@ impl Reviewer {
         {
             return None;
         }
-        if self.login_paths.is_empty() {
+        if self.credential_env.is_empty() && self.login_paths.is_empty() {
             return None;
         }
         let missing: Vec<&str> = self
@@ -123,7 +125,7 @@ impl Reviewer {
             .map(String::as_str)
             .filter(|path| !real_home.is_some_and(|home| home.join(path).exists()))
             .collect();
-        if missing.len() != self.login_paths.len() {
+        if !self.login_paths.is_empty() && missing.len() != self.login_paths.len() {
             return None;
         }
 
@@ -134,7 +136,9 @@ impl Reviewer {
                 self.credential_env.join(" or ")
             ));
         }
-        parts.push(format!("login path {} is missing", missing.join(" or ")));
+        if !self.login_paths.is_empty() {
+            parts.push(format!("login path {} is missing", missing.join(" or ")));
+        }
         Some(parts.join("; "))
     }
 
@@ -1033,6 +1037,30 @@ mod tests {
         r.credential_env = vec!["OSF_TEST_PREFLIGHT_UNSET".to_string()];
         r.login_paths = vec![".nope/auth.json".to_string()];
         assert_eq!(r.missing_credentials(None), None);
+    }
+
+    #[test]
+    fn one_present_login_path_of_two_passes_the_preflight() {
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight-many");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = Vec::new();
+        r.login_paths = vec![".one/auth.json".to_string(), ".two/auth.json".to_string()];
+        let reason = r
+            .missing_credentials(Some(home.as_ref()))
+            .expect("no login file exists yet");
+        assert!(
+            reason.contains(".one/auth.json") && reason.contains(".two/auth.json"),
+            "{reason}"
+        );
+        let second = home.join(".two/auth.json");
+        std::fs::create_dir_all(second.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&second, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
+        std::fs::remove_file(&second).expect("file removes");
+        let first = home.join(".one/auth.json");
+        std::fs::create_dir_all(first.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&first, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
     }
 
     /// A stand-in real home holding two harnesses' logins and an unrelated file.
