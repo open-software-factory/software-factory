@@ -104,7 +104,7 @@ impl Reviewer {
     /// reviewer has a credential, or needs none.
     #[must_use]
     pub fn missing_credentials(&self, real_home: Option<&Path>) -> Option<String> {
-        if std::env::var_os("OSF_TEST_NO_PREFLIGHT").is_some() || self.templated {
+        if self.templated {
             return None;
         }
         if self

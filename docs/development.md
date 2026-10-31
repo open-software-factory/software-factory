@@ -465,7 +465,7 @@ time left as could-not-run, and the reason names the limit. `osf` stops a
 lens that goes past that limit and records it as could-not-run, and the
 reason names `timeout_seconds`. `total_timeout_seconds` is the most the
 whole reviewer run may take, counted from the first lens start, and its
-default is 2700 seconds. When it runs out, `osf` stops every running lens
+default is 1800 seconds. When it runs out, `osf` stops every running lens
 and records every waiting lens as could-not-run, and the reason names
 `total_timeout_seconds`. `osf` refuses a `timeout_seconds` or
 `total_timeout_seconds` above 86400 seconds (24 hours) and names the
@@ -481,7 +481,7 @@ does not matter.
 [review]
 concurrency = 8
 timeout_seconds = 1800
-total_timeout_seconds = 2700
+total_timeout_seconds = 1800
 ```
 
 `osf review reduce` treats every saved file as input to check. It checks

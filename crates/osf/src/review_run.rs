@@ -191,7 +191,7 @@ pub struct RoundCounts {
 }
 
 /// What one finished round found, for the pre-push budget.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RoundKind {
     /// Nothing to fix: the push may go and the budget resets.
     Pass,
@@ -252,8 +252,9 @@ impl RoundCounts {
 /// the push keeps failing, and the next round fixes the findings.
 ///
 /// # Errors
-/// Returns an error when the journal state directory cannot be resolved, or
-/// when the count file cannot be read, written or removed.
+/// Returns an error when the journal state directory cannot be resolved, when
+/// the count file cannot be read, written or removed, or when a could-not-run
+/// streak passes its limit and the push must stop.
 pub fn round_allows_push(
     root: &Path,
     kind: RoundKind,
