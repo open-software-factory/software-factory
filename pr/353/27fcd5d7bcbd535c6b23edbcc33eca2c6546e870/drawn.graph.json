@@ -1,0 +1,770 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-31T04:35:02.048Z",
+  "title": "Fail-closed pre-push review with a round budget",
+  "summary": "The pre-push review stops being advisory. `--warn-only` is deleted, so `osf review run` now exits non-zero on a kept must-fix or should-fix finding and on a review that could not run, and a new round budget kept in the journal state (outside the worktree) lets a push through after three failed rounds while a could-not-run streak ends blocked with a message. A credential preflight decides a reviewer with no key and no login file before any worker starts, the work item can arrive through `OSF_WORK_ITEM` instead of a file, login-file secrets join the redaction set, and the whole-run timeout drops to 1800s with the moon task and `osf.toml` updated to match.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "27fcd5d7bcbd535c6b23edbcc33eca2c6546e870",
+      "ref": "27fcd5d7bcbd535c6b23edbcc33eca2c6546e870"
+    },
+    "pullRequest": {
+      "number": 353,
+      "url": "https://github.com/open-software-factory/software-factory/pull/353"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "builder",
+      "label": "Builder workspace",
+      "subtitle": "develop job, pre-push hook",
+      "order": 0,
+      "summary": "The agent's own worktree and the moon `review` task that runs before a push."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The command surface: `review run`, `review reduce`, config loading and the exit code that decides the push."
+    },
+    {
+      "id": "review-engine",
+      "label": "Review engine",
+      "subtitle": "review_run, reviewers, reducer",
+      "order": 2,
+      "summary": "Setup, lens selection, the credential preflight, reviewer workers and the reducer that produces a verdict."
+    },
+    {
+      "id": "state",
+      "label": "State and credentials",
+      "subtitle": "journal state, home logins, env",
+      "order": 3,
+      "summary": "Where the round counts, the work item text and the provider credentials actually live."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "moon-review-task",
+      "label": "moon `review` task",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "builder",
+      "subtitle": "osf review run --if-enabled --work-item .osf/out/work-item.txt",
+      "summary": "The pre-push task. It loses `--warn-only` and gains `--work-item`, so its exit code now gates the push.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 136,
+          "endLine": 152
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "builder-agent",
+      "label": "Builder agent",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "builder",
+      "subtitle": "develop job, has a shell",
+      "summary": "Runs the review before pushing and fixes what it reports. Its own workspace can change the result, which is why this gates the push and not the merge.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-review-run",
+      "label": "osf review run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "review_run_exit_code",
+      "summary": "Loses the `--warn-only` override and now always returns the real code: 0 pass, 1 fail, 2 could-not-run.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2250,
+          "endLine": 2260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "finish-review",
+      "label": "finish_review",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "verdict + kept findings + round budget",
+      "summary": "Computes the base exit code from the reducer verdict, promotes a Pass to 1 when a kept must-fix or should-fix finding exists, then applies the round budget when `count_rounds` is set. `review reduce` calls it with counting off.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2392,
+          "endLine": 2465
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-config",
+      "label": "review_config",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "in_sandbox_rounds, could_not_run_rounds",
+      "summary": "Two new `[review]` fields, both defaulting to 3 and both rejected at 0. The whole-run timeout default drops from 2700 to 1800 seconds.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 226,
+          "endLine": 240
+        },
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 377,
+          "endLine": 400
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml [review]",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "concurrency 16, total_timeout 1800",
+      "summary": "The repository's own review settings, sized for thirteen lenses and two reviewers inside the thirty-minute limit. The opencode secret name is corrected in the comment.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 29,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run-mod",
+      "label": "review_run::run",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-engine",
+      "subtitle": "setup, preflight, workers, reduce",
+      "summary": "The orchestration module. It gains the round-count store, the credential preflight and the preflight-only reviewer run.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 179,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "round-allows-push",
+      "label": "round_allows_push",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-engine",
+      "subtitle": "RoundKind -> bool",
+      "summary": "A pass clears the counts. A findings round increments and allows the push once past the limit. A could-not-run round increments and returns an error past its own limit, so a missing credential can never be laundered into a pass.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 262,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "round-counts",
+      "label": "RoundCounts",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "state",
+      "subtitle": "journal state/review-rounds/<hash>.json",
+      "summary": "Two counters keyed by the canonical worktree path, stored under the journal state directory so the builder cannot edit them.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 186,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "credential-preflight",
+      "label": "missing_credentials",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-engine",
+      "subtitle": "Reviewer::missing_credentials",
+      "summary": "Decides before any process starts whether a reviewer has no way to sign in: no non-empty credential variable and no existing login path under the real home. A templated reviewer is exempt because its template may carry its own auth.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 98,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "preflight-and-not-run",
+      "label": "preflight_and_not_run",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-engine",
+      "subtitle": "skip reason vs credential reason",
+      "summary": "Orders the reasons a reviewer sits out: family error, then skip reason, then the credential preflight. A reviewer with no read-only mode is left to its worker, not judged by the preflight.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 848,
+          "endLine": 880
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-worker",
+      "label": "Reviewer worker",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "review-engine",
+      "subtitle": "agent process per lens",
+      "summary": "The agent process that answers each lens. It no longer starts at all when the preflight has already decided the reviewer cannot run.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "reducer",
+      "label": "Reducer",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "review-engine",
+      "subtitle": "Verdict::Pass | Fail | CouldNotRun",
+      "summary": "Produces the verdict and the kept findings. Its verdict still decides the class of round; the kept findings decide whether a Pass is really a fail.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "read-work-item",
+      "label": "read_work_item",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "state",
+      "subtitle": "file, then OSF_WORK_ITEM",
+      "summary": "Falls back to the `OSF_WORK_ITEM` environment variable when no path is given or the path cannot be read, so the pre-push hook never has to write a file.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 261,
+          "endLine": 290
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "secret-held",
+      "label": "secret_values::held",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "state",
+      "subtitle": "env vars + login-file leaves",
+      "summary": "Now also collects every string leaf of the agents' JSON login files, so a provider key kept in opencode's auth file is redacted like an environment variable.",
+      "files": [
+        {
+          "path": "crates/osf/src/secret_values.rs",
+          "startLine": 17,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset_risk::changed_files",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-engine",
+      "subtitle": "ignores untracked .osf/",
+      "summary": "Filters osf's own untracked output out of the changed-file set, so one review round cannot change which lenses the next round selects.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 259,
+          "endLine": 272
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "moon-runs-review",
+      "from": "moon-review-task",
+      "to": "osf-review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "--if-enabled --work-item",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The task now passes the work item path and no longer passes `--warn-only`, so the command's exit code reaches the push.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 146,
+          "endLine": 152
+        }
+      ]
+    },
+    {
+      "id": "builder-pushes-through-task",
+      "from": "builder-agent",
+      "to": "moon-review-task",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The builder's push now runs through a task that can refuse it.",
+      "files": []
+    },
+    {
+      "id": "review-run-calls-run",
+      "from": "osf-review-run",
+      "to": "review-run-mod",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-run-finishes",
+      "from": "osf-review-run",
+      "to": "finish-review",
+      "kind": "call",
+      "delta": "modified",
+      "label": "count_rounds = true",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`review run` counts rounds; `review reduce` calls the same function with counting off.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2336,
+          "endLine": 2346
+        }
+      ]
+    },
+    {
+      "id": "finish-reads-config",
+      "from": "finish-review",
+      "to": "review-config",
+      "kind": "call",
+      "delta": "added",
+      "label": "in_sandbox_rounds, could_not_run_rounds",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "config-reads-toml",
+      "from": "review-config",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "finish-applies-budget",
+      "from": "finish-review",
+      "to": "round-allows-push",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one place a failing review can be turned into an allowed push, and only after the configured number of rounds.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2440,
+          "endLine": 2460
+        }
+      ]
+    },
+    {
+      "id": "budget-reads-counts",
+      "from": "round-allows-push",
+      "to": "round-counts",
+      "kind": "data",
+      "delta": "added",
+      "label": "load / save / clear",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-preflights",
+      "from": "review-run-mod",
+      "to": "preflight-and-not-run",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "preflight-checks-credentials",
+      "from": "preflight-and-not-run",
+      "to": "credential-preflight",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-starts-worker",
+      "from": "review-run-mod",
+      "to": "reviewer-worker",
+      "kind": "call",
+      "delta": "modified",
+      "label": "skipped when preflight fails",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "worker-answers-reducer",
+      "from": "reviewer-worker",
+      "to": "reducer",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "answer JSON",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-reads-work-item",
+      "from": "review-run-mod",
+      "to": "read-work-item",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-scrubs-secrets",
+      "from": "review-run-mod",
+      "to": "secret-held",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-assesses-risk",
+      "from": "review-run-mod",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "pre-push-review-gate",
+      "title": "One pre-push review round",
+      "summary": "What happens between the builder's push and the exit code that decides it, including the two ways a failing round can end.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "builder-agent"
+        },
+        {
+          "node": "moon-review-task"
+        },
+        {
+          "node": "osf-review-run"
+        },
+        {
+          "node": "review-run-mod"
+        },
+        {
+          "node": "credential-preflight"
+        },
+        {
+          "node": "reviewer-worker"
+        },
+        {
+          "node": "reducer"
+        },
+        {
+          "node": "finish-review"
+        },
+        {
+          "node": "round-counts"
+        }
+      ],
+      "messages": [
+        {
+          "id": "push-runs-task",
+          "from": "builder-agent",
+          "to": "moon-review-task",
+          "label": "git push",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "task-invokes-run",
+          "from": "moon-review-task",
+          "to": "osf-review-run",
+          "label": "review run --work-item",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".osf/moon.yml",
+              "startLine": 146,
+              "endLine": 152
+            }
+          ]
+        },
+        {
+          "id": "run-sets-up",
+          "from": "osf-review-run",
+          "to": "review-run-mod",
+          "label": "Request",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-preflight",
+          "from": "review-run-mod",
+          "to": "credential-preflight",
+          "label": "missing_credentials()",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A reviewer with no key and no login file is recorded could-not-run for every lens and no worker starts.",
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 848,
+              "endLine": 880
+            }
+          ]
+        },
+        {
+          "id": "run-worker",
+          "from": "review-run-mod",
+          "to": "reviewer-worker",
+          "label": "lens prompt",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "repeat": 13,
+          "note": "Thirteen lenses across two reviewers, at concurrency 16.",
+          "files": []
+        },
+        {
+          "id": "worker-answer",
+          "from": "reviewer-worker",
+          "to": "reducer",
+          "label": "answer JSON",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "reducer-verdict",
+          "from": "reducer",
+          "to": "finish-review",
+          "label": "verdict + kept findings",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "A Pass with a kept must-fix or should-fix finding becomes exit 1.",
+          "files": []
+        },
+        {
+          "id": "finish-budget",
+          "from": "finish-review",
+          "to": "round-counts",
+          "label": "increment / clear",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "RoundCounts",
+              "shape": "{ review: u32, could_not_run: u32 }",
+              "sample": {
+                "review": 1,
+                "could_not_run": 0
+              },
+              "before": {
+                "review": 0,
+                "could_not_run": 0
+              },
+              "source": {
+                "path": "crates/osf/src/review_run.rs",
+                "startLine": 186,
+                "endLine": 196
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "finish-exit",
+          "from": "finish-review",
+          "to": "osf-review-run",
+          "label": "0 | 1 | 2",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-exit",
+          "from": "osf-review-run",
+          "to": "moon-review-task",
+          "label": "exit code",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "task-exit",
+          "from": "moon-review-task",
+          "to": "builder-agent",
+          "label": "push allowed or refused",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 19,
+    "additions": 787,
+    "deletions": 86,
+    "chips": [
+      {
+        "label": "--warn-only",
+        "value": "removed",
+        "tone": "removed"
+      },
+      {
+        "label": "Pre-push rounds before pass-through",
+        "value": "3",
+        "tone": "hero"
+      },
+      {
+        "label": "Could-not-run rounds before blocked",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "Whole-run timeout",
+        "value": "2700s → 1800s",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-gate-context",
+      "title": "The pre-push review gate",
+      "lens": "architecture",
+      "summary": "The builder's push, the osf command that judges it, the review engine behind it, and the state that survives between rounds.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "round-budget",
+      "title": "The round budget",
+      "lens": "architecture",
+      "summary": "How a failing round becomes an allowed push, and why a could-not-run streak never does.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "finish-review",
+          "round-allows-push",
+          "round-counts",
+          "review-config",
+          "osf-toml",
+          "credential-preflight"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "pre-push-review-gate-flow",
+      "title": "One pre-push review round",
+      "lens": "data-flow",
+      "summary": "The ordered steps from push to exit code.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "pre-push-review-gate"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
