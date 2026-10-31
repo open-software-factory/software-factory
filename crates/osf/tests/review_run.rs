@@ -5094,7 +5094,7 @@ fn a_lens_whose_context_cannot_be_built_still_gets_a_could_not_run_event() {
     assert_eq!(event["result"], "could-not-run", "{answers:?}");
     let reason = event["reason"].as_str().unwrap_or_default();
     assert!(
-        reason.contains("no work item file was given"),
+        reason.contains("no work item was given"),
         "the reason names the missing work item: {reason}"
     );
 }
