@@ -335,10 +335,17 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 
 ## Review at pre-push and the pull request
 
-A moon task named `review` runs `osf review run` at pre-push. It prints
-the verdict, and the push always continues. Pre-push runs inside your
-own workspace, so you could change its result there. The real gate is a
-separate job.
+A moon task named `review` runs `osf review run` at pre-push. It reads the
+work item body from `.osf/out/work-item.txt`, which the caller writes before
+the push. A person pushing by hand writes it first: without it the
+spec-and-acceptance lens cannot run, and the review stops the push. A kept
+must-fix or should-fix finding stops the push, so the builder fixes it before
+it opens the pull request. Past `[review] in_sandbox_rounds` failed rounds the
+push proceeds with the findings recorded. A review that could not run stops
+the push too, until `[review] could_not_run_rounds` names the limit: a
+verification that did not happen is not a pass.
+Pre-push runs inside your own workspace, so you could change its result
+there. It is not the merge gate; the separate job is.
 
 GitHub always reads a `pull_request_target` workflow from the default
 branch. That is why `.github/workflows/review.yml` is the real gate, and
@@ -458,7 +465,7 @@ time left as could-not-run, and the reason names the limit. `osf` stops a
 lens that goes past that limit and records it as could-not-run, and the
 reason names `timeout_seconds`. `total_timeout_seconds` is the most the
 whole reviewer run may take, counted from the first lens start, and its
-default is 2700 seconds. When it runs out, `osf` stops every running lens
+default is 1800 seconds. When it runs out, `osf` stops every running lens
 and records every waiting lens as could-not-run, and the reason names
 `total_timeout_seconds`. `osf` refuses a `timeout_seconds` or
 `total_timeout_seconds` above 86400 seconds (24 hours) and names the
@@ -474,7 +481,7 @@ does not matter.
 [review]
 concurrency = 8
 timeout_seconds = 1800
-total_timeout_seconds = 2700
+total_timeout_seconds = 1800
 ```
 
 `osf review reduce` treats every saved file as input to check. It checks

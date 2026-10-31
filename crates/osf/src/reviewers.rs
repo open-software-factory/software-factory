@@ -73,6 +73,10 @@ pub struct Reviewer {
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
+    /// Whether a launch template supplied this reviewer's command. A
+    /// template may carry its own authentication, which osf cannot see, so
+    /// the credential preflight does not judge it.
+    pub templated: bool,
 }
 
 impl Reviewer {
@@ -89,6 +93,53 @@ impl Reviewer {
     #[must_use]
     pub fn is_excluded_by(&self, builder_families: &std::collections::BTreeSet<String>) -> bool {
         self.family_error.is_none() && builder_families.contains(&self.family)
+    }
+
+    /// Why this reviewer has no way to sign in, when it has none at all.
+    ///
+    /// A credential variable counts when its value is non-empty. A login
+    /// file counts when any one of its paths exists under `real_home`. When
+    /// no credential variable is set and every login path is missing, the
+    /// reviewer cannot answer, and no retry can change that: a missing key
+    /// or login is deterministic. `None` means a named credential is set, a
+    /// login file exists, the reviewer is templated, or it names neither a
+    /// credential variable nor a login path.
+    #[must_use]
+    pub fn missing_credentials(&self, real_home: Option<&Path>) -> Option<String> {
+        if self.templated {
+            return None;
+        }
+        if self
+            .credential_env
+            .iter()
+            .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()))
+        {
+            return None;
+        }
+        if self.credential_env.is_empty() && self.login_paths.is_empty() {
+            return None;
+        }
+        let missing: Vec<&str> = self
+            .login_paths
+            .iter()
+            .map(String::as_str)
+            .filter(|path| !real_home.is_some_and(|home| home.join(path).exists()))
+            .collect();
+        if !self.login_paths.is_empty() && missing.len() != self.login_paths.len() {
+            return None;
+        }
+
+        let mut parts = Vec::new();
+        if !self.credential_env.is_empty() {
+            parts.push(format!(
+                "credential variable {} is empty or not set",
+                self.credential_env.join(" or ")
+            ));
+        }
+        if !self.login_paths.is_empty() {
+            parts.push(format!("login path {} is missing", missing.join(" or ")));
+        }
+        Some(parts.join("; "))
     }
 
     /// `agent` as a reviewer running `model`, with `in_container`'s
@@ -110,6 +161,7 @@ impl Reviewer {
             name: agent.name.to_string(),
             family,
             family_error,
+            templated: template.is_some(),
             command: template
                 .map_or_else(|| owned(agent.command), |template| template.command.clone()),
             env: template
@@ -932,6 +984,7 @@ mod tests {
             credential_env: Vec::new(),
             login_paths: Vec::new(),
             review_dir: None,
+            templated: false,
         }
     }
 
@@ -948,6 +1001,66 @@ mod tests {
         );
         r.login_paths = login_paths.iter().map(ToString::to_string).collect();
         r
+    }
+
+    #[test]
+    fn missing_credentials_names_the_key_and_the_login_path() {
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_KEY".to_string()];
+        r.login_paths = vec![".preflight/auth.json".to_string()];
+        let reason = r
+            .missing_credentials(Some(home.as_ref()))
+            .expect("no credential");
+        assert!(reason.contains("OSF_TEST_PREFLIGHT_KEY"), "{reason}");
+        assert!(reason.contains(".preflight/auth.json"), "{reason}");
+        let file = home.join(".preflight/auth.json");
+        std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&file, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
+    }
+
+    #[test]
+    fn a_set_credential_variable_alone_passes_the_preflight() {
+        std::env::set_var("OSF_TEST_PREFLIGHT_SET", "value");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_SET".to_string()];
+        r.login_paths = vec![".nope/auth.json".to_string()];
+        assert_eq!(r.missing_credentials(None), None);
+        std::env::remove_var("OSF_TEST_PREFLIGHT_SET");
+    }
+
+    #[test]
+    fn a_templated_reviewer_is_not_judged_by_the_preflight() {
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.templated = true;
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_UNSET".to_string()];
+        r.login_paths = vec![".nope/auth.json".to_string()];
+        assert_eq!(r.missing_credentials(None), None);
+    }
+
+    #[test]
+    fn one_present_login_path_of_two_passes_the_preflight() {
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight-many");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = Vec::new();
+        r.login_paths = vec![".one/auth.json".to_string(), ".two/auth.json".to_string()];
+        let reason = r
+            .missing_credentials(Some(home.as_ref()))
+            .expect("no login file exists yet");
+        assert!(
+            reason.contains(".one/auth.json") && reason.contains(".two/auth.json"),
+            "{reason}"
+        );
+        let second = home.join(".two/auth.json");
+        std::fs::create_dir_all(second.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&second, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
+        std::fs::remove_file(&second).expect("file removes");
+        let first = home.join(".one/auth.json");
+        std::fs::create_dir_all(first.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&first, "{}").expect("file writes");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
     }
 
     /// A stand-in real home holding two harnesses' logins and an unrelated file.

@@ -7,12 +7,59 @@
 
 use crate::agents;
 use std::fmt::Write as _;
+use std::path::Path;
 
 /// A value shorter than this is not treated as a secret: removing it would damage ordinary text.
 const MIN_LEN: usize = 8;
 
 /// The variables that carry a code-host token.
 const CODE_HOST_TOKENS: &[&str] = &["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN"];
+
+/// Every string leaf of a JSON login file, which is where an agent such as
+/// opencode keeps its provider key.
+fn login_values() -> Vec<String> {
+    let Some(home) = crate::reviewers::real_home() else {
+        return Vec::new();
+    };
+    login_values_in(&home)
+}
+
+/// Same as `login_values`, for the given home, so a test can supply one
+/// without changing the process's own home directory.
+fn login_values_in(home: &Path) -> Vec<String> {
+    agents::AGENTS
+        .iter()
+        .filter_map(|agent| agent.review.as_ref())
+        .flat_map(|review| review.login_paths.iter())
+        .filter_map(|path| std::fs::read_to_string(home.join(path)).ok())
+        .flat_map(|text| json_leaves(&text))
+        .filter(|value| value.len() >= MIN_LEN)
+        .collect()
+}
+
+fn json_leaves(text: &str) -> Vec<String> {
+    fn walk(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(text) => out.push(text.clone()),
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for item in map.values() {
+                    walk(item, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+        walk(&value, &mut out);
+    }
+    out
+}
 
 /// What replaces a secret's value.
 pub const MARKER: &str = "[removed: a secret this job holds]";
@@ -33,6 +80,7 @@ pub fn held() -> Vec<String> {
         .filter_map(|name| std::env::var(name).ok())
         .filter(|value| value.len() >= MIN_LEN)
         .collect();
+    values.extend(login_values());
     values.sort_unstable();
     values.dedup();
     values
@@ -216,6 +264,43 @@ mod tests {
         ] {
             assert!(names.contains(&expected), "{expected}: {names:?}");
         }
+        assert!(
+            !names.contains(&"OPENROUTER_API_KEY"),
+            "opencode signs in through its own auth file, not OpenRouter: {names:?}"
+        );
         assert!(CODE_HOST_TOKENS.contains(&"GH_TOKEN"));
+    }
+
+    #[test]
+    fn a_nested_login_file_value_is_scrubbed() {
+        let home = crate::test_support::TempDir::new("osf-secret-login-nested");
+        let path = home.join(".local/share/opencode/auth.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir creates");
+        std::fs::write(
+            &path,
+            "{\"opencode\":{\"provider\":{\"api_key\":\"login-secret-0123456789\"}}}",
+        )
+        .expect("login file writes");
+        let values = login_values_in(&home);
+        assert!(
+            values.contains(&"login-secret-0123456789".to_string()),
+            "a nested string leaf is a held secret: {values:?}"
+        );
+        let out = scrub("key: login-secret-0123456789", &values);
+        assert!(!out.contains("login-secret-0123456789"), "{out}");
+        assert!(out.contains(MARKER), "{out}");
+    }
+
+    #[test]
+    fn a_non_utf8_login_file_is_skipped_without_panicking() {
+        let home = crate::test_support::TempDir::new("osf-secret-login-bytes");
+        let path = home.join(".codex/auth.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir creates");
+        std::fs::write(&path, [0xff_u8, 0xfe, b'{', b'}']).expect("login file writes");
+        let values = login_values_in(&home);
+        assert!(
+            values.is_empty(),
+            "a login file that is not UTF-8 contributes no value and does not panic: {values:?}"
+        );
     }
 }

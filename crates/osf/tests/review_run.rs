@@ -364,6 +364,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
 struct Fakes {
     bin: TempDir,
     osf_toml: String,
+    inject_credentials: bool,
 }
 
 impl Fakes {
@@ -376,7 +377,16 @@ impl Fakes {
         Fakes {
             bin,
             osf_toml: agents_toml(prefix, &names),
+            inject_credentials: true,
         }
+    }
+
+    /// The same fakes, but with no credential and no login file, so the
+    /// credential preflight is what decides the run.
+    fn without_credentials(prefix: &str, reviewers: &[(&str, Fake)]) -> Fakes {
+        let mut fakes = Fakes::new(prefix, reviewers);
+        fakes.inject_credentials = false;
+        fakes
     }
 
     /// `osf.toml` text that also pins opencode to a qwen model, so its family is known.
@@ -432,6 +442,30 @@ impl Fakes {
         let mut all: Vec<(&str, &str)> =
             env.iter().copied().filter(|(k, _)| *k != "PATH").collect();
         all.push(("PATH", &path));
+        // The fake agents answer without a real provider. Give them a
+        // credential so the preflight lets them start; the preflight itself
+        // has its own tests.
+        if self.inject_credentials && std::env::var_os("OSF_TEST_NO_FAKE_CREDS").is_none() {
+            for var in [
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "OPENAI_API_KEY",
+                "OPENROUTER_API_KEY",
+                "CODEX_API_KEY",
+            ] {
+                if !all.iter().any(|(name, _)| *name == var) {
+                    all.push((var, "test-credential"));
+                }
+            }
+            for login in [".local/share/opencode/auth.json", ".codex/auth.json"] {
+                let file = home.join(login);
+                if !file.exists() {
+                    if let Some(parent) = file.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&file, "{}");
+                }
+            }
+        }
         common::run_osf_with_env(dir, home, &all, args)
     }
 }
@@ -2294,10 +2328,9 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
     );
 }
 
-/// `--warn-only` still runs the review and still prints the verdict, but
-/// the process always exits 0, whatever that verdict is.
+/// A kept must-fix finding fails the push.
 #[test]
-fn warn_only_prints_the_verdict_but_never_fails() {
+fn a_kept_blocker_fails_the_push() {
     let fakes = Fakes::new(
         "",
         &[
@@ -2305,16 +2338,16 @@ fn warn_only_prints_the_verdict_but_never_fails() {
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
-    let repo = review_repo("warn-only-blocker", &fakes.osf_toml);
-    let home = common::isolated_home("review-run-warn-only-blocker");
+    let repo = review_repo("kept-blocker", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-kept-blocker");
     let output = fakes.run(
         &repo.dir,
         &home,
-        &["review", "run", "--base", "origin/main", "--warn-only"],
+        &["review", "run", "--base", "origin/main"],
     );
     assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
+        !output.status.success(),
+        "a must-fix finding fails the gate: stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -2322,18 +2355,242 @@ fn warn_only_prints_the_verdict_but_never_fails() {
     assert!(stdout.contains("verdict: fail"), "{stdout}");
 }
 
-/// `--warn-only` also swallows a could-not-run verdict, the same as a fail.
+/// A kept should-fix finding fails the push too, which the verdict alone
+/// does not veto.
 #[test]
-fn warn_only_never_fails_on_could_not_run_either() {
-    let repo = review_repo("warn-only-could-not-run", "");
-    let home = common::isolated_home("review-run-warn-only-could-not-run");
+fn a_kept_should_fix_fails_the_push() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("should-fix.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("kept-should-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-kept-should-fix");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        !output.status.success(),
+        "a should-fix finding fails the gate: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The pull-request reduce step fails on a kept should-fix finding, the
+/// same rule as the push.
+#[test]
+fn the_pull_request_reduce_step_fails_on_a_kept_should_fix() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("should-fix.json")))]);
+    let repo = review_repo("reduce-should-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-reduce-should-fix");
+    let saved = TempDir::new("review-run-reduce-should-fix-saved");
+    let file = saved.join("codex.json").to_string_lossy().into_owned();
+    let run = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        run.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let reduced = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "reduce", "--base", "origin/main", &file],
+    );
+    assert_eq!(
+        reduced.status.code(),
+        Some(1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&reduced.stdout),
+        String::from_utf8_lossy(&reduced.stderr)
+    );
+}
+
+/// The pre-push budget: three failed rounds stop a push, and the fourth
+/// lets it through with the findings recorded.
+#[test]
+fn the_pre_push_budget_lets_a_push_through_after_the_limit() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("pre-push-budget", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-pre-push-budget");
+    let mut codes = Vec::new();
+    for _ in 0..4 {
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        codes.push(output.status.code());
+        assert!(
+            output.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(codes, vec![Some(1), Some(1), Some(1), Some(0)]);
+}
+
+/// A pass clears the counts, so the next failure counts from one again, and
+/// the counts live under the journal state, never in the worktree.
+#[test]
+fn a_pass_clears_the_round_counts_kept_in_the_journal_state() {
+    let answer = TempDir::new("review-run-pass-clears-answer");
+    let answer_path = answer.join("answer.json");
+    let blocker = std::fs::read_to_string(fixture("blocker.json")).expect("blocker fixture reads");
+    let valid = std::fs::read_to_string(fixture("valid.json")).expect("valid fixture reads");
+    std::fs::write(&answer_path, &blocker).expect("answer writes");
+    let answer_arg = answer_path.to_string_lossy().into_owned();
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&answer_arg)),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("pass-clears", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-pass-clears");
+    let run = || {
+        fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        )
+    };
+
+    let failed = run();
+    assert_eq!(
+        failed.status.code(),
+        Some(1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&failed.stdout),
+        String::from_utf8_lossy(&failed.stderr)
+    );
+    let rounds = home.join(".osf").join("state").join("review-rounds");
+    assert!(
+        rounds.is_dir(),
+        "the round counts live under the journal state"
+    );
+    assert!(
+        !repo.dir.join(".osf/out/review-rounds.json").exists(),
+        "no round count lives in the worktree"
+    );
+
+    std::fs::write(&answer_path, &valid).expect("answer writes");
+    let passed = run();
+    assert_eq!(
+        passed.status.code(),
+        Some(0),
+        "a clean review passes: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&passed.stdout),
+        String::from_utf8_lossy(&passed.stderr)
+    );
+    let remaining = std::fs::read_dir(&rounds).map_or(0, std::fs::ReadDir::count);
+    assert_eq!(remaining, 0, "a pass removes the round counts");
+
+    std::fs::write(&answer_path, &blocker).expect("answer writes");
+    let failed_again = run();
+    assert_eq!(
+        failed_again.status.code(),
+        Some(1),
+        "a failure after a pass counts from one again: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&failed_again.stdout),
+        String::from_utf8_lossy(&failed_again.stderr)
+    );
+}
+
+/// Past the could-not-run limit the gate reports blocked, and it never lets
+/// the push through on a review that did not happen.
+#[test]
+fn a_could_not_run_streak_ends_blocked_with_a_message() {
+    let repo = review_repo("cnr-limit", "");
+    let home = common::isolated_home("review-run-cnr-limit");
+    let mut last = String::new();
+    for _ in 0..4 {
+        let output = common::run_osf(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        last = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert!(last.contains("could not run 4 rounds"), "{last}");
+}
+
+/// A missing credential is decided before any reviewer process starts, so
+/// the run cannot wait out a timeout and then retry.
+#[test]
+fn a_missing_credential_stops_the_review_before_any_process() {
+    let fakes = Fakes::without_credentials("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("preflight-missing", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-preflight-missing");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}
+stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(text.contains("could-not-run"), "{text}");
+    let journal = journal_lines_of(&home, "codex");
+    assert!(
+        journal.contains("CODEX_API_KEY") || journal.contains(".codex/auth.json"),
+        "{journal}"
+    );
+}
+
+/// A review that could not run is a verification that did not happen, so it
+/// fails the gate like a finding does.
+#[test]
+fn a_could_not_run_fails_the_push() {
+    let repo = review_repo("could-not-run-fails", "");
+    let home = common::isolated_home("review-run-could-not-run-fails");
     let output = common::run_osf(
         &repo.dir,
         &home,
-        &["review", "run", "--base", "origin/main", "--warn-only"],
+        &["review", "run", "--base", "origin/main"],
     );
     assert!(
-        output.status.success(),
+        !output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
@@ -4837,7 +5094,7 @@ fn a_lens_whose_context_cannot_be_built_still_gets_a_could_not_run_event() {
     assert_eq!(event["result"], "could-not-run", "{answers:?}");
     let reason = event["reason"].as_str().unwrap_or_default();
     assert!(
-        reason.contains("no work item file was given"),
+        reason.contains("no work item was given"),
         "the reason names the missing work item: {reason}"
     );
 }

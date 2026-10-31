@@ -261,12 +261,24 @@ fn changed_files_section(sources: &Sources) -> Result<String, String> {
 /// issue's text or the reason the pull request has none. Any other file is
 /// the work item's text itself.
 fn read_work_item(sources: &Sources) -> Result<String, String> {
-    let path = sources.work_item.ok_or_else(|| {
-        "no work item file was given: pass --work-item, or link an issue on the pull request's Issue line"
-            .to_string()
-    })?;
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: cannot be read: {e}", forward_slash(path)))?;
+    let from_environment = || {
+        std::env::var("OSF_WORK_ITEM")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+    };
+    let Some(path) = sources.work_item else {
+        return from_environment().ok_or_else(|| {
+            "no work item was given: set OSF_WORK_ITEM, pass --work-item, or link an issue on the pull request's Issue line"
+                .to_string()
+        });
+    };
+    // A caller can pass the body in OSF_WORK_ITEM instead of writing a file.
+    // The pre-push hook uses this so the skill never has to create one.
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => from_environment()
+            .ok_or_else(|| format!("{}: cannot be read: {e}", forward_slash(path)))?,
+    };
     if path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
@@ -798,5 +810,21 @@ mod tests {
     fn append_redaction_note_names_the_count() {
         let text = append_redaction_note("body".to_string(), 3);
         assert!(text.contains("3 line"), "{text}");
+    }
+
+    #[test]
+    fn a_missing_work_item_file_falls_back_to_the_environment() {
+        std::env::set_var("OSF_WORK_ITEM", "## Done when\n- one\n");
+        let sources = Sources {
+            root: Path::new("."),
+            config_root: Path::new("."),
+            base: "main",
+            work_item: Some(Path::new("/nonexistent/osf-work-item.txt")),
+            pull_request: None,
+            work_item_binding: None,
+        };
+        let text = read_work_item(&sources).expect("the environment supplies it");
+        assert!(text.contains("Done when"), "{text}");
+        std::env::remove_var("OSF_WORK_ITEM");
     }
 }
