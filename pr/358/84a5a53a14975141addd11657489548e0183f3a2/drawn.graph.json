@@ -1,0 +1,345 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-11-01T00:16:24.623Z",
+  "title": "Bump harden-runner to v2.22.3 across CI workflows",
+  "summary": "A dependency bump: every job in the two GitHub Actions workflows that pins step-security/harden-runner moves from the v2.22.1 commit to the v2.22.3 commit. No job logic, egress allow-list, or step ordering changes — only the pinned action SHA and its version comment. The blast radius is the CI pipeline itself: each job's first step now runs a newer egress-policy enforcer before any other step executes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "84a5a53a14975141addd11657489548e0183f3a2",
+      "ref": "84a5a53a14975141addd11657489548e0183f3a2"
+    },
+    "pullRequest": {
+      "number": 358,
+      "url": "https://github.com/open-software-factory/software-factory/pull/358"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0
+    },
+    {
+      "id": "workflows",
+      "label": "Workflows",
+      "subtitle": "GitHub Actions jobs",
+      "order": 1
+    },
+    {
+      "id": "runner",
+      "label": "Runner",
+      "subtitle": "ubuntu-latest VM",
+      "order": 2
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "Network endpoints",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-event",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "summary": "A pull request opened or synchronised, which starts the PR Lens workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-event",
+      "label": "Review / check event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "summary": "The event that starts the review-check workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-workflow",
+      "label": "pr-lens.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflows",
+      "summary": "The PR Lens workflow. Its harden-runner step is repinned to v2.22.3; the egress allow-list and every other step are untouched.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 29,
+          "endLine": 35
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflows",
+      "summary": "The review-check workflow, with six jobs each carrying their own harden-runner step. All six pins move to v2.22.3 in this change.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 112,
+          "endLine": 118
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harden-runner",
+      "label": "harden-runner",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "step-security/harden-runner@46b06ce (v2.22.3)",
+      "summary": "The egress-policy action that runs first in each job and blocks outbound traffic except the allow-listed endpoints. The only thing that changed is which commit of it is fetched.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 32,
+          "endLine": 32
+        },
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 115,
+          "endLine": 115
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "job-steps",
+      "label": "Job steps",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "runner",
+      "summary": "The remaining steps of each job — checkout, build, docker run, opencode — which run under the policy harden-runner installs.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "allowed-endpoints",
+      "label": "Allow-listed endpoints",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "summary": "The provider hosts named in each job's allowed-endpoints list. The lists are identical before and after the bump.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-to-pr-lens",
+      "from": "pr-event",
+      "to": "pr-lens-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-event-to-review-check",
+      "from": "review-event",
+      "to": "review-check-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "pr-lens-to-harden",
+      "from": "pr-lens-workflow",
+      "to": "harden-runner",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v2.22.3",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "review-check-to-harden",
+      "from": "review-check-workflow",
+      "to": "harden-runner",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v2.22.3 ×6 jobs",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 115,
+          "endLine": 115
+        }
+      ]
+    },
+    {
+      "id": "harden-to-endpoints",
+      "from": "harden-runner",
+      "to": "allowed-endpoints",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "egress policy",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "harden-to-job-steps",
+      "from": "harden-runner",
+      "to": "job-steps",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "guards",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "job-egress-guard",
+      "title": "How a job's egress is locked down",
+      "summary": "Each job's first step fetches the pinned harden-runner commit and installs an egress policy before any other step runs. The bump changes only which commit is fetched; the policy and the endpoints it permits are the same.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pr-lens-workflow",
+          "label": "Workflow job"
+        },
+        {
+          "node": "harden-runner"
+        },
+        {
+          "node": "allowed-endpoints"
+        },
+        {
+          "node": "job-steps"
+        }
+      ],
+      "messages": [
+        {
+          "id": "fetch-action",
+          "from": "pr-lens-workflow",
+          "to": "harden-runner",
+          "label": "resolve pinned SHA 46b06ce",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Previously resolved ccd8616 (v2.22.1).",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 32,
+              "endLine": 32
+            }
+          ]
+        },
+        {
+          "id": "install-policy",
+          "from": "harden-runner",
+          "to": "harden-runner",
+          "label": "install egress policy",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "permit-endpoints",
+          "from": "harden-runner",
+          "to": "allowed-endpoints",
+          "label": "allow listed hosts only",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-steps",
+          "from": "harden-runner",
+          "to": "job-steps",
+          "label": "hand off to job steps",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 7,
+    "deletions": 7,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "ci-architecture",
+      "title": "CI architecture",
+      "lens": "architecture",
+      "summary": "Two workflows, their shared harden-runner dependency, and the runner-side steps it guards.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "egress-guard-flow",
+      "title": "Egress guard sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps a job takes from workflow definition to guarded execution.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "job-egress-guard"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
