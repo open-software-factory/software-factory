@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a398dd9c7f6c27fdba29c0ca7a357ca919b3157a",
+    "contentHash": "b43ef607fadf10a74a9dac0e898490db"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "pre-push-gate-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "pre-push-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "417805041faa1939b8607c4f963e1de6",
+      "bytes": 27155,
+      "width": 1728,
+      "height": 780,
+      "animated": false,
+      "path": "pre-push-gate-light-417805041faa1939b8607c4f963e1de6.svg"
+    },
+    {
+      "id": "pre-push-gate-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "pre-push-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9ae4cb3dc36c0494411b2435d876aded",
+      "bytes": 27499,
+      "width": 1728,
+      "height": 780,
+      "animated": false,
+      "path": "pre-push-gate-dark-9ae4cb3dc36c0494411b2435d876aded.svg"
+    },
+    {
+      "id": "review-engine-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-engine-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6c9f290c22f02fa86265905058743928",
+      "bytes": 13305,
+      "width": 870,
+      "height": 532,
+      "animated": false,
+      "path": "review-engine-internals-light-6c9f290c22f02fa86265905058743928.svg"
+    },
+    {
+      "id": "review-engine-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-engine-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "408334d487f2eeca9ee138591da47449",
+      "bytes": 13454,
+      "width": 870,
+      "height": 532,
+      "animated": false,
+      "path": "review-engine-internals-dark-408334d487f2eeca9ee138591da47449.svg"
+    }
+  ]
+}
