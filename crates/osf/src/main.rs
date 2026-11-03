@@ -2425,20 +2425,11 @@ fn finish_review(
     // reducer's verdict still decides the class of round: a could-not-run
     // review spends the could-not-run budget, never the finding budget, even
     // when another lens kept a finding.
-    let base = match outcome.verdict {
-        reducer::Verdict::Pass if blocking => 1,
-        reducer::Verdict::Pass => 0,
-        reducer::Verdict::Fail => 1,
-        reducer::Verdict::CouldNotRun => 2,
-    };
+    let base = review_base(outcome.verdict, blocking);
     if !count_rounds {
         return base;
     }
-    let kind = match outcome.verdict {
-        reducer::Verdict::Pass if !blocking => review_run::RoundKind::Pass,
-        reducer::Verdict::Pass | reducer::Verdict::Fail => review_run::RoundKind::Findings,
-        reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
-    };
+    let kind = round_kind(outcome.verdict, blocking);
     let config = match config::review_config(config_root) {
         Ok(config) => config,
         Err(e) => {
@@ -2458,6 +2449,27 @@ fn finish_review(
             eprintln!("osf review run: {e}");
             2
         }
+    }
+}
+
+/// The exit code a review's verdict and kept findings give before any
+/// round budget applies.
+fn review_base(verdict: reducer::Verdict, blocking: bool) -> u8 {
+    match verdict {
+        reducer::Verdict::Pass if blocking => 1,
+        reducer::Verdict::Pass => 0,
+        reducer::Verdict::Fail => 1,
+        reducer::Verdict::CouldNotRun => 2,
+    }
+}
+
+/// The round a review result spends. A could-not-run verdict spends the
+/// could-not-run budget even when another lens kept a finding.
+fn round_kind(verdict: reducer::Verdict, blocking: bool) -> review_run::RoundKind {
+    match verdict {
+        reducer::Verdict::Pass if !blocking => review_run::RoundKind::Pass,
+        reducer::Verdict::Pass | reducer::Verdict::Fail => review_run::RoundKind::Findings,
+        reducer::Verdict::CouldNotRun => review_run::RoundKind::CouldNotRun,
     }
 }
 
@@ -3890,5 +3902,30 @@ mod tests {
             "Work item: github:open-software-factory/software-factory#105\n\nBody.\n"
         );
         assert_eq!(with_work_item("Body.\n", None), "Body.\n");
+    }
+
+    #[test]
+    fn a_could_not_run_verdict_spends_the_could_not_run_budget() {
+        use reducer::Verdict;
+        assert_eq!(review_base(Verdict::CouldNotRun, true), 2);
+        assert_eq!(
+            round_kind(Verdict::CouldNotRun, true),
+            review_run::RoundKind::CouldNotRun
+        );
+    }
+
+    #[test]
+    fn a_pass_with_a_blocking_finding_spends_the_findings_budget() {
+        use reducer::Verdict;
+        assert_eq!(review_base(Verdict::Pass, true), 1);
+        assert_eq!(
+            round_kind(Verdict::Pass, true),
+            review_run::RoundKind::Findings
+        );
+        assert_eq!(review_base(Verdict::Pass, false), 0);
+        assert_eq!(
+            round_kind(Verdict::Pass, false),
+            review_run::RoundKind::Pass
+        );
     }
 }

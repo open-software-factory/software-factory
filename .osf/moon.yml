@@ -146,7 +146,9 @@ tasks:
   # that workflow does.
   review:
     command: 'osf review run --if-enabled --work-item .osf/out/work-item.txt --sarif-out .osf/out/review.sarif'
+    # No outputs: the review runs on every push. A cached result is wrong
+    # when the work item comes from OSF_WORK_ITEM, which moon cannot see in
+    # a cache key.
     inputs: ['/**/*.rs', '/**/*.md', '/.osf/review-lenses/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
-    outputs: ['/.osf/out/review.sarif']
     tags: [osf-pre-push, osf-slot-review]
     options: { runFromWorkspaceRoot: true, shell: false }

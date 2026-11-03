@@ -203,11 +203,15 @@ pub enum RoundKind {
 
 impl RoundCounts {
     fn path(root: &Path) -> Result<PathBuf, String> {
+        Self::path_in(root, crate::journal::state_dir())
+    }
+
+    fn path_in(root: &Path, dir: Result<PathBuf, String>) -> Result<PathBuf, String> {
         use std::hash::{Hash as _, Hasher as _};
         // The count decides whether a push may proceed, so it lives in the
         // journal state, outside the worktree the builder can edit. The
         // worktree path is the key, so each develop run has its own count.
-        let dir = crate::journal::state_dir()?;
+        let dir = dir?;
         let rooted = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         rooted.hash(&mut hasher);
@@ -2521,5 +2525,12 @@ mod tests {
         let err = deadline_after(Duration::MAX).expect_err("no instant is that far away");
         assert!(err.contains("total_timeout_seconds"), "{err}");
         assert!(deadline_after(Duration::from_secs(60)).is_ok());
+    }
+
+    #[test]
+    fn a_state_dir_failure_is_an_error_not_a_worktree_path() {
+        let err = RoundCounts::path_in(Path::new("."), Err("no home".to_string()))
+            .expect_err("the state dir failure propagates");
+        assert!(err.contains("no home"), "{err}");
     }
 }

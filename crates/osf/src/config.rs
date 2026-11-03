@@ -1743,6 +1743,19 @@ mod tests {
     }
 
     #[test]
+    fn configured_review_round_limits_load() {
+        let dir = TempDir::new("osf-config-test-review-rounds");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nin_sandbox_rounds = 5\ncould_not_run_rounds = 2\n",
+        )
+        .expect("osf.toml writes");
+        let config = review_config(&dir).expect("the values load");
+        assert_eq!(config.in_sandbox_rounds, 5);
+        assert_eq!(config.could_not_run_rounds, 2);
+    }
+
+    #[test]
     fn a_wrongly_typed_review_timing_is_refused_naming_the_setting() {
         for key in [
             "concurrency",

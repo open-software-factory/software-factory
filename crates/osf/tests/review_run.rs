@@ -2381,6 +2381,31 @@ fn a_kept_should_fix_fails_the_push() {
     );
 }
 
+/// A maybe-fix finding is a question for a person, not a blocker.
+#[test]
+fn a_maybe_fix_finding_does_not_fail_the_push() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("maybe-fix.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("maybe-fix", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-maybe-fix");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// The pull-request reduce step fails on a kept should-fix finding, the
 /// same rule as the push.
 #[test]
@@ -2422,6 +2447,22 @@ fn the_pull_request_reduce_step_fails_on_a_kept_should_fix() {
         String::from_utf8_lossy(&reduced.stdout),
         String::from_utf8_lossy(&reduced.stderr)
     );
+    // The reduce path never spends the pre-push budget, so four calls stay
+    // failures rather than the fourth becoming a budget pass.
+    for _ in 0..3 {
+        let again = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "reduce", "--base", "origin/main", &file],
+        );
+        assert_eq!(
+            again.status.code(),
+            Some(1),
+            "stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&again.stdout),
+            String::from_utf8_lossy(&again.stderr)
+        );
+    }
 }
 
 /// The pre-push budget: three failed rounds stop a push, and the fourth
@@ -2528,28 +2569,38 @@ fn a_pass_clears_the_round_counts_kept_in_the_journal_state() {
 fn a_could_not_run_streak_ends_blocked_with_a_message() {
     let repo = review_repo("cnr-limit", "");
     let home = common::isolated_home("review-run-cnr-limit");
-    let mut last = String::new();
-    for _ in 0..4 {
+    for round in 1..=4 {
         let output = common::run_osf(
             &repo.dir,
             &home,
             &["review", "run", "--base", "origin/main"],
         );
         assert_eq!(output.status.code(), Some(2));
-        last = format!(
+        let text = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
+        if round < 4 {
+            assert!(
+                !text.contains("past the limit"),
+                "round {round} must not report the limit yet: {text}"
+            );
+        } else {
+            assert!(text.contains("could not run 4 rounds"), "{text}");
+        }
     }
-    assert!(last.contains("could not run 4 rounds"), "{last}");
 }
 
 /// A missing credential is decided before any reviewer process starts, so
 /// the run cannot wait out a timeout and then retry.
 #[test]
 fn a_missing_credential_stops_the_review_before_any_process() {
-    let fakes = Fakes::without_credentials("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let rec = TempDir::new("review-run-preflight-rec");
+    let fakes = Fakes::without_credentials(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
     let repo = review_repo("preflight-missing", &fakes.osf_toml);
     let home = common::isolated_home("review-run-preflight-missing");
     let output = fakes.run(
@@ -2575,6 +2626,10 @@ stderr: {}",
     assert!(
         journal.contains("CODEX_API_KEY") || journal.contains(".codex/auth.json"),
         "{journal}"
+    );
+    assert!(
+        !rec.join("started").exists(),
+        "the harness must not start when the credential is missing"
     );
 }
 

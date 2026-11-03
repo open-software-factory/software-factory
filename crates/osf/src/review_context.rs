@@ -266,22 +266,36 @@ fn read_work_item(sources: &Sources) -> Result<String, String> {
             .ok()
             .filter(|text| !text.trim().is_empty())
     };
-    let Some(path) = sources.work_item else {
-        return from_environment().ok_or_else(|| {
-            "no work item was given: set OSF_WORK_ITEM, pass --work-item, or link an issue on the pull request's Issue line"
-                .to_string()
-        });
+    let path = sources.work_item;
+    let (text, from_env) = match path {
+        None => {
+            let text = from_environment().ok_or_else(|| {
+                "no work item was given: set OSF_WORK_ITEM, pass --work-item, or link an issue on the pull request's Issue line"
+                    .to_string()
+            })?;
+            (text, true)
+        }
+        Some(path) => match std::fs::read_to_string(path) {
+            Ok(text) => (text, false),
+            // A caller can pass the body in OSF_WORK_ITEM instead of writing
+            // a file. Only a missing file falls back; any other read error
+            // stays an error, so an unreadable path never silently becomes
+            // the environment's text.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let text = from_environment()
+                    .ok_or_else(|| format!("{}: cannot be read: {e}", forward_slash(path)))?;
+                (text, true)
+            }
+            Err(e) => return Err(format!("{}: cannot be read: {e}", forward_slash(path))),
+        },
     };
-    // A caller can pass the body in OSF_WORK_ITEM instead of writing a file.
-    // The pre-push hook uses this so the skill never has to create one.
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(e) => from_environment()
-            .ok_or_else(|| format!("{}: cannot be read: {e}", forward_slash(path)))?,
-    };
-    if path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    // The extension says whether a file is the saved-JSON form. Text that
+    // came from the environment is always the body itself.
+    if !from_env
+        && path.is_some_and(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+        })
     {
         if let Some(binding) = sources.work_item_binding {
             let body = sources.pull_request.and_then(|pr| pr.body.as_deref());

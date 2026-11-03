@@ -109,6 +109,9 @@ impl Reviewer {
         if self.templated {
             return None;
         }
+        // Without a real home the login files' presence is unknown, not
+        // absent. Do not turn that into a deterministic failure.
+        let home = real_home?;
         if self
             .credential_env
             .iter()
@@ -123,7 +126,7 @@ impl Reviewer {
             .login_paths
             .iter()
             .map(String::as_str)
-            .filter(|path| !real_home.is_some_and(|home| home.join(path).exists()))
+            .filter(|path| !home.join(path).exists())
             .collect();
         if !self.login_paths.is_empty() && missing.len() != self.login_paths.len() {
             return None;
