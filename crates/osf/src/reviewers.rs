@@ -80,6 +80,26 @@ pub struct Reviewer {
 }
 
 impl Reviewer {
+    /// Whether one of this reviewer's own credential variables holds a
+    /// non-empty value. The preflight and the launch use this one check.
+    fn credential_in_environment(&self) -> bool {
+        self.credential_env
+            .iter()
+            .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()))
+    }
+
+    /// The note for a reviewer whose credential variables are all empty.
+    /// `None` when one is set, or when the reviewer names none.
+    fn credential_missing_note(&self) -> Option<String> {
+        if self.credential_in_environment() || self.credential_env.is_empty() {
+            return None;
+        }
+        Some(format!(
+            "credential variable {} is empty or not set",
+            self.credential_env.join(" or ")
+        ))
+    }
+
     /// `text` with `{review_dir}` replaced by the review folder's path.
     fn fill(&self, text: &str) -> String {
         match &self.review_dir {
@@ -112,11 +132,7 @@ impl Reviewer {
         // Without a real home the login files' presence is unknown, not
         // absent. Do not turn that into a deterministic failure.
         let home = real_home?;
-        if self
-            .credential_env
-            .iter()
-            .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()))
-        {
+        if self.credential_in_environment() {
             return None;
         }
         if self.credential_env.is_empty() && self.login_paths.is_empty() {
@@ -133,11 +149,8 @@ impl Reviewer {
         }
 
         let mut parts = Vec::new();
-        if !self.credential_env.is_empty() {
-            parts.push(format!(
-                "credential variable {} is empty or not set",
-                self.credential_env.join(" or ")
-            ));
+        if let Some(note) = self.credential_missing_note() {
+            parts.push(note);
         }
         if !self.login_paths.is_empty() {
             parts.push(format!("login path {} is missing", missing.join(" or ")));
@@ -683,20 +696,14 @@ fn prepare_command(
 ) -> Result<(Command, RunHome, Vec<String>), String> {
     let home = RunHome::create()?;
     // A key in the environment is enough to sign in, so no login file is copied where a read tool could reach it.
-    let key_in_environment = reviewer
-        .credential_env
-        .iter()
-        .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()));
+    let key_in_environment = reviewer.credential_in_environment();
     let mut notes = if key_in_environment {
         Vec::new()
     } else {
         home.seed_login(real_home, &reviewer.login_paths)?
     };
-    if !key_in_environment && !reviewer.credential_env.is_empty() {
-        notes.push(format!(
-            "credential variable {} is empty or not set",
-            reviewer.credential_env.join(" or ")
-        ));
+    if let Some(note) = reviewer.credential_missing_note() {
+        notes.push(note);
     }
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();

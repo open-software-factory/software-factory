@@ -207,15 +207,15 @@ impl RoundCounts {
     }
 
     fn path_in(root: &Path, dir: Result<PathBuf, String>) -> Result<PathBuf, String> {
-        use std::hash::{Hash as _, Hasher as _};
         // The count decides whether a push may proceed, so it lives in the
         // journal state, outside the worktree the builder can edit. The
         // worktree path is the key, so each develop run has its own count.
         let dir = dir?;
         let rooted = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        rooted.hash(&mut hasher);
-        let name = format!("{:016x}.json", hasher.finish());
+        let name = format!(
+            "{}.json",
+            crate::journal::sha256_hex(rooted.to_string_lossy().as_bytes())
+        );
         Ok(dir.join("review-rounds").join(name))
     }
 

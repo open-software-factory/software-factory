@@ -337,8 +337,9 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 
 A moon task named `review` runs `osf review run` at pre-push. It reads the
 work item body from `.osf/out/work-item.txt`, which the caller writes before
-the push. A person pushing by hand writes it first: without it the
-spec-and-acceptance lens cannot run, and the review stops the push. A kept
+the push, or from `OSF_WORK_ITEM` when that file is missing. A person pushing
+by hand supplies one of the two: without it the spec-and-acceptance lens
+cannot run, and the review stops the push. A kept
 must-fix or should-fix finding stops the push, so the builder fixes it before
 it opens the pull request. Past `[review] in_sandbox_rounds` failed rounds the
 push proceeds with the findings recorded. A review that could not run stops
