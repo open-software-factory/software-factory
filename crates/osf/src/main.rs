@@ -631,6 +631,11 @@ struct ReviewReduceArgs {
     /// `owner/repo#N`. A failed post makes the run could-not-run.
     #[arg(long = "post-to")]
     post_to: Option<String>,
+    /// Deprecated and ignored. Accepted so a pinned hook that still passes it
+    /// parses; it changes no result and a later release drops it.
+    #[arg(long = "warn-only", hide = true)]
+    #[allow(dead_code)]
+    warn_only: bool,
     /// A family that built this change, repeatable. Overrides detection.
     #[arg(long = "builder-family")]
     builder_family: Vec<String>,
@@ -667,6 +672,11 @@ struct ReviewRunArgs {
     /// never see a clean exit code with no review evidence behind it.
     #[arg(long = "post-to")]
     post_to: Option<String>,
+    /// Deprecated and ignored. Accepted so a pinned caller that still passes
+    /// it parses; it changes no result and a later release drops it.
+    #[arg(long = "warn-only", hide = true)]
+    #[allow(dead_code)]
+    warn_only: bool,
     /// A family that built this change, repeatable. Overrides detection
     /// from the reviewed range's own `Code-Generator:` trailers entirely; a
     /// roster entry from a named family is left out of every lens the same

@@ -1036,7 +1036,8 @@ mod tests {
         let mut r = reviewer("preflight", vec!["true"]);
         r.credential_env = vec!["OSF_TEST_PREFLIGHT_SET".to_string()];
         r.login_paths = vec![".nope/auth.json".to_string()];
-        assert_eq!(r.missing_credentials(None), None);
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight-env");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
         std::env::remove_var("OSF_TEST_PREFLIGHT_SET");
     }
 
