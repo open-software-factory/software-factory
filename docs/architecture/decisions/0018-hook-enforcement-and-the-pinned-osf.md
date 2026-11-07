@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-09-26, amended 2026-10-29: `--warn-only` is removed outright, and the reusable review workflow's opencode secret is renamed.
+Date: 2026-09-26, amended 2026-10-29 and 2026-11-06: `--warn-only` is removed outright, the CLI version moves to 0.2.0, and the reusable review workflow's opencode secret is renamed.
 
 ## Context
 
@@ -104,7 +104,7 @@ Locally, osf builds and runs from the branch under review, so a change to a chec
 
 A flag rename lands in two steps. A build first accepts both the old and the new flag. Only a later build drops the old one. A hook running an older pinned osf then still calls a flag that build understands.
 
-Amended 2026-10-29, on the owner's decision: `--warn-only` stays accepted and ignored for one release, then a later build drops it. It changes no result after the fail-closed default, and the two-step form keeps a pinned hook parsing. The same change renames the reusable review workflow's opencode secret from `OPENROUTER_API_KEY` to `OSF_REVIEW_OPENCODE_API_KEY`, passed to the job as `OPENCODE_API_KEY`. A caller updates that mapping with the pin bump, and the old name is not kept.
+Amended 2026-11-06, on the owner's decision: `--warn-only` is removed outright. No caller uses it, so the one-step removal is safe, and the CLI version moves to 0.2.0 to mark the break. The same change renames the reusable review workflow's opencode secret from `OPENROUTER_API_KEY` to `OSF_REVIEW_OPENCODE_API_KEY`, passed to the job as `OPENCODE_API_KEY`. A caller updates that mapping with the pin bump, and the old name is not kept.
 
 ### A pull request that weakens a check
 

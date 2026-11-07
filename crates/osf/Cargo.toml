@@ -1,6 +1,6 @@
 [package]
 name = "osf"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Open Software Factory command line: deterministic checks that run before an agent's work is accepted"
 license = "Apache-2.0 OR MIT"
