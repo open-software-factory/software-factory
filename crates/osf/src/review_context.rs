@@ -261,15 +261,41 @@ fn changed_files_section(sources: &Sources) -> Result<String, String> {
 /// issue's text or the reason the pull request has none. Any other file is
 /// the work item's text itself.
 fn read_work_item(sources: &Sources) -> Result<String, String> {
-    let path = sources.work_item.ok_or_else(|| {
-        "no work item file was given: pass --work-item, or link an issue on the pull request's Issue line"
-            .to_string()
-    })?;
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: cannot be read: {e}", forward_slash(path)))?;
-    if path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    let from_environment = || {
+        std::env::var("OSF_WORK_ITEM")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+    };
+    let path = sources.work_item;
+    let (text, from_env) = match path {
+        None => {
+            let text = from_environment().ok_or_else(|| {
+                "no work item was given: set OSF_WORK_ITEM, pass --work-item, or link an issue on the pull request's Issue line"
+                    .to_string()
+            })?;
+            (text, true)
+        }
+        Some(path) => match std::fs::read_to_string(path) {
+            Ok(text) => (text, false),
+            // A caller can pass the body in OSF_WORK_ITEM instead of writing
+            // a file. Only a missing file falls back; any other read error
+            // stays an error, so an unreadable path never silently becomes
+            // the environment's text.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let text = from_environment()
+                    .ok_or_else(|| format!("{}: cannot be read: {e}", forward_slash(path)))?;
+                (text, true)
+            }
+            Err(e) => return Err(format!("{}: cannot be read: {e}", forward_slash(path))),
+        },
+    };
+    // The extension says whether a file is the saved-JSON form. Text that
+    // came from the environment is always the body itself.
+    if !from_env
+        && path.is_some_and(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+        })
     {
         if let Some(binding) = sources.work_item_binding {
             let body = sources.pull_request.and_then(|pr| pr.body.as_deref());
@@ -798,5 +824,21 @@ mod tests {
     fn append_redaction_note_names_the_count() {
         let text = append_redaction_note("body".to_string(), 3);
         assert!(text.contains("3 line"), "{text}");
+    }
+
+    #[test]
+    fn a_missing_work_item_file_falls_back_to_the_environment() {
+        std::env::set_var("OSF_WORK_ITEM", "## Done when\n- one\n");
+        let sources = Sources {
+            root: Path::new("."),
+            config_root: Path::new("."),
+            base: "main",
+            work_item: Some(Path::new("/nonexistent/osf-work-item.txt")),
+            pull_request: None,
+            work_item_binding: None,
+        };
+        let text = read_work_item(&sources).expect("the environment supplies it");
+        assert!(text.contains("Done when"), "{text}");
+        std::env::remove_var("OSF_WORK_ITEM");
     }
 }
