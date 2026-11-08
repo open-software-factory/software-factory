@@ -156,20 +156,18 @@ fn trigger_types(text: &str) -> Vec<String> {
 }
 
 #[test]
-fn the_workflow_runs_again_when_the_pull_request_text_is_edited() {
+fn a_body_edit_does_not_start_another_review() {
     let types = trigger_types(&caller_text());
-    for name in [
-        "opened",
-        "synchronize",
-        "reopened",
-        "ready_for_review",
-        "edited",
-    ] {
+    for name in ["opened", "synchronize", "reopened", "ready_for_review"] {
         assert!(
             types.iter().any(|found| found == name),
             "missing {name} in {types:?}"
         );
     }
+    assert!(
+        !types.iter().any(|found| found == "edited"),
+        "a body edit must not start another review: {types:?}"
+    );
 }
 
 #[test]

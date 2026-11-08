@@ -25,6 +25,26 @@ fn axis_names(report: &osf::changeset_risk::Report) -> Vec<&'static str> {
     report.axes_add.iter().map(|a| Axis::as_str(*a)).collect()
 }
 
+/// osf's own untracked output under `.osf/`, such as a review-round counter
+/// or a SARIF file, is not part of the change and must not raise the tier.
+#[test]
+fn an_untracked_osf_file_is_not_part_of_the_change() {
+    let repo = base_repo("untracked-osf-excluded");
+    repo.write("README.md", "base\nmore\n");
+    repo.write_lines(".osf/out/review-rounds.json", 1000);
+    repo.write_lines("src/extra.c", 3);
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
+    assert_eq!(
+        report.files, 2,
+        "the .osf file is not a changed file: {report:?}"
+    );
+    assert_eq!(
+        report.lines, 4,
+        "the .osf lines are not counted: {report:?}"
+    );
+    assert_eq!(report.tier, Tier::Low, "{report:?}");
+}
+
 #[test]
 fn docs_only() {
     let repo = base_repo("docs-only");
