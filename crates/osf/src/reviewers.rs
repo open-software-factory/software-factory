@@ -129,33 +129,37 @@ impl Reviewer {
         if self.templated {
             return None;
         }
-        // Without a real home the login files' presence is unknown, not
-        // absent. Do not turn that into a deterministic failure.
-        let home = real_home?;
         if self.credential_in_environment() {
             return None;
         }
         if self.credential_env.is_empty() && self.login_paths.is_empty() {
             return None;
         }
-        let missing: Vec<&str> = self
-            .login_paths
-            .iter()
-            .map(String::as_str)
-            .filter(|path| !home.join(path).exists())
-            .collect();
-        if !self.login_paths.is_empty() && missing.len() != self.login_paths.len() {
-            return None;
-        }
-
         let mut parts = Vec::new();
         if let Some(note) = self.credential_missing_note() {
             parts.push(note);
         }
-        if !self.login_paths.is_empty() {
-            parts.push(format!("login path {} is missing", missing.join(" or ")));
+        // Without a real home the login files' presence is unknown, not
+        // absent. The credential variables can still be judged.
+        if let Some(home) = real_home {
+            let missing: Vec<&str> = self
+                .login_paths
+                .iter()
+                .map(String::as_str)
+                .filter(|path| !home.join(path).exists())
+                .collect();
+            if !self.login_paths.is_empty() && missing.len() != self.login_paths.len() {
+                return None;
+            }
+            if !self.login_paths.is_empty() {
+                parts.push(format!("login path {} is missing", missing.join(" or ")));
+            }
         }
-        Some(parts.join("; "))
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join("; "))
+        }
     }
 
     /// `agent` as a reviewer running `model`, with `in_container`'s
@@ -1047,7 +1051,18 @@ mod tests {
         r.templated = true;
         r.credential_env = vec!["OSF_TEST_PREFLIGHT_UNSET".to_string()];
         r.login_paths = vec![".nope/auth.json".to_string()];
-        assert_eq!(r.missing_credentials(None), None);
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight-templated");
+        assert_eq!(r.missing_credentials(Some(home.as_ref())), None);
+    }
+
+    #[test]
+    fn an_empty_credential_variable_is_treated_as_unset() {
+        std::env::set_var("OSF_TEST_PREFLIGHT_EMPTY", "");
+        let mut r = reviewer("preflight", vec!["true"]);
+        r.credential_env = vec!["OSF_TEST_PREFLIGHT_EMPTY".to_string()];
+        let home = crate::test_support::TempDir::new("osf-reviewers-preflight-empty");
+        assert!(r.missing_credentials(Some(home.as_ref())).is_some());
+        std::env::remove_var("OSF_TEST_PREFLIGHT_EMPTY");
     }
 
     #[test]
