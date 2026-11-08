@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "36add91cc834a89295cc1eae1e5b2713bdfbe15d",
+    "contentHash": "7a2d5d7e28ac8614ad1f73768af52f54"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "ci-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d008ee1cd81fb2fd0e27bea60ee38dd8",
+      "bytes": 21561,
+      "width": 1778,
+      "height": 800,
+      "animated": false,
+      "path": "ci-pipeline-light-d008ee1cd81fb2fd0e27bea60ee38dd8.svg"
+    },
+    {
+      "id": "ci-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2fc0380cfa285c70789d738ffea3a5c2",
+      "bytes": 21754,
+      "width": 1778,
+      "height": 800,
+      "animated": false,
+      "path": "ci-pipeline-dark-2fc0380cfa285c70789d738ffea3a5c2.svg"
+    },
+    {
+      "id": "ci-job-setup-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "ci-job-setup-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ed87793c02282eef31618075cd169918",
+      "bytes": 16667,
+      "width": 1632,
+      "height": 489,
+      "animated": true,
+      "path": "ci-job-setup-flow-light-ed87793c02282eef31618075cd169918.svg"
+    },
+    {
+      "id": "ci-job-setup-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "ci-job-setup-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "04561547205117e0cb04449ef04d55b0",
+      "bytes": 16813,
+      "width": 1632,
+      "height": 489,
+      "animated": true,
+      "path": "ci-job-setup-flow-dark-04561547205117e0cb04449ef04d55b0.svg"
+    }
+  ]
+}

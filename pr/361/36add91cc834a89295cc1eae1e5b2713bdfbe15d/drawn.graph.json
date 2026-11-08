@@ -1,0 +1,631 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-11-08T00:08:47.261Z",
+  "title": "CI: bump pnpm/action-setup to v6.1.1 across all jobs",
+  "summary": "A single-file change to the GitHub Actions CI workflow. The pinned pnpm/action-setup action is moved from v6.1.0 to v6.1.1 in all three jobs that install pnpm (the lint/typecheck job, the test job and the build job). Nothing else in the pipeline changes: checkout, Node setup, install, and the downstream steps keep their existing pins and ordering. The effect is that every CI job now provisions pnpm through the patched action release.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "36add91cc834a89295cc1eae1e5b2713bdfbe15d",
+      "ref": "36add91cc834a89295cc1eae1e5b2713bdfbe15d"
+    },
+    "pullRequest": {
+      "number": 361,
+      "url": "https://github.com/open-software-factory/software-factory/pull/361"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0
+    },
+    {
+      "id": "ci-jobs",
+      "label": "CI jobs",
+      "subtitle": "GitHub Actions runners",
+      "order": 1
+    },
+    {
+      "id": "toolchain",
+      "label": "Toolchain setup",
+      "subtitle": "Actions used by each job",
+      "order": 2
+    },
+    {
+      "id": "checks",
+      "label": "Checks & build",
+      "subtitle": "Commands run on the runner",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-push-events",
+      "label": "Push / pull request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "workflow triggers",
+      "summary": "The events that start the CI workflow. Unchanged by this diff.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml workflow",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci-jobs",
+      "subtitle": "3 jobs, pnpm pin bumped",
+      "summary": "The workflow definition. This change edits the pnpm/action-setup pin in three separate jobs, so the workflow file is the only modified artifact.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-job",
+      "label": "Lint / typecheck job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci-jobs",
+      "subtitle": "pnpm/action-setup v6.1.1",
+      "summary": "First job to install pnpm; its action-setup step now points at the v6.1.1 commit.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 38,
+          "endLine": 44
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "test-job",
+      "label": "Test job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci-jobs",
+      "subtitle": "pnpm/action-setup v6.1.1",
+      "summary": "Second job to install pnpm; same pin bump as the lint job.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 67,
+          "endLine": 73
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "Build job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci-jobs",
+      "subtitle": "pnpm/action-setup v6.1.1",
+      "summary": "Third job to install pnpm; same pin bump, followed by Node setup and the build steps.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 143,
+          "endLine": 149
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkout-action",
+      "label": "actions/checkout",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "pinned commit",
+      "summary": "Clones the repository onto the runner before any toolchain setup. Pin unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pnpm-setup-action",
+      "label": "pnpm/action-setup",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "toolchain",
+      "subtitle": "v6.1.0 → v6.1.1",
+      "summary": "The third-party action that installs pnpm on the runner. This diff moves its pinned commit from the v6.1.0 release to v6.1.1 in all three jobs.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 41,
+          "endLine": 41
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 70,
+          "endLine": 70
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 146,
+          "endLine": 146
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "node-setup-action",
+      "label": "actions/setup-node",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "pinned commit",
+      "summary": "Installs the Node runtime after pnpm is set up. Pin unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pnpm-install",
+      "label": "pnpm install",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "checks",
+      "subtitle": "dependency install",
+      "summary": "Installs workspace dependencies using the pnpm binary provisioned by the action. Unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "lint-typecheck",
+      "label": "Lint & typecheck",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "checks",
+      "subtitle": "repo checks",
+      "summary": "The checks the lint job runs after install. Unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "test-suite",
+      "label": "Test suite",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "checks",
+      "subtitle": "repo tests",
+      "summary": "The tests the test job runs after install. Unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "build-artifacts",
+      "label": "Build",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "checks",
+      "subtitle": "package build",
+      "summary": "The build step the build job runs after install. Unchanged.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "events-to-workflow",
+      "from": "pr-push-events",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-lint",
+      "from": "ci-workflow",
+      "to": "lint-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-test",
+      "from": "ci-workflow",
+      "to": "test-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-build",
+      "from": "ci-workflow",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-checkout",
+      "from": "lint-job",
+      "to": "checkout-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-pnpm",
+      "from": "lint-job",
+      "to": "pnpm-setup-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v6.1.1",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 41,
+          "endLine": 41
+        }
+      ]
+    },
+    {
+      "id": "test-checkout",
+      "from": "test-job",
+      "to": "checkout-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "test-pnpm",
+      "from": "test-job",
+      "to": "pnpm-setup-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v6.1.1",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 70,
+          "endLine": 70
+        }
+      ]
+    },
+    {
+      "id": "build-checkout",
+      "from": "build-job",
+      "to": "checkout-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-pnpm",
+      "from": "build-job",
+      "to": "pnpm-setup-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "v6.1.1",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 146,
+          "endLine": 146
+        }
+      ]
+    },
+    {
+      "id": "lint-node",
+      "from": "lint-job",
+      "to": "node-setup-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "test-node",
+      "from": "test-job",
+      "to": "node-setup-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-node",
+      "from": "build-job",
+      "to": "node-setup-action",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-install",
+      "from": "lint-job",
+      "to": "pnpm-install",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "test-install",
+      "from": "test-job",
+      "to": "pnpm-install",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-install",
+      "from": "build-job",
+      "to": "pnpm-install",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-to-lint",
+      "from": "pnpm-install",
+      "to": "lint-typecheck",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-to-test",
+      "from": "pnpm-install",
+      "to": "test-suite",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-to-build",
+      "from": "pnpm-install",
+      "to": "build-artifacts",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "ci-job-setup",
+      "title": "One CI job: from trigger to checks",
+      "summary": "The per-job sequence every one of the three jobs follows. The only step whose target changes is the pnpm setup step, which now resolves to the v6.1.1 action commit.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "checkout-action",
+          "label": "checkout"
+        },
+        {
+          "node": "pnpm-setup-action",
+          "label": "pnpm setup"
+        },
+        {
+          "node": "node-setup-action",
+          "label": "setup-node"
+        },
+        {
+          "node": "pnpm-install",
+          "label": "pnpm install"
+        },
+        {
+          "node": "test-suite",
+          "label": "checks"
+        }
+      ],
+      "messages": [
+        {
+          "id": "job-start",
+          "from": "ci-workflow",
+          "to": "checkout-action",
+          "label": "run job steps",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "checkout-done",
+          "from": "checkout-action",
+          "to": "ci-workflow",
+          "label": "workspace ready",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "setup-pnpm",
+          "from": "ci-workflow",
+          "to": "pnpm-setup-action",
+          "label": "uses @ v6.1.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same step in all three jobs; only the pinned commit changes.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 41,
+              "endLine": 41
+            },
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 70,
+              "endLine": 70
+            },
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 146,
+              "endLine": 146
+            }
+          ]
+        },
+        {
+          "id": "pnpm-ready",
+          "from": "pnpm-setup-action",
+          "to": "ci-workflow",
+          "label": "pnpm on PATH",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "setup-node",
+          "from": "ci-workflow",
+          "to": "node-setup-action",
+          "label": "install Node",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "node-ready",
+          "from": "node-setup-action",
+          "to": "ci-workflow",
+          "label": "node on PATH",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-install",
+          "from": "ci-workflow",
+          "to": "pnpm-install",
+          "label": "pnpm install",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "install-done",
+          "from": "pnpm-install",
+          "to": "ci-workflow",
+          "label": "deps installed",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-checks",
+          "from": "ci-workflow",
+          "to": "test-suite",
+          "label": "run checks",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "Jobs touched",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "Action pin",
+        "value": "v6.1.0 → v6.1.1",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "ci-pipeline",
+      "title": "CI pipeline",
+      "lens": "architecture",
+      "summary": "The workflow, its three jobs, the actions each job depends on, and the checks they run. The pnpm action pin is the only modified dependency.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "ci-job-setup-flow",
+      "title": "Per-job setup sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps a single CI job executes, with the pnpm setup step highlighted as the changed one.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
