@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6f47d046e2348a7bc77829cdfdfe8ad87a3d8141",
+    "contentHash": "b5659917f38c2f82472ed75b128583d6"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "devcontainer-ci-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "devcontainer-ci",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6bdc2ef17035f516f20d39c2706a15dc",
+      "bytes": 13058,
+      "width": 1325,
+      "height": 532,
+      "animated": false,
+      "path": "devcontainer-ci-light-6bdc2ef17035f516f20d39c2706a15dc.svg"
+    },
+    {
+      "id": "devcontainer-ci-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "devcontainer-ci",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1f78807889282dedae177b62c47b634e",
+      "bytes": 13160,
+      "width": 1325,
+      "height": 532,
+      "animated": false,
+      "path": "devcontainer-ci-dark-1f78807889282dedae177b62c47b634e.svg"
+    },
+    {
+      "id": "login-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "login-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a6c5178cccac0d8960d1248867e4223",
+      "bytes": 11262,
+      "width": 1140,
+      "height": 337,
+      "animated": true,
+      "path": "login-flow-light-7a6c5178cccac0d8960d1248867e4223.svg"
+    },
+    {
+      "id": "login-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "login-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b11a31fd24e26e6b621f795c5bf8585e",
+      "bytes": 11353,
+      "width": 1140,
+      "height": 337,
+      "animated": true,
+      "path": "login-flow-dark-b11a31fd24e26e6b621f795c5bf8585e.svg"
+    }
+  ]
+}

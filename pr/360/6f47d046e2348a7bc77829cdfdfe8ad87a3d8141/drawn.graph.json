@@ -1,0 +1,350 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-11-08T00:06:36.141Z",
+  "title": "Devcontainer image workflow: docker/login-action bump",
+  "summary": "A one-line dependency bump in the devcontainer image build workflow: the GHCR login step moves from docker/login-action v4.6.0 to v4.8.0 (pinned by commit sha). Nothing else in the pipeline changes — the job still checks out, sets up Buildx, logs in to ghcr.io as the workflow actor, and builds/pushes the devcontainer image.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "448e2899035301712ce2dd77a0f5b9618b0b2eb5",
+      "ref": "448e2899035301712ce2dd77a0f5b9618b0b2eb5"
+    },
+    "head": {
+      "sha": "6f47d046e2348a7bc77829cdfdfe8ad87a3d8141",
+      "ref": "6f47d046e2348a7bc77829cdfdfe8ad87a3d8141"
+    },
+    "pullRequest": {
+      "number": 360,
+      "url": "https://github.com/open-software-factory/software-factory/pull/360"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0
+    },
+    {
+      "id": "ci",
+      "label": "GitHub Actions runner",
+      "subtitle": "devcontainer-image workflow",
+      "order": 1
+    },
+    {
+      "id": "registry",
+      "label": "Container registry",
+      "subtitle": "ghcr.io",
+      "order": 2
+    }
+  ],
+  "nodes": [
+    {
+      "id": "github-event",
+      "label": "Push / PR event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "workflow trigger",
+      "summary": "The GitHub event that starts the devcontainer image workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "devcontainer-workflow",
+      "label": "devcontainer-image.yml",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "build job",
+      "summary": "The workflow job that builds the devcontainer image. Its only change is the pinned sha of the login step.",
+      "files": [
+        {
+          "path": ".github/workflows/devcontainer-image.yml",
+          "startLine": 25,
+          "endLine": 31
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkout",
+      "label": "actions/checkout",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "step",
+      "summary": "Checks out the repository on the runner.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "setup-buildx",
+      "label": "docker/setup-buildx-action",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "v4.4.1",
+      "summary": "Prepares the Buildx builder used by the image build.",
+      "files": [
+        {
+          "path": ".github/workflows/devcontainer-image.yml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-login",
+      "label": "docker/login-action",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "v4.6.0 → v4.8.0",
+      "summary": "Authenticates the runner to ghcr.io using the workflow actor and token. This change bumps the pinned action from v4.6.0 to v4.8.0.",
+      "files": [
+        {
+          "path": ".github/workflows/devcontainer-image.yml",
+          "startLine": 28,
+          "endLine": 32
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "image-build",
+      "label": "Image build & push",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "buildx build",
+      "summary": "Builds the devcontainer image and pushes it to the registry once authenticated.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ghcr",
+      "label": "ghcr.io",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "GitHub Container Registry",
+      "summary": "The registry that receives the built devcontainer image.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-triggers-workflow",
+      "from": "github-event",
+      "to": "devcontainer-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-checkout",
+      "from": "devcontainer-workflow",
+      "to": "checkout",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-buildx",
+      "from": "devcontainer-workflow",
+      "to": "setup-buildx",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-login",
+      "from": "devcontainer-workflow",
+      "to": "docker-login",
+      "kind": "call",
+      "delta": "modified",
+      "label": "v4.8.0",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/devcontainer-image.yml",
+          "startLine": 28,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "login-ghcr",
+      "from": "docker-login",
+      "to": "ghcr",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "registry auth",
+      "emphasis": "hero",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-build",
+      "from": "devcontainer-workflow",
+      "to": "image-build",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-push-ghcr",
+      "from": "image-build",
+      "to": "ghcr",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "push image",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "image-publish",
+      "title": "Devcontainer image publish",
+      "summary": "How a trigger becomes a pushed image, with the login step as the only changed hop.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "github-event"
+        },
+        {
+          "node": "devcontainer-workflow"
+        },
+        {
+          "node": "docker-login"
+        },
+        {
+          "node": "ghcr"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-trigger",
+          "from": "github-event",
+          "to": "devcontainer-workflow",
+          "label": "workflow dispatch",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "step-login",
+          "from": "devcontainer-workflow",
+          "to": "docker-login",
+          "label": "run login step (v4.8.0)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/devcontainer-image.yml",
+              "startLine": 28,
+              "endLine": 32
+            }
+          ]
+        },
+        {
+          "id": "step-auth",
+          "from": "docker-login",
+          "to": "ghcr",
+          "label": "authenticate as github.actor",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "step-auth-ok",
+          "from": "ghcr",
+          "to": "docker-login",
+          "label": "token accepted",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "step-push",
+          "from": "devcontainer-workflow",
+          "to": "ghcr",
+          "label": "push built image",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "devcontainer-ci",
+      "title": "Devcontainer image pipeline",
+      "lens": "architecture",
+      "summary": "The workflow job and the actions it invokes, ending at the container registry.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "login-flow",
+      "title": "Login step in sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps from trigger to registry authentication, highlighting the bumped login action.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "image-publish"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
