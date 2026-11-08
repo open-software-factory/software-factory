@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "455a6da1fa58a672396b567137762fa7ffd5f77d",
+    "contentHash": "e313ac554a5ef27491b77223d811da5b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.6"
+  },
+  "assets": [
+    {
+      "id": "review-gate-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a1513dfad7e36dac1c2f27629ccd7123",
+      "bytes": 28483,
+      "width": 1738,
+      "height": 988,
+      "animated": false,
+      "path": "review-gate-context-light-a1513dfad7e36dac1c2f27629ccd7123.svg"
+    },
+    {
+      "id": "review-gate-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f986c3dd02fa4eac0731a046bad0a482",
+      "bytes": 28868,
+      "width": 1738,
+      "height": 988,
+      "animated": false,
+      "path": "review-gate-context-dark-f986c3dd02fa4eac0731a046bad0a482.svg"
+    },
+    {
+      "id": "round-budget-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "round-budget",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e0b561dc262124257851bba771d0425",
+      "bytes": 14320,
+      "width": 958,
+      "height": 646,
+      "animated": false,
+      "path": "round-budget-light-7e0b561dc262124257851bba771d0425.svg"
+    },
+    {
+      "id": "round-budget-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "round-budget",
+      "mediaType": "image/svg+xml",
+      "contentHash": "487b641de51d5cdfe3b837c20d54306c",
+      "bytes": 14490,
+      "width": 958,
+      "height": 646,
+      "animated": false,
+      "path": "round-budget-dark-487b641de51d5cdfe3b837c20d54306c.svg"
+    },
+    {
+      "id": "preflight-and-secrets-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "preflight-and-secrets",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e1bf20e1d4ac9d48925b5220d40e2d61",
+      "bytes": 10612,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "preflight-and-secrets-light-e1bf20e1d4ac9d48925b5220d40e2d61.svg"
+    },
+    {
+      "id": "preflight-and-secrets-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "preflight-and-secrets",
+      "mediaType": "image/svg+xml",
+      "contentHash": "973472f62774c0853632d6052e8b15eb",
+      "bytes": 10748,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "preflight-and-secrets-dark-973472f62774c0853632d6052e8b15eb.svg"
+    }
+  ]
+}
