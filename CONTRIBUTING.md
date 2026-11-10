@@ -78,7 +78,7 @@ also gets the git-town stack view.
 
 ## Commit messages
 
-Write the subject in the present tense, and do not end it with a full stop.
+Write the subject in the present tense.
 Explain in the body what changed and why. Keep sentences short.
 
 A message must stand on its own. Do not refer to a conversation, a chat, a

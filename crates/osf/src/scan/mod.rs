@@ -794,7 +794,8 @@ pub fn scan_paths(
 
 /// Scans every commit message in `range`, named by its commit hash. A
 /// commit message has no file to carry a suppression marker, so a finding
-/// here is never suppressible.
+/// here is never suppressible. Besides the scan rules, it applies the
+/// commit-message rules of [`crate::lints::writing::COMMIT_GATE_RULES`].
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, such as when `range` does not resolve.
@@ -804,10 +805,14 @@ pub fn scan_commits(
     rules: &Rules,
 ) -> Result<Vec<(String, Vec<Finding>)>, String> {
     let hashes = crate::git::commit_hashes(dir, range).map_err(|e| e.to_string())?;
+    let known = crate::lints::load_known_names(&[], None)?;
     let mut out = Vec::new();
     for hash in hashes {
         let message = crate::git::commit_message(dir, &hash).map_err(|e| e.to_string())?;
-        let findings = rules.scan_text(&message, Context::Commit);
+        let mut findings = rules.scan_text(&message, Context::Commit);
+        findings.extend(crate::lints::writing::commit_gate_findings(
+            &message, &known,
+        ));
         out.push((hash, findings));
     }
     Ok(out)
