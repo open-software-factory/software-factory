@@ -16,6 +16,7 @@ const HOME_FILE: &str = ".osf/config.toml";
 /// repository's own config lives at a fixed, predictable name, the same
 /// name this project's own `osf.toml` already uses.
 const REPO_CONFIG_FILE: &str = "osf.toml";
+const WORK_TRACKER_CONFIG_FILE: &str = "work_tracker.toml";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -294,7 +295,12 @@ fn default_skip_status() -> String {
 /// Returns an error when the file is not valid TOML, or its `[work_tracker]`
 /// table does not match [`WorkTrackerConfig`]'s shape.
 pub fn work_tracker_config(root: &Path) -> Result<Option<WorkTrackerConfig>, ConfigError> {
-    let path = root.join(REPO_CONFIG_FILE);
+    let dedicated = root.join(WORK_TRACKER_CONFIG_FILE);
+    let path = if dedicated.is_file() {
+        dedicated
+    } else {
+        root.join(REPO_CONFIG_FILE)
+    };
     let Ok(text) = std::fs::read_to_string(&path) else {
         return Ok(None);
     };
@@ -1820,6 +1826,21 @@ mod tests {
         let loaded = work_tracker_config(&dir).expect("loads").expect("a table");
         assert_eq!(loaded.status_field, "Workflow");
         assert_eq!(loaded.skip_status, "");
+    }
+
+    #[test]
+    fn work_tracker_config_reads_the_dedicated_file() {
+        let dir = TempDir::new("osf-config-work-tracker-dedicated");
+        std::fs::write(
+            dir.join("work_tracker.toml"),
+            "[work_tracker]\nowner = \"open-software-factory\"\nproject_number = 9\n",
+        )
+        .expect("work_tracker.toml writes");
+        let loaded = work_tracker_config(&dir)
+            .expect("work tracker config loads")
+            .expect("a table");
+        assert_eq!(loaded.owner, "open-software-factory");
+        assert_eq!(loaded.project_number, 9);
     }
 
     #[test]

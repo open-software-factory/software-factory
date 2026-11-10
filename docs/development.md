@@ -290,7 +290,7 @@ Agent binaries and pinned versions are reported as unknown until the agent versi
 
 ## Read and report a work item
 
-The develop job reads one item with the 'Ready' status and writes its state and recap. Configure the GitHub Project in `osf.toml`:
+The develop job reads one item with the 'Ready' status and writes its state and recap. Configure the GitHub Project in its own `work_tracker.toml`; the other config readers do not need to know the table:
 
 ```toml
 [work_tracker]

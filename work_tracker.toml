@@ -1,0 +1,7 @@
+# The work tracker the develop job reads and reports to. The builder app must
+# read this project; the first job's report also writes the state back.
+[work_tracker]
+owner = "open-software-factory"
+project_number = 4
+status_field = "Status"
+skip_status = "Done"
