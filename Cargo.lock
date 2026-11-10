@@ -14,9 +14,9 @@ dependencies = [
 
 [[package]]
 name = "agnix-core"
-version = "0.54.0"
+version = "0.56.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "949ecb6dd540a072964d53a57b3884cc6a908469d48d4e06fa493ede816e42f0"
+checksum = "298c382aaeaba30f37b7af2a0c962865c88a1eef5e80abc8f9a8f1ce3efd86f0"
 dependencies = [
  "agnix-rules",
  "anyhow",
@@ -38,9 +38,9 @@ dependencies = [
 
 [[package]]
 name = "agnix-rules"
-version = "0.54.0"
+version = "0.56.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a0fb627ba4cb4826f23741c783ffe171dc2f1b8bde8175ab225d2d15f2f5767"
+checksum = "021b04eadabcaa6a04b38472e4ef02b0193be3d1be0e1653dd764f3c4b14f7bc"
 dependencies = [
  "serde_json",
 ]
